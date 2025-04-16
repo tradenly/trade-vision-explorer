@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { executeTrade } from '@/services/dexService';
 import { useEthereumWallet } from '@/context/EthereumWalletContext';
 import { useSolanaWallet } from '@/context/SolanaWalletContext';
-import TokenPairSelector from '../TokenSelector/TokenPairSelector';
+import TokenPairSelectorNew from '../TokenSelector/TokenPairSelectorNew';
 
 interface ArbitrageScannerProps {
   initialBaseToken?: TokenInfo | null;
@@ -47,6 +47,7 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
   const { isConnected: isSolanaConnected, address: solanaAddress } = useSolanaWallet();
 
   const handleTokenPairSelect = (base: TokenInfo, quote: TokenInfo) => {
+    console.log("Token pair selected:", base.symbol, quote.symbol);
     setBaseToken(base);
     setQuoteToken(quote);
     
@@ -186,7 +187,7 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        <TokenPairSelector 
+        <TokenPairSelectorNew 
           onSelectTokenPair={handleTokenPairSelect}
           investmentAmount={amount}
           onInvestmentAmountChange={handleAmountChange}
