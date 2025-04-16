@@ -16,6 +16,22 @@ export interface DexConfig {
   enabled: boolean;
 }
 
+export interface ArbitrageOpportunityDetails {
+  buyDex: string;
+  buyPrice: number;
+  sellDex: string;
+  sellPrice: number;
+  baseToken: TokenInfo;
+  quoteToken: TokenInfo;
+  buyLiquidity: number;
+  sellLiquidity: number;
+  gasFee: number;
+  tradingFees: number;
+  platformFee: number; // Tradenly's 0.5% fee
+  estimatedProfit: number;
+  estimatedProfitPercentage: number;
+}
+
 export interface DexAdapter {
   getName(): string;
   getSupportedChains(): number[];

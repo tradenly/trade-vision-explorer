@@ -63,6 +63,8 @@ export async function scanForArbitrageOpportunities(
   minProfitPercentage: number = 0.5
 ): Promise<ArbitrageOpportunity[]> {
   try {
+    console.log(`Scanning for arbitrage opportunities: ${baseToken.symbol}/${quoteToken.symbol}`);
+    
     // Call Edge Function to scan for arbitrage
     const { data, error } = await supabase.functions.invoke('scan-arbitrage', {
       body: { 
@@ -74,9 +76,16 @@ export async function scanForArbitrageOpportunities(
     });
 
     if (error) {
+      console.error('Edge function error:', error);
       throw new Error(`Edge function error: ${error.message}`);
     }
 
+    if (!data || !data.opportunities) {
+      console.error('Invalid response from edge function:', data);
+      return [];
+    }
+
+    console.log(`Found ${data.opportunities.length} opportunities`);
     return data.opportunities || [];
   } catch (error) {
     console.error('Error scanning for arbitrage opportunities:', error);
@@ -90,6 +99,8 @@ export async function executeTrade(
   walletAddress: string
 ): Promise<TradeResult> {
   try {
+    console.log(`Executing trade for ${opportunity.tokenPair} with wallet ${walletAddress}`);
+    
     // Call Edge Function to execute trade
     const { data, error } = await supabase.functions.invoke('execute-trade', {
       body: { opportunity, walletAddress },

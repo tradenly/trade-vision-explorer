@@ -5,23 +5,25 @@ import { ArbitrageOpportunity, scanForArbitrageOpportunities } from '@/services/
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { RefreshCw, Loader2, ArrowRightLeft } from 'lucide-react';
+import { RefreshCw, Loader2, ArrowRightLeft, Scale, DollarSign, CircleDollarSign, Droplets } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Input } from '@/components/ui/input';
 import { executeTrade } from '@/services/dexService';
 import { useEthereumWallet } from '@/context/EthereumWalletContext';
 import { useSolanaWallet } from '@/context/SolanaWalletContext';
+import TokenPairSelector from '../TokenSelector/TokenPairSelector';
 
 interface ArbitrageScannerProps {
-  selectedToken: TokenInfo | null;
-  quoteToken?: TokenInfo;
+  initialBaseToken?: TokenInfo | null;
+  initialQuoteToken?: TokenInfo | null;
   investmentAmount?: number;
 }
 
 const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
-  selectedToken,
-  quoteToken,
+  initialBaseToken,
+  initialQuoteToken,
   investmentAmount = 1000
 }) => {
   const [opportunities, setOpportunities] = useState<ArbitrageOpportunity[]>([]);
@@ -30,35 +32,38 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
   const [selectedOpportunity, setSelectedOpportunity] = useState<ArbitrageOpportunity | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [transactionStatus, setTransactionStatus] = useState<'pending' | 'success' | 'error' | null>(null);
+  const [baseToken, setBaseToken] = useState<TokenInfo | null>(initialBaseToken || null);
+  const [quoteToken, setQuoteToken] = useState<TokenInfo | null>(initialQuoteToken || null);
+  const [amount, setAmount] = useState<number>(investmentAmount);
   const { toast } = useToast();
   const { isConnected: isEVMConnected, address: evmAddress } = useEthereumWallet();
   const { isConnected: isSolanaConnected, address: solanaAddress } = useSolanaWallet();
 
+  const handleTokenPairSelect = (base: TokenInfo, quote: TokenInfo) => {
+    setBaseToken(base);
+    setQuoteToken(quote);
+  };
+
+  const handleAmountChange = (newAmount: number) => {
+    setAmount(newAmount);
+  };
+
   const handleScan = async () => {
-    if (!selectedToken) {
+    if (!baseToken || !quoteToken) {
       toast({
-        title: "No token selected",
-        description: "Please select a token to scan for arbitrage opportunities",
+        title: "Incomplete selection",
+        description: "Please select both base and quote tokens to scan for arbitrage opportunities",
         variant: "destructive"
       });
       return;
     }
     
-    // Default quote token based on chain if not provided
-    const defaultQuoteToken: TokenInfo = {
-      name: selectedToken.chainId === 101 ? 'USDC' : 'USDT',
-      symbol: selectedToken.chainId === 101 ? 'USDC' : 'USDT',
-      address: '0x00',
-      chainId: selectedToken.chainId,
-      decimals: 6
-    };
-    
     setLoading(true);
     try {
       const results = await scanForArbitrageOpportunities(
-        selectedToken,
-        quoteToken || defaultQuoteToken,
-        investmentAmount
+        baseToken,
+        quoteToken,
+        amount
       );
       
       setOpportunities(results);
@@ -66,7 +71,7 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
       if (results.length === 0) {
         toast({
           title: "No opportunities found",
-          description: "Try a different token or check again later",
+          description: "Try a different token pair or check again later",
         });
       } else {
         toast({
@@ -158,10 +163,22 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
       <CardHeader>
         <div className="flex justify-between items-center">
           <CardTitle>Arbitrage Scanner</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Token Pair Selector */}
+        <TokenPairSelector 
+          onSelectTokenPair={handleTokenPairSelect}
+          investmentAmount={amount}
+          onInvestmentAmountChange={handleAmountChange}
+        />
+        
+        {/* Scan Button */}
+        <div className="flex justify-end">
           <Button 
             onClick={handleScan} 
-            disabled={!selectedToken || loading}
-            className="ml-2"
+            disabled={!baseToken || !quoteToken || loading}
+            size="lg"
           >
             {loading ? (
               <>
@@ -176,19 +193,8 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
             )}
           </Button>
         </div>
-      </CardHeader>
-      <CardContent>
-        {selectedToken ? (
-          <div className="mb-4 p-2 bg-green-50 dark:bg-green-900/20 rounded-md border border-green-200 dark:border-green-800">
-            <p>Scanning for arbitrage opportunities with {selectedToken.symbol} ({selectedToken.name})</p>
-            <p className="text-sm text-muted-foreground">Investment amount: ${investmentAmount.toLocaleString()}</p>
-          </div>
-        ) : (
-          <div className="mb-4 p-2 bg-amber-50 dark:bg-amber-900/20 rounded-md border border-amber-200 dark:border-amber-800">
-            <p>Select a token from the dropdown above to scan for arbitrage opportunities</p>
-          </div>
-        )}
 
+        {/* Results */}
         {opportunities.length > 0 ? (
           <div className="overflow-x-auto">
             <Table>
@@ -196,10 +202,33 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
                 <TableRow>
                   <TableHead>Token Pair</TableHead>
                   <TableHead>Buy On</TableHead>
-                  <TableHead>Sell On</TableHead>
                   <TableHead>Buy Price</TableHead>
+                  <TableHead>Sell On</TableHead>
                   <TableHead>Sell Price</TableHead>
-                  <TableHead>Fees</TableHead>
+                  <TableHead>
+                    <div className="flex items-center gap-1">
+                      <DollarSign className="w-4 h-4" />
+                      <span>Trading Fees</span>
+                    </div>
+                  </TableHead>
+                  <TableHead>
+                    <div className="flex items-center gap-1">
+                      <Scale className="w-4 h-4" />
+                      <span>Gas Fee</span>
+                    </div>
+                  </TableHead>
+                  <TableHead>
+                    <div className="flex items-center gap-1">
+                      <CircleDollarSign className="w-4 h-4" />
+                      <span>Platform Fee</span>
+                    </div>
+                  </TableHead>
+                  <TableHead>
+                    <div className="flex items-center gap-1">
+                      <Droplets className="w-4 h-4" />
+                      <span>Liquidity</span>
+                    </div>
+                  </TableHead>
                   <TableHead>Est. Profit</TableHead>
                   <TableHead>ROI %</TableHead>
                   <TableHead>Network</TableHead>
@@ -211,10 +240,13 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
                   <TableRow key={op.id}>
                     <TableCell>{op.tokenPair}</TableCell>
                     <TableCell>{op.buyDex}</TableCell>
-                    <TableCell>{op.sellDex}</TableCell>
                     <TableCell>${op.buyPrice.toFixed(4)}</TableCell>
+                    <TableCell>{op.sellDex}</TableCell>
                     <TableCell>${op.sellPrice.toFixed(4)}</TableCell>
-                    <TableCell>${(op.gasFee + op.tradingFees).toFixed(2)}</TableCell>
+                    <TableCell>${op.tradingFees.toFixed(2)}</TableCell>
+                    <TableCell>${op.gasFee.toFixed(2)}</TableCell>
+                    <TableCell>${op.platformFee.toFixed(2)}</TableCell>
+                    <TableCell>${(op.liquidity || 0).toLocaleString()}</TableCell>
                     <TableCell className="font-medium text-green-600 dark:text-green-400">
                       ${op.estimatedProfit.toFixed(2)}
                     </TableCell>
@@ -288,6 +320,15 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
                 
                 <span className="font-medium">Trading Fees:</span>
                 <span>${selectedOpportunity.tradingFees.toFixed(4)}</span>
+                
+                <span className="font-medium">Platform Fee (0.5%):</span>
+                <span>${selectedOpportunity.platformFee.toFixed(4)}</span>
+                
+                <span className="font-medium">Available Liquidity:</span>
+                <span>${selectedOpportunity.liquidity?.toLocaleString() || 'Unknown'}</span>
+                
+                <span className="font-medium">Investment Amount:</span>
+                <span>${amount.toLocaleString()}</span>
                 
                 <span className="font-medium">Expected Profit:</span>
                 <span className="text-green-600 font-bold">${selectedOpportunity.estimatedProfit.toFixed(4)} ({selectedOpportunity.estimatedProfitPercentage.toFixed(2)}%)</span>
