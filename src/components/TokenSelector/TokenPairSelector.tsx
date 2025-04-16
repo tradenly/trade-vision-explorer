@@ -30,7 +30,6 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
     getQuoteTokens, 
     handleChainChange: hookHandleChainChange, 
     getSafeTokenValue,
-    getStableTokenId,
     findTokenByValue,
     ensureValidAddress
   } = useTokens(selectedChain);
@@ -42,54 +41,112 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
   
   // Load quote tokens when chain changes
   useEffect(() => {
-    const tokens = getQuoteTokens();
-    console.log('Quote tokens loaded:', tokens.length);
-    setQuoteTokens(tokens);
-    
-    // Reset selections when chain changes
-    setBaseToken(null);
-    setQuoteToken(null);
-  }, [selectedChain, getQuoteTokens]);
+    try {
+      const tokens = getQuoteTokens();
+      console.log('Quote tokens loaded:', tokens.length);
+      setQuoteTokens(tokens);
+      
+      // Reset selections when chain changes
+      setBaseToken(null);
+      setQuoteToken(null);
+    } catch (error) {
+      console.error('Error loading quote tokens:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load quote tokens",
+        variant: "destructive"
+      });
+      setQuoteTokens([]);
+    }
+  }, [selectedChain, getQuoteTokens, toast]);
 
   // When both tokens are selected, notify the parent
   useEffect(() => {
     if (baseToken && quoteToken) {
-      onSelectTokenPair(baseToken, quoteToken);
+      try {
+        onSelectTokenPair(baseToken, quoteToken);
+      } catch (error) {
+        console.error('Error in onSelectTokenPair:', error);
+      }
     }
   }, [baseToken, quoteToken, onSelectTokenPair]);
 
   // Handle chain change
   const handleChainChange = (chainId: ChainId) => {
-    hookHandleChainChange(chainId);
-    if (onSelectChain) {
-      onSelectChain(chainId);
+    try {
+      hookHandleChainChange(chainId);
+      if (onSelectChain) {
+        onSelectChain(chainId);
+      }
+    } catch (error) {
+      console.error('Error changing chain:', error);
+      toast({
+        title: "Error",
+        description: "Failed to change blockchain",
+        variant: "destructive"
+      });
     }
   };
 
   // Handle base token selection
   const handleBaseTokenSelect = (token: TokenInfo) => {
-    setBaseToken(token);
+    if (!token) return;
+    try {
+      const validToken = ensureValidAddress(token);
+      setBaseToken(validToken);
+    } catch (error) {
+      console.error('Error selecting base token:', error);
+      toast({
+        title: "Error",
+        description: "Failed to select token",
+        variant: "destructive"
+      });
+    }
   };
 
   // Handle quote token selection
   const handleQuoteTokenSelect = (token: TokenInfo) => {
-    setQuoteToken(token);
+    if (!token) return;
+    try {
+      const validToken = ensureValidAddress(token);
+      setQuoteToken(validToken);
+    } catch (error) {
+      console.error('Error selecting quote token:', error);
+      toast({
+        title: "Error",
+        description: "Failed to select token",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleSwapTokens = () => {
     if (baseToken && quoteToken) {
-      const temp = baseToken;
-      setBaseToken(quoteToken);
-      setQuoteToken(temp);
+      try {
+        const temp = baseToken;
+        setBaseToken(quoteToken);
+        setQuoteToken(temp);
+      } catch (error) {
+        console.error('Error swapping tokens:', error);
+        toast({
+          title: "Error",
+          description: "Failed to swap tokens",
+          variant: "destructive"
+        });
+      }
     }
   };
 
   const handleInvestmentAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const amount = parseFloat(e.target.value);
-    if (!isNaN(amount) && amount > 0) {
-      if (onInvestmentAmountChange) {
-        onInvestmentAmountChange(amount);
+    try {
+      const amount = parseFloat(e.target.value);
+      if (!isNaN(amount) && amount > 0) {
+        if (onInvestmentAmountChange) {
+          onInvestmentAmountChange(amount);
+        }
       }
+    } catch (error) {
+      console.error('Error changing investment amount:', error);
     }
   };
 
@@ -141,6 +198,7 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
               selectedChain={selectedChain}
               onSelectToken={handleBaseTokenSelect}
               placeholder="Select Base Token"
+              selectedToken={baseToken}
             />
           </div>
           
@@ -158,56 +216,52 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
           
           <div className="space-y-1 md:col-start-2 md:row-start-1">
             <label className="text-sm font-medium">Quote Token (To)</label>
-            <Select
-              value={quoteToken ? getSafeTokenValue(quoteToken) : ""}
-              onValueChange={(value) => {
-                // Ensure the value is a valid token by using the findByValue helper
-                if (value) {
+            {quoteTokens.length > 0 ? (
+              <Select
+                value={quoteToken ? getSafeTokenValue(quoteToken) : ""}
+                onValueChange={(value) => {
+                  if (!value) return;
+                  
+                  // Find token by value (address)
                   const found = findTokenByValue(value);
                   if (found) {
                     handleQuoteTokenSelect(found);
                   } else {
                     console.warn("Selected token not found:", value);
+                    toast({
+                      title: "Warning",
+                      description: "Selected token not found in current list",
+                      variant: "default"
+                    });
                   }
-                }
-              }}
-              disabled={loading || quoteTokens.length === 0}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select Quote Token">
-                  {quoteToken && (
-                    <div className="flex items-center">
-                      {quoteToken.logoURI && (
-                        <img 
-                          src={quoteToken.logoURI} 
-                          alt={quoteToken.name} 
-                          className="w-5 h-5 mr-2 rounded-full"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                      )}
-                      {quoteToken.symbol}
-                    </div>
-                  )}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectLabel>Quote Tokens</SelectLabel>
-                  {loading ? (
-                    <div className="flex justify-center p-2">
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Loading quote tokens...
-                    </div>
-                  ) : quoteTokens.length === 0 ? (
-                    <div className="p-2 text-center text-muted-foreground">
-                      No quote tokens available
-                    </div>
-                  ) : (
-                    quoteTokens.map((token, index) => {
+                }}
+                disabled={loading || quoteTokens.length === 0}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select Quote Token">
+                    {quoteToken && (
+                      <div className="flex items-center">
+                        {quoteToken.logoURI && (
+                          <img 
+                            src={quoteToken.logoURI} 
+                            alt={quoteToken.name} 
+                            className="w-5 h-5 mr-2 rounded-full"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        )}
+                        {quoteToken.symbol}
+                      </div>
+                    )}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>Quote Tokens</SelectLabel>
+                    {quoteTokens.map((token, index) => {
                       // Skip invalid tokens
-                      if (!token.symbol || !token.address) return null;
+                      if (!token || !token.symbol || !token.address) return null;
                       
                       // Use the token's address as a unique, stable value
                       const tokenValue = getSafeTokenValue(token);
@@ -233,11 +287,22 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
                           </div>
                         </SelectItem>
                       );
-                    })
-                  )}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+                    })}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="flex justify-center p-2 border rounded-md bg-muted">
+                {loading ? (
+                  <div className="flex items-center">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <span>Loading quote tokens...</span>
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground">No quote tokens available</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

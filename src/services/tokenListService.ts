@@ -1,4 +1,3 @@
-
 import { supabase } from '@/lib/supabaseClient';
 
 export interface TokenInfo {
@@ -39,52 +38,19 @@ export const CHAIN_NAMES: Record<number, string> = {
   [ChainId.SOLANA]: 'Solana'
 };
 
-// Cache for token lists to avoid refetching
-const tokenCache: Record<number, {
-  tokens: TokenInfo[];
-  timestamp: number;
-}> = {};
-
-// Cache expiry time in milliseconds (5 minutes)
-const CACHE_EXPIRY_MS = 5 * 60 * 1000;
-
-// Check if cache is valid
-const isCacheValid = (chainId: number): boolean => {
-  const cache = tokenCache[chainId];
-  if (!cache) return false;
-  
-  const now = Date.now();
-  return (now - cache.timestamp) < CACHE_EXPIRY_MS;
-};
-
-// Generate a valid token address if needed
-const generateTokenAddress = (token: TokenInfo): string => {
-  // If the address is empty, null or undefined, generate a pseudo-address
-  if (!token.address || token.address === '' || token.address === 'undefined') {
-    return `generated-${token.symbol}-${Math.random().toString(36).substring(2, 15)}`;
-  }
-  return token.address;
-};
-
-// Ensure all tokens have valid addresses
-const validateTokens = (tokens: TokenInfo[]): TokenInfo[] => {
-  return tokens.map(token => {
-    if (!token.address || token.address === '' || token.address === 'undefined') {
-      // Generate a pseudo-address if needed to avoid empty strings
-      return {
-        ...token,
-        address: generateTokenAddress(token)
-      };
-    }
-    return token;
-  })
-  // Filter out duplicates and invalid tokens
-  .filter((token, index, self) => 
-    // Keep only tokens with valid properties
-    token.symbol && token.name && 
-    // Remove duplicates by address
-    index === self.findIndex(t => t.address === token.address)
-  );
+// CORS safe token list URLs - updated to use more reliable endpoints
+const CORS_SAFE_URLS = {
+  ethereum: [
+    'https://tokens.coingecko.com/uniswap/all.json',
+    'https://tokens.coingecko.com/ethereum/all.json'
+  ],
+  bnb: [
+    'https://tokens.coingecko.com/binance-smart-chain/all.json',
+    'https://tokens.pancakeswap.finance/pancakeswap-extended.json'
+  ],
+  solana: [
+    // No direct token list API, we'll use our defaults
+  ]
 };
 
 // Default tokens for each chain
@@ -107,164 +73,121 @@ const DEFAULT_SOLANA_TOKENS: TokenInfo[] = [
   { name: 'Solana', symbol: 'SOL', address: 'So11111111111111111111111111111111111111112', decimals: 9, chainId: ChainId.SOLANA },
   { name: 'USD Coin', symbol: 'USDC', address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', decimals: 6, chainId: ChainId.SOLANA },
   { name: 'Tether', symbol: 'USDT', address: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', decimals: 6, chainId: ChainId.SOLANA },
+  { name: 'Bonk', symbol: 'BONK', address: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', decimals: 5, chainId: ChainId.SOLANA },
+  { name: 'Jupiter', symbol: 'JUP', address: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', decimals: 6, chainId: ChainId.SOLANA },
 ];
 
-// CORS safe token list URLs
-const CORS_SAFE_URLS = {
-  ethereum: [
-    'https://tokens.coingecko.com/uniswap/all.json',
-    'https://wispy-bird-88a7.uniswap.workers.dev/?url=http://tokens.1inch.eth.link'
-  ],
-  bnb: [
-    'https://tokens.pancakeswap.finance/pancakeswap-extended.json',
-    'https://tokens.coingecko.com/binance-smart-chain/all.json'
-  ],
-  solana: [
-    'https://cdn.jsdelivr.net/gh/solana-labs/token-list@main/src/tokens/solana.tokenlist.json'
-  ]
+// Generate a valid token address if needed
+const generateTokenAddress = (token: TokenInfo): string => {
+  // If the address is empty, null or undefined, generate a pseudo-address
+  if (!token.address || token.address === '' || token.address === 'undefined') {
+    return `generated-${token.symbol}-${Math.random().toString(36).substring(2, 15)}`;
+  }
+  return token.address;
 };
 
-// Fetch Ethereum tokens with error handling and retry logic
-export async function fetchEthereumTokens(): Promise<TokenInfo[]> {
-  if (isCacheValid(ChainId.ETHEREUM)) {
-    return tokenCache[ChainId.ETHEREUM].tokens;
+// Ensure all tokens have valid addresses
+const validateTokens = (tokens: TokenInfo[]): TokenInfo[] => {
+  if (!tokens || !Array.isArray(tokens)) {
+    console.error('Invalid tokens array:', tokens);
+    return [];
   }
-
-  try {
-    // Try each CORS-safe URL until one works
-    let data: TokenList | null = null;
-    let error = null;
-    
-    for (const url of CORS_SAFE_URLS.ethereum) {
-      try {
-        console.log(`Attempting to fetch Ethereum tokens from: ${url}`);
-        const response = await fetch(url);
-        if (response.ok) {
-          data = await response.json();
-          break;
-        }
-      } catch (err) {
-        error = err;
-        console.error(`Failed to fetch from ${url}:`, err);
-        // Continue to the next URL
+  
+  return tokens
+    .filter(token => token && typeof token === 'object') // Filter out non-objects
+    .map(token => {
+      if (!token.address || token.address === '' || token.address === 'undefined') {
+        // Generate a pseudo-address if needed to avoid empty strings
+        return {
+          ...token,
+          address: generateTokenAddress(token)
+        };
       }
+      return token;
+    })
+    // Filter out duplicates and invalid tokens
+    .filter((token, index, self) => 
+      // Keep only tokens with valid properties
+      token.symbol && token.name && 
+      // Remove duplicates by address
+      index === self.findIndex(t => t.address === token.address)
+    );
+};
+
+// Fetch Ethereum tokens with improved error handling
+export async function fetchEthereumTokens(): Promise<TokenInfo[]> {
+  try {
+    console.log('Fetching Ethereum tokens...');
+    
+    // Try CoinGecko API - CORS friendly
+    const url = 'https://tokens.coingecko.com/uniswap/all.json';
+    console.log(`Attempting to fetch Ethereum tokens from: ${url}`);
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch from ${url}: ${response.status} ${response.statusText}`);
     }
     
-    if (!data) {
-      console.error('All Ethereum token URLs failed', error);
-      throw new Error('Failed to fetch Ethereum tokens from all sources');
+    const data = await response.json();
+    
+    if (!data || !data.tokens || !Array.isArray(data.tokens)) {
+      throw new Error('Invalid response format');
     }
     
     // Only include Ethereum tokens and validate them
-    const tokens = validateTokens(data.tokens.filter(token => token.chainId === ChainId.ETHEREUM));
-    
-    // Cache the results
-    tokenCache[ChainId.ETHEREUM] = {
-      tokens,
-      timestamp: Date.now()
-    };
+    const tokens = validateTokens(data.tokens.filter(token => token.chainId === 1));
     
     console.log(`Fetched ${tokens.length} Ethereum tokens`);
     return tokens;
   } catch (error) {
-    console.error('Error fetching Ethereum tokens from all sources:', error);
+    console.error('Error fetching Ethereum tokens:', error);
     
-    // Return default tokens if all fetching attempts failed
+    // Return default tokens if fetching failed
     console.log('Using default Ethereum token list');
     return DEFAULT_ETHEREUM_TOKENS;
   }
 }
 
-// Fetch BNB Chain tokens with error handling and retry logic
+// Fetch BNB Chain tokens with error handling
 export async function fetchBnbTokens(): Promise<TokenInfo[]> {
-  if (isCacheValid(ChainId.BNB)) {
-    return tokenCache[ChainId.BNB].tokens;
-  }
-
   try {
-    // Try each CORS-safe URL until one works
-    let data: TokenList | null = null;
-    let error = null;
+    console.log('Fetching BNB Chain tokens...');
     
-    for (const url of CORS_SAFE_URLS.bnb) {
-      try {
-        console.log(`Attempting to fetch BNB tokens from: ${url}`);
-        const response = await fetch(url);
-        if (response.ok) {
-          data = await response.json();
-          break;
-        }
-      } catch (err) {
-        error = err;
-        console.error(`Failed to fetch from ${url}:`, err);
-        // Continue to the next URL
-      }
+    // Try CoinGecko API for BNB Chain - CORS friendly
+    const url = 'https://tokens.coingecko.com/binance-smart-chain/all.json';
+    console.log(`Attempting to fetch BNB tokens from: ${url}`);
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch from ${url}: ${response.status} ${response.statusText}`);
     }
     
-    if (!data) {
-      console.error('All BNB token URLs failed', error);
-      throw new Error('Failed to fetch BNB tokens from all sources');
+    const data = await response.json();
+    
+    if (!data || !data.tokens || !Array.isArray(data.tokens)) {
+      throw new Error('Invalid response format');
     }
     
     // Filter for BNB Chain tokens and validate them
-    const tokens = validateTokens(data.tokens.filter(token => token.chainId === ChainId.BNB));
-    
-    // Cache the results
-    tokenCache[ChainId.BNB] = {
-      tokens,
-      timestamp: Date.now()
-    };
+    const tokens = validateTokens(data.tokens);
     
     console.log(`Fetched ${tokens.length} BNB Chain tokens`);
     return tokens;
   } catch (error) {
     console.error('Error fetching BNB tokens:', error);
     
-    // Return default tokens if all fetching attempts failed
+    // Return default tokens if fetching failed
     console.log('Using default BNB token list');
     return DEFAULT_BNB_TOKENS;
   }
 }
 
-// Fetch Solana tokens with error handling and retry logic
+// Fetch Solana tokens
 export async function fetchSolanaTokens(): Promise<TokenInfo[]> {
-  if (isCacheValid(ChainId.SOLANA)) {
-    return tokenCache[ChainId.SOLANA].tokens;
-  }
-
-  try {
-    // Solana tokens are usually safer to fetch
-    const response = await fetch(CORS_SAFE_URLS.solana[0]);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch Solana tokens: ${response.status} ${response.statusText}`);
-    }
-    
-    const data: TokenList = await response.json();
-    
-    // Transform to match our interface
-    let tokens = data.tokens.map(token => ({
-      ...token,
-      chainId: ChainId.SOLANA,
-    }));
-    
-    // Validate tokens to ensure they have addresses
-    tokens = validateTokens(tokens);
-    
-    // Cache the results
-    tokenCache[ChainId.SOLANA] = {
-      tokens,
-      timestamp: Date.now()
-    };
-    
-    console.log(`Fetched ${tokens.length} Solana tokens`);
-    return tokens;
-  } catch (error) {
-    console.error('Error fetching Solana tokens:', error);
-    
-    // Return default tokens if fetching failed
-    console.log('Using default Solana token list');
-    return DEFAULT_SOLANA_TOKENS;
-  }
+  // For simplicity and reliability, we'll just use our default Solana tokens
+  // In a production environment, you could integrate with Jupiter API
+  console.log('Using default Solana tokens');
+  return DEFAULT_SOLANA_TOKENS;
 }
 
 // Fetch all tokens from all supported chains with improved error handling

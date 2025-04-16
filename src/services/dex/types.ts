@@ -1,42 +1,34 @@
 
-import { TokenInfo } from '../tokenListService';
-
+/**
+ * Represents a price quote from a DEX
+ */
 export interface PriceQuote {
-  dexName: string;
-  price: number;
-  fees: number; // in percentage
-  liquidityInfo?: any; // Added to support additional liquidity information
+  dexName: string;        // Name of the DEX providing the quote
+  price: number;          // The quoted price
+  fees?: number;          // Trading fees as a percentage
+  gasEstimate?: number;   // Estimated gas cost in USD
+  liquidityInfo?: any;    // Optional liquidity information
 }
 
+/**
+ * Configuration for a DEX
+ */
 export interface DexConfig {
-  name: string;
-  slug: string;
-  chainIds: number[]; // Which chains this DEX supports
-  tradingFeePercentage: number;
-  enabled: boolean;
+  name: string;               // Display name of DEX
+  slug: string;               // Unique identifier for the DEX
+  chainIds: number[];         // Chain IDs supported by this DEX
+  tradingFeePercentage: number; // Trading fee as a percentage
+  enabled: boolean;           // Whether this DEX is enabled for scanning
 }
 
-export interface ArbitrageOpportunityDetails {
-  buyDex: string;
-  buyPrice: number;
-  sellDex: string;
-  sellPrice: number;
-  baseToken: TokenInfo;
-  quoteToken: TokenInfo;
-  buyLiquidity: number;
-  sellLiquidity: number;
-  gasFee: number;
-  tradingFees: number;
-  platformFee: number; // Tradenly's 0.5% fee
-  estimatedProfit: number;
-  estimatedProfitPercentage: number;
-}
-
+/**
+ * Interface for DEX adapters
+ */
 export interface DexAdapter {
   getName(): string;
   getSupportedChains(): number[];
-  fetchQuote(baseToken: TokenInfo, quoteToken: TokenInfo, amount?: number): Promise<PriceQuote>;
   getTradingFeePercentage(): number;
   isEnabled(): boolean;
   setEnabled(enabled: boolean): void;
+  fetchQuote(baseToken: any, quoteToken: any, amount?: number): Promise<PriceQuote>;
 }

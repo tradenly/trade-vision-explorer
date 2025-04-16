@@ -15,13 +15,17 @@ interface TokenSelectorProps {
   selectedChain?: ChainId;
   onSelectChain?: (chainId: ChainId) => void;
   placeholder?: string;
+  selectedToken?: TokenInfo | null;
+  disabled?: boolean;
 }
 
 const TokenSelector: React.FC<TokenSelectorProps> = ({ 
-  onSelectToken, 
+  onSelectToken,
   selectedChain = ChainId.ETHEREUM,
   onSelectChain,
-  placeholder = "Select a token"
+  placeholder = "Select a token",
+  selectedToken = null,
+  disabled = false
 }) => {
   const { 
     loading, 
@@ -36,16 +40,25 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
   
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
-  const [selectedToken, setSelectedToken] = useState<TokenInfo | null>(null);
+  const [internalSelectedToken, setInternalSelectedToken] = useState<TokenInfo | null>(selectedToken);
+
+  // Update internal state when prop changes
+  useEffect(() => {
+    setInternalSelectedToken(selectedToken);
+  }, [selectedToken]);
 
   // Handler for chain selection
   const handleChainChange = (value: string) => {
-    const chainId = parseInt(value) as ChainId;
-    if (onSelectChain) {
-      onSelectChain(chainId);
+    try {
+      const chainId = parseInt(value) as ChainId;
+      if (onSelectChain) {
+        onSelectChain(chainId);
+      }
+      hookHandleChainChange(chainId);
+      setInternalSelectedToken(null);
+    } catch (error) {
+      console.error("Error changing chain:", error);
     }
-    hookHandleChainChange(chainId);
-    setSelectedToken(null);
   };
 
   // Debounced search filter
@@ -56,27 +69,50 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
 
   // Filter tokens based on search input
   const getFilteredTokens = useCallback(() => {
-    const tokens = getChainTokens();
-    
-    // Validate tokens before filtering
-    const validatedTokens = tokens.map(ensureValidAddress);
-    
-    return validatedTokens.filter(token => 
-      token.name?.toLowerCase().includes(search.toLowerCase()) || 
-      token.symbol?.toLowerCase().includes(search.toLowerCase())
-    ).slice(0, 50);
+    try {
+      const tokens = getChainTokens();
+      
+      if (!tokens || !Array.isArray(tokens) || tokens.length === 0) {
+        return []; // Return empty array if no tokens
+      }
+      
+      // Validate tokens before filtering
+      const validatedTokens = tokens
+        .filter(token => token && token.symbol && token.name)
+        .map(ensureValidAddress);
+      
+      if (!search) {
+        return validatedTokens.slice(0, 50); // Limit results if no search
+      }
+      
+      return validatedTokens
+        .filter(token => 
+          token.name?.toLowerCase().includes(search.toLowerCase()) || 
+          token.symbol?.toLowerCase().includes(search.toLowerCase())
+        )
+        .slice(0, 50);
+    } catch (error) {
+      console.error("Error filtering tokens:", error);
+      return [];
+    }
   }, [getChainTokens, search, ensureValidAddress]);
 
   // Handle token selection
   const handleTokenSelect = (token: TokenInfo) => {
-    // Ensure the token has a valid address
-    const validToken = ensureValidAddress(token);
-    
-    setSelectedToken(validToken);
-    if (onSelectToken) {
-      onSelectToken(validToken);
+    try {
+      if (!token) return;
+      
+      // Ensure the token has a valid address
+      const validToken = ensureValidAddress(token);
+      
+      setInternalSelectedToken(validToken);
+      if (onSelectToken) {
+        onSelectToken(validToken);
+      }
+      setOpen(false);
+    } catch (error) {
+      console.error("Error selecting token:", error);
     }
-    setOpen(false);
   };
 
   // Chain logo mapping
@@ -102,6 +138,7 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
         <Select 
           value={selectedChain.toString()} 
           onValueChange={handleChainChange}
+          disabled={disabled}
         >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Select a chain">
@@ -154,21 +191,21 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
               role="combobox"
               aria-expanded={open}
               className="w-full justify-between bg-background"
-              disabled={loading}
+              disabled={loading || disabled}
             >
-              {selectedToken ? (
+              {internalSelectedToken ? (
                 <div className="flex items-center">
-                  {selectedToken.logoURI && (
+                  {internalSelectedToken.logoURI && (
                     <img
-                      src={selectedToken.logoURI}
-                      alt={selectedToken.name}
+                      src={internalSelectedToken.logoURI}
+                      alt={internalSelectedToken.name}
                       className="w-5 h-5 mr-2 rounded-full"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = 'none';
                       }}
                     />
                   )}
-                  <span>{selectedToken.symbol}</span>
+                  <span>{internalSelectedToken.symbol}</span>
                 </div>
               ) : (
                 placeholder
@@ -202,13 +239,16 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
                   <CommandGroup heading="Popular Tokens">
                     <ScrollArea className="h-[200px]">
                       {currentPopularTokens.map((token, index) => {
-                        // Ensure we have a valid token with a symbol and address
-                        if (!token.symbol || !token.address) return null;
+                        // Ensure we have a valid token with a symbol
+                        if (!token || !token.symbol) return null;
+                        
+                        // Generate a unique key
+                        const key = `popular-${token.symbol}-${index}-${token.address || ''}`;
                         
                         return (
                           <CommandItem
-                            key={`popular-${token.symbol}-${index}`}
-                            value={`popular-${token.symbol}-${index}`}
+                            key={key}
+                            value={key}
                             onSelect={() => handleTokenSelect(token)}
                             className="flex items-center"
                           >
@@ -228,7 +268,7 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
                                 {token.name}
                               </span>
                             </div>
-                            {selectedToken?.symbol === token.symbol && (
+                            {internalSelectedToken?.symbol === token.symbol && (
                               <Check className="h-4 w-4 ml-auto" />
                             )}
                           </CommandItem>
@@ -247,13 +287,16 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
                       </div>
                     ) : (
                       filteredTokens.map((token, index) => {
-                        // Ensure we have a valid token with a symbol and address
-                        if (!token.symbol || !token.address) return null;
+                        // Ensure we have a valid token with a symbol
+                        if (!token || !token.symbol) return null;
+                        
+                        // Generate a unique key
+                        const key = `token-${token.symbol}-${index}-${token.address || ''}`;
                         
                         return (
                           <CommandItem
-                            key={`token-${token.symbol}-${index}`}
-                            value={`${token.symbol}-${token.chainId}-${index}`}
+                            key={key}
+                            value={key}
                             onSelect={() => handleTokenSelect(token)}
                             className="flex items-center"
                           >
@@ -273,7 +316,7 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
                                 {token.name}
                               </span>
                             </div>
-                            {selectedToken?.symbol === token.symbol && (
+                            {internalSelectedToken?.symbol === token.symbol && (
                               <Check className="h-4 w-4 ml-auto" />
                             )}
                           </CommandItem>
