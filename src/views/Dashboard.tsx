@@ -1,8 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { fetchArbitrageOpportunities } from '@/services/supabaseService';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import WalletSection from '@/components/WalletConnect/WalletSection';
+import TokenSelector from '@/components/TokenSelector/TokenSelector';
+import { ChainId, TokenInfo } from '@/services/tokenListService';
 
 interface ArbitrageOpportunity {
   id: string;
@@ -19,6 +21,8 @@ const Dashboard: React.FC = () => {
   const [opportunities, setOpportunities] = useState<ArbitrageOpportunity[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedChain, setSelectedChain] = useState<ChainId>(ChainId.ETHEREUM);
+  const [selectedToken, setSelectedToken] = useState<TokenInfo | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -36,12 +40,60 @@ const Dashboard: React.FC = () => {
     loadData();
   }, []);
 
+  const handleTokenSelect = (token: TokenInfo) => {
+    setSelectedToken(token);
+    console.log('Selected token:', token);
+    // Later you can use this to scan for arbitrage pairs
+  };
+
+  const handleChainSelect = (chainId: ChainId) => {
+    setSelectedChain(chainId);
+    setSelectedToken(null);
+    console.log('Selected chain:', chainId);
+  };
+
   return (
     <div className="container mx-auto py-8">
       <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
       
       {/* Wallet Connection Section */}
       <WalletSection />
+      
+      {/* Token Selection Section */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Select Token for Arbitrage Scanner</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TokenSelector 
+            onSelectToken={handleTokenSelect} 
+            selectedChain={selectedChain}
+            onSelectChain={handleChainSelect}
+          />
+          
+          {selectedToken && (
+            <div className="mt-4 p-3 bg-green-50 rounded-md border border-green-200">
+              <h3 className="font-medium">Selected Token:</h3>
+              <div className="flex items-center mt-2">
+                {selectedToken.logoURI && (
+                  <img 
+                    src={selectedToken.logoURI} 
+                    alt={selectedToken.name} 
+                    className="w-6 h-6 mr-2 rounded-full"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                )}
+                <div>
+                  <p className="font-bold">{selectedToken.symbol}</p>
+                  <p className="text-sm text-gray-500">{selectedToken.name}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
       
       <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6">
         <p className="font-bold">Connected to Supabase</p>
