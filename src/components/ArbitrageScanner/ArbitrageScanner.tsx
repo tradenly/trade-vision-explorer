@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { TokenInfo, ChainId } from '@/services/tokenListService';
 import { ArbitrageOpportunity, scanForArbitrageOpportunities } from '@/services/dexService';
@@ -42,14 +43,17 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
   const [baseToken, setBaseToken] = useState<TokenInfo | null>(initialBaseToken || null);
   const [quoteToken, setQuoteToken] = useState<TokenInfo | null>(initialQuoteToken || null);
   const [amount, setAmount] = useState<number>(investmentAmount);
+  const [scanError, setScanError] = useState<string | null>(null);
   const { toast } = useToast();
   const { isConnected: isEVMConnected, address: evmAddress } = useEthereumWallet();
   const { isConnected: isSolanaConnected, address: solanaAddress } = useSolanaWallet();
 
   const handleTokenPairSelect = (base: TokenInfo, quote: TokenInfo) => {
     console.log("Token pair selected:", base.symbol, quote.symbol);
+    setScanError(null); // Clear previous scan error
     setBaseToken(base);
     setQuoteToken(quote);
+    setOpportunities([]); // Clear previous opportunities when pair changes
     
     if (onTokenPairSelect) {
       onTokenPairSelect(base, quote);
@@ -65,6 +69,10 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
   };
 
   const handleChainSelect = (chainId: ChainId) => {
+    // Clear previous results when chain changes
+    setOpportunities([]);
+    setScanError(null);
+    
     if (onChainSelect) {
       onChainSelect(chainId);
     }
@@ -72,16 +80,16 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
 
   const handleScan = async () => {
     if (!baseToken || !quoteToken) {
-      toast({
-        title: "Incomplete selection",
-        description: "Please select both base and quote tokens to scan for arbitrage opportunities",
-        variant: "destructive"
-      });
+      setScanError("Please select both base and quote tokens to scan");
       return;
     }
     
     setLoading(true);
+    setScanError(null);
+    
     try {
+      console.log(`Scanning for arbitrage: ${baseToken.symbol}/${quoteToken.symbol} with $${amount}`);
+      
       const results = await scanForArbitrageOpportunities(
         baseToken,
         quoteToken,
@@ -91,19 +99,19 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
       setOpportunities(results);
       
       if (results.length === 0) {
+        console.log("No arbitrage opportunities found");
+        // Only show toast for user-initiated actions
         toast({
           title: "No opportunities found",
           description: "Try a different token pair or check again later",
         });
-      } else {
-        toast({
-          title: `Found ${results.length} opportunities`,
-          description: "Review the arbitrage opportunities below",
-          variant: "default",
-        });
       }
     } catch (error) {
       console.error('Error during scan:', error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      setScanError(`Scan failed: ${errorMessage}`);
+      
+      // Only show critical errors as toast
       toast({
         title: "Scan failed",
         description: "There was an error during the scan. Please try again.",
@@ -152,7 +160,6 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
         toast({
           title: "Trade successful",
           description: `Successfully executed arbitrage trade for ${selectedOpportunity.tokenPair}`,
-          variant: "default",
         });
       } else {
         setTransactionStatus('error');
@@ -214,6 +221,12 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
             )}
           </Button>
         </div>
+        
+        {scanError && (
+          <Alert variant="destructive">
+            <AlertDescription>{scanError}</AlertDescription>
+          </Alert>
+        )}
 
         {opportunities.length > 0 ? (
           <div className="overflow-x-auto">
@@ -305,7 +318,9 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
           </div>
         ) : (
           <div className="text-center p-8 text-muted-foreground">
-            No arbitrage opportunities found. Click "Scan for Opportunities" to start scanning.
+            {baseToken && quoteToken ? 
+              "No arbitrage opportunities found. Click \"Scan for Opportunities\" to start scanning." :
+              "Please select base and quote tokens to scan for opportunities."}
           </div>
         )}
       </CardContent>

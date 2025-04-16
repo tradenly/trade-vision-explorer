@@ -21,12 +21,19 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
   const [allChainTokens, setAllChainTokens] = useState<TokenInfo[]>([]);
   const [quoteTokens, setQuoteTokens] = useState<TokenInfo[]>([]);
   const [popularTokens, setPopularTokens] = useState<TokenInfo[]>([]);
+  
+  // Token loading cache to prevent multiple simultaneous loading for the same chain
+  const [isLoadingChain, setIsLoadingChain] = useState<boolean>(false);
 
   // Load tokens for the selected chain
   useEffect(() => {
     let isMounted = true;
     
     async function loadTokensForChain() {
+      // Don't try to reload if we're already loading
+      if (isLoadingChain) return;
+      
+      setIsLoadingChain(true);
       setLoading(true);
       setError(null);
       
@@ -39,32 +46,41 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
         if (!isMounted) return;
         
         if (!tokens || tokens.length === 0) {
-          throw new Error(`No tokens found for chain ${selectedChain}`);
+          // Use defaults instead of showing error toast
+          console.warn(`No tokens found for chain ${selectedChain}, using defaults`);
+          const defaults = DEFAULT_TOKENS[selectedChain] || [];
+          setAllChainTokens(defaults);
+          setQuoteTokens(getQuoteTokensForChain(selectedChain, defaults));
+          setPopularTokens(getPopularTokensForChain(selectedChain, defaults));
+        } else {
+          // Set all chain tokens
+          setAllChainTokens(tokens);
+          
+          // Set quote tokens
+          const quotes = getQuoteTokensForChain(selectedChain, tokens);
+          setQuoteTokens(quotes);
+          
+          // Set popular tokens
+          const popular = getPopularTokensForChain(selectedChain, tokens);
+          setPopularTokens(popular);
+          
+          console.log(`Successfully loaded ${tokens.length} tokens for chain ${selectedChain}`);
         }
-        
-        // Set all chain tokens
-        setAllChainTokens(tokens);
-        
-        // Set quote tokens
-        const quotes = getQuoteTokensForChain(selectedChain, tokens);
-        setQuoteTokens(quotes);
-        
-        // Set popular tokens
-        const popular = getPopularTokensForChain(selectedChain, tokens);
-        setPopularTokens(popular);
-        
-        console.log(`Successfully loaded ${tokens.length} tokens for chain ${selectedChain}`);
       } catch (err) {
         console.error('Error loading tokens:', err);
         
         if (!isMounted) return;
         
         setError('Failed to load tokens');
-        toast({
-          title: "Failed to load tokens",
-          description: "Using fallback token list. Some features may be limited.",
-          variant: "destructive"
-        });
+        
+        // Only show toast for critical errors, not just when using fallback
+        if (err instanceof Error && err.message.includes('critical')) {
+          toast({
+            title: "Failed to load tokens",
+            description: "Using fallback token list. Some features may be limited.",
+            variant: "destructive"
+          });
+        }
         
         // Use defaults as fallback
         const defaults = DEFAULT_TOKENS[selectedChain] || [];
@@ -74,6 +90,7 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
       } finally {
         if (isMounted) {
           setLoading(false);
+          setIsLoadingChain(false);
         }
       }
     }
@@ -83,7 +100,7 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
     return () => {
       isMounted = false;
     };
-  }, [selectedChain, toast]);
+  }, [selectedChain]);
 
   // Handle chain selection change
   const handleChainChange = useCallback((chainId: ChainId) => {
