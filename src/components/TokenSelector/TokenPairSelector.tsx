@@ -31,7 +31,8 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
     handleChainChange: hookHandleChainChange, 
     getSafeTokenValue,
     getStableTokenId,
-    findTokenByValue
+    findTokenByValue,
+    ensureValidAddress
   } = useTokens(selectedChain);
   
   const [baseToken, setBaseToken] = useState<TokenInfo | null>(null);
@@ -204,18 +205,17 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
                       No quote tokens available
                     </div>
                   ) : (
-                    quoteTokens.map((token) => {
+                    quoteTokens.map((token, index) => {
+                      // Skip invalid tokens
+                      if (!token.symbol || !token.address) return null;
+                      
                       // Use the token's address as a unique, stable value
                       const tokenValue = getSafeTokenValue(token);
-                      
-                      // Skip tokens without an address or value
                       if (!tokenValue) return null;
-                      
-                      const key = `quote-${token.symbol}-${token.chainId}`;
                       
                       return (
                         <SelectItem 
-                          key={key}
+                          key={`quote-${token.symbol}-${index}`}
                           value={tokenValue}
                         >
                           <div className="flex items-center">

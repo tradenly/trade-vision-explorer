@@ -92,25 +92,6 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
   // Get current popular tokens for selected chain
   const currentPopularTokens = popularTokens[selectedChain] || [];
 
-  // Handle CommandItem selection (work around for any un-keyed items)
-  const handleCommandItemSelect = (commandValue: string) => {
-    // Parse the command value to extract token info
-    const tokenSymbolMatch = commandValue.match(/^(?:popular-)?([^-]+)/);
-    const tokenSymbol = tokenSymbolMatch ? tokenSymbolMatch[1] : '';
-    
-    if (tokenSymbol) {
-      // Find the token in either filtered or popular tokens
-      const tokenList = commandValue.startsWith('popular-') 
-        ? currentPopularTokens 
-        : filteredTokens;
-      
-      const foundToken = tokenList.find(t => t.symbol === tokenSymbol);
-      if (foundToken) {
-        handleTokenSelect(foundToken);
-      }
-    }
-  };
-
   return (
     <div className="space-y-4">
       {/* Chain Selector */}
@@ -221,17 +202,13 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
                   <CommandGroup heading="Popular Tokens">
                     <ScrollArea className="h-[200px]">
                       {currentPopularTokens.map((token, index) => {
-                        // Ensure we have a valid token with a symbol
-                        if (!token.symbol) return null;
-                        
-                        // Create a deterministic key for this token
-                        const key = `popular-${token.symbol}-${index}`;
-                        const value = `popular-${token.symbol}-${token.chainId}`;
+                        // Ensure we have a valid token with a symbol and address
+                        if (!token.symbol || !token.address) return null;
                         
                         return (
                           <CommandItem
-                            key={key}
-                            value={value}
+                            key={`popular-${token.symbol}-${index}`}
+                            value={`popular-${token.symbol}-${index}`}
                             onSelect={() => handleTokenSelect(token)}
                             className="flex items-center"
                           >
@@ -270,17 +247,13 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
                       </div>
                     ) : (
                       filteredTokens.map((token, index) => {
-                        // Ensure we have a valid token with a symbol
-                        if (!token.symbol) return null;
-                        
-                        // Create a deterministic key for this token
-                        const key = `token-${token.symbol}-${index}`;
-                        const value = `${token.symbol}-${token.chainId}`;
+                        // Ensure we have a valid token with a symbol and address
+                        if (!token.symbol || !token.address) return null;
                         
                         return (
                           <CommandItem
-                            key={key}
-                            value={value}
+                            key={`token-${token.symbol}-${index}`}
+                            value={`${token.symbol}-${token.chainId}-${index}`}
                             onSelect={() => handleTokenSelect(token)}
                             className="flex items-center"
                           >

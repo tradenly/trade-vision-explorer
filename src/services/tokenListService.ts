@@ -1,3 +1,4 @@
+
 import { supabase } from '@/lib/supabaseClient';
 
 export interface TokenInfo {
@@ -86,6 +87,43 @@ const validateTokens = (tokens: TokenInfo[]): TokenInfo[] => {
   );
 };
 
+// Default tokens for each chain
+const DEFAULT_ETHEREUM_TOKENS: TokenInfo[] = [
+  { name: 'Ethereum', symbol: 'ETH', address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', decimals: 18, chainId: ChainId.ETHEREUM },
+  { name: 'Wrapped Ether', symbol: 'WETH', address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals: 18, chainId: ChainId.ETHEREUM },
+  { name: 'USD Coin', symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals: 6, chainId: ChainId.ETHEREUM },
+  { name: 'Tether', symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6, chainId: ChainId.ETHEREUM },
+  { name: 'Dai', symbol: 'DAI', address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', decimals: 18, chainId: ChainId.ETHEREUM },
+];
+
+const DEFAULT_BNB_TOKENS: TokenInfo[] = [
+  { name: 'BNB', symbol: 'BNB', address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', decimals: 18, chainId: ChainId.BNB },
+  { name: 'Wrapped BNB', symbol: 'WBNB', address: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', decimals: 18, chainId: ChainId.BNB },
+  { name: 'BUSD', symbol: 'BUSD', address: '0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56', decimals: 18, chainId: ChainId.BNB },
+  { name: 'USDT', symbol: 'USDT', address: '0x55d398326f99059fF775485246999027B3197955', decimals: 18, chainId: ChainId.BNB },
+];
+
+const DEFAULT_SOLANA_TOKENS: TokenInfo[] = [
+  { name: 'Solana', symbol: 'SOL', address: 'So11111111111111111111111111111111111111112', decimals: 9, chainId: ChainId.SOLANA },
+  { name: 'USD Coin', symbol: 'USDC', address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', decimals: 6, chainId: ChainId.SOLANA },
+  { name: 'Tether', symbol: 'USDT', address: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', decimals: 6, chainId: ChainId.SOLANA },
+];
+
+// CORS safe token list URLs
+const CORS_SAFE_URLS = {
+  ethereum: [
+    'https://tokens.coingecko.com/uniswap/all.json',
+    'https://wispy-bird-88a7.uniswap.workers.dev/?url=http://tokens.1inch.eth.link'
+  ],
+  bnb: [
+    'https://tokens.pancakeswap.finance/pancakeswap-extended.json',
+    'https://tokens.coingecko.com/binance-smart-chain/all.json'
+  ],
+  solana: [
+    'https://cdn.jsdelivr.net/gh/solana-labs/token-list@main/src/tokens/solana.tokenlist.json'
+  ]
+};
+
 // Fetch Ethereum tokens with error handling and retry logic
 export async function fetchEthereumTokens(): Promise<TokenInfo[]> {
   if (isCacheValid(ChainId.ETHEREUM)) {
@@ -93,13 +131,30 @@ export async function fetchEthereumTokens(): Promise<TokenInfo[]> {
   }
 
   try {
-    // Try primary source
-    const response = await fetch('https://gateway.ipfs.io/ipns/tokens.uniswap.org');
-    if (!response.ok) {
-      throw new Error(`Failed to fetch Ethereum tokens: ${response.status} ${response.statusText}`);
+    // Try each CORS-safe URL until one works
+    let data: TokenList | null = null;
+    let error = null;
+    
+    for (const url of CORS_SAFE_URLS.ethereum) {
+      try {
+        console.log(`Attempting to fetch Ethereum tokens from: ${url}`);
+        const response = await fetch(url);
+        if (response.ok) {
+          data = await response.json();
+          break;
+        }
+      } catch (err) {
+        error = err;
+        console.error(`Failed to fetch from ${url}:`, err);
+        // Continue to the next URL
+      }
     }
     
-    const data: TokenList = await response.json();
+    if (!data) {
+      console.error('All Ethereum token URLs failed', error);
+      throw new Error('Failed to fetch Ethereum tokens from all sources');
+    }
+    
     // Only include Ethereum tokens and validate them
     const tokens = validateTokens(data.tokens.filter(token => token.chainId === ChainId.ETHEREUM));
     
@@ -112,45 +167,11 @@ export async function fetchEthereumTokens(): Promise<TokenInfo[]> {
     console.log(`Fetched ${tokens.length} Ethereum tokens`);
     return tokens;
   } catch (error) {
-    console.error('Error fetching Ethereum tokens from primary source:', error);
+    console.error('Error fetching Ethereum tokens from all sources:', error);
     
-    try {
-      // Try backup source
-      const backupResponse = await fetch('https://tokens.coingecko.com/uniswap/all.json');
-      if (backupResponse.ok) {
-        const backupData: TokenList = await backupResponse.json();
-        const tokens = validateTokens(backupData.tokens.filter(token => token.chainId === ChainId.ETHEREUM));
-        
-        // Cache the results
-        tokenCache[ChainId.ETHEREUM] = {
-          tokens,
-          timestamp: Date.now()
-        };
-        
-        console.log(`Fetched ${tokens.length} Ethereum tokens from backup source`);
-        return tokens;
-      }
-    } catch (backupError) {
-      console.error('Error fetching Ethereum tokens from backup source:', backupError);
-    }
-    
-    // Return cached data if available, even if expired
-    if (tokenCache[ChainId.ETHEREUM]) {
-      console.log('Using cached Ethereum token data');
-      return tokenCache[ChainId.ETHEREUM].tokens;
-    }
-    
-    // Last resort: Return some predefined tokens
-    const fallbackTokens: TokenInfo[] = [
-      { name: 'Ethereum', symbol: 'ETH', address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', decimals: 18, chainId: ChainId.ETHEREUM },
-      { name: 'Wrapped Ether', symbol: 'WETH', address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals: 18, chainId: ChainId.ETHEREUM },
-      { name: 'USD Coin', symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals: 6, chainId: ChainId.ETHEREUM },
-      { name: 'Tether', symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6, chainId: ChainId.ETHEREUM },
-      { name: 'Dai', symbol: 'DAI', address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', decimals: 18, chainId: ChainId.ETHEREUM },
-    ];
-    
-    console.log('Using fallback Ethereum token data');
-    return fallbackTokens;
+    // Return default tokens if all fetching attempts failed
+    console.log('Using default Ethereum token list');
+    return DEFAULT_ETHEREUM_TOKENS;
   }
 }
 
@@ -161,12 +182,31 @@ export async function fetchBnbTokens(): Promise<TokenInfo[]> {
   }
 
   try {
-    const response = await fetch('https://tokens.pancakeswap.finance/pancakeswap-extended.json');
-    if (!response.ok) {
-      throw new Error(`Failed to fetch BNB tokens: ${response.status} ${response.statusText}`);
+    // Try each CORS-safe URL until one works
+    let data: TokenList | null = null;
+    let error = null;
+    
+    for (const url of CORS_SAFE_URLS.bnb) {
+      try {
+        console.log(`Attempting to fetch BNB tokens from: ${url}`);
+        const response = await fetch(url);
+        if (response.ok) {
+          data = await response.json();
+          break;
+        }
+      } catch (err) {
+        error = err;
+        console.error(`Failed to fetch from ${url}:`, err);
+        // Continue to the next URL
+      }
     }
     
-    const data: TokenList = await response.json();
+    if (!data) {
+      console.error('All BNB token URLs failed', error);
+      throw new Error('Failed to fetch BNB tokens from all sources');
+    }
+    
+    // Filter for BNB Chain tokens and validate them
     const tokens = validateTokens(data.tokens.filter(token => token.chainId === ChainId.BNB));
     
     // Cache the results
@@ -175,17 +215,14 @@ export async function fetchBnbTokens(): Promise<TokenInfo[]> {
       timestamp: Date.now()
     };
     
+    console.log(`Fetched ${tokens.length} BNB Chain tokens`);
     return tokens;
   } catch (error) {
     console.error('Error fetching BNB tokens:', error);
     
-    // Return cached data if available, even if expired
-    if (tokenCache[ChainId.BNB]) {
-      console.log('Using cached BNB token data');
-      return tokenCache[ChainId.BNB].tokens;
-    }
-    
-    return [];
+    // Return default tokens if all fetching attempts failed
+    console.log('Using default BNB token list');
+    return DEFAULT_BNB_TOKENS;
   }
 }
 
@@ -196,7 +233,8 @@ export async function fetchSolanaTokens(): Promise<TokenInfo[]> {
   }
 
   try {
-    const response = await fetch('https://cdn.jsdelivr.net/gh/solana-labs/token-list@main/src/tokens/solana.tokenlist.json');
+    // Solana tokens are usually safer to fetch
+    const response = await fetch(CORS_SAFE_URLS.solana[0]);
     if (!response.ok) {
       throw new Error(`Failed to fetch Solana tokens: ${response.status} ${response.statusText}`);
     }
@@ -218,17 +256,14 @@ export async function fetchSolanaTokens(): Promise<TokenInfo[]> {
       timestamp: Date.now()
     };
     
+    console.log(`Fetched ${tokens.length} Solana tokens`);
     return tokens;
   } catch (error) {
     console.error('Error fetching Solana tokens:', error);
     
-    // Return cached data if available, even if expired
-    if (tokenCache[ChainId.SOLANA]) {
-      console.log('Using cached Solana token data');
-      return tokenCache[ChainId.SOLANA].tokens;
-    }
-    
-    return [];
+    // Return default tokens if fetching failed
+    console.log('Using default Solana token list');
+    return DEFAULT_SOLANA_TOKENS;
   }
 }
 
@@ -241,54 +276,32 @@ export async function fetchAllTokens(): Promise<Record<number, TokenInfo[]>> {
     const [ethereumTokens, bnbTokens, solanaTokens] = await Promise.all([
       fetchEthereumTokens().catch(err => {
         console.error('Error in Ethereum token fetch:', err);
-        return [] as TokenInfo[];
+        return DEFAULT_ETHEREUM_TOKENS;
       }),
       fetchBnbTokens().catch(err => {
         console.error('Error in BNB token fetch:', err);
-        return [] as TokenInfo[];
+        return DEFAULT_BNB_TOKENS;
       }),
       fetchSolanaTokens().catch(err => {
         console.error('Error in Solana token fetch:', err);
-        return [] as TokenInfo[];
+        return DEFAULT_SOLANA_TOKENS;
       }),
     ]);
     
-    // Only add chains with valid tokens
-    if (ethereumTokens.length > 0) results[ChainId.ETHEREUM] = ethereumTokens;
-    if (bnbTokens.length > 0) results[ChainId.BNB] = bnbTokens;
-    if (solanaTokens.length > 0) results[ChainId.SOLANA] = solanaTokens;
-    
-    // If any chain has no tokens, try to get cached data
-    if (!results[ChainId.ETHEREUM] && tokenCache[ChainId.ETHEREUM]) {
-      results[ChainId.ETHEREUM] = tokenCache[ChainId.ETHEREUM].tokens;
-    }
-    if (!results[ChainId.BNB] && tokenCache[ChainId.BNB]) {
-      results[ChainId.BNB] = tokenCache[ChainId.BNB].tokens;
-    }
-    if (!results[ChainId.SOLANA] && tokenCache[ChainId.SOLANA]) {
-      results[ChainId.SOLANA] = tokenCache[ChainId.SOLANA].tokens;
-    }
-    
-    // If still no tokens for a chain, add fallbacks
-    if (!results[ChainId.ETHEREUM] || results[ChainId.ETHEREUM].length === 0) {
-      results[ChainId.ETHEREUM] = [
-        { name: 'Ethereum', symbol: 'ETH', address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', decimals: 18, chainId: ChainId.ETHEREUM },
-        { name: 'Wrapped Ether', symbol: 'WETH', address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals: 18, chainId: ChainId.ETHEREUM },
-        { name: 'USD Coin', symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals: 6, chainId: ChainId.ETHEREUM },
-        { name: 'Tether', symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6, chainId: ChainId.ETHEREUM },
-        { name: 'Dai', symbol: 'DAI', address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', decimals: 18, chainId: ChainId.ETHEREUM },
-      ];
-    }
+    // Store the results
+    results[ChainId.ETHEREUM] = ethereumTokens;
+    results[ChainId.BNB] = bnbTokens;
+    results[ChainId.SOLANA] = solanaTokens;
     
     return results;
   } catch (error) {
     console.error('Error fetching all tokens:', error);
     
-    // Return cached data if available
+    // Return default tokens if all fetching failed
     return {
-      [ChainId.ETHEREUM]: tokenCache[ChainId.ETHEREUM]?.tokens || [],
-      [ChainId.BNB]: tokenCache[ChainId.BNB]?.tokens || [],
-      [ChainId.SOLANA]: tokenCache[ChainId.SOLANA]?.tokens || [],
+      [ChainId.ETHEREUM]: DEFAULT_ETHEREUM_TOKENS,
+      [ChainId.BNB]: DEFAULT_BNB_TOKENS,
+      [ChainId.SOLANA]: DEFAULT_SOLANA_TOKENS,
     };
   }
 }

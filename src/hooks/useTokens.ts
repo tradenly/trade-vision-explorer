@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { ChainId, TokenInfo, fetchAllTokens } from '@/services/tokenListService';
 import { useToast } from '@/hooks/use-toast';
@@ -44,7 +45,7 @@ export const useTokens = (initialChainId: ChainId = ChainId.ETHEREUM) => {
 
   // Generate a stable unique ID for tokens
   const getStableTokenId = useCallback((token: TokenInfo): string => {
-    if (!token.address) {
+    if (!token.address || token.address === '' || token.address === 'undefined') {
       return `${token.symbol}-${token.chainId}-fallback`;
     }
     return token.address;
@@ -63,6 +64,8 @@ export const useTokens = (initialChainId: ChainId = ChainId.ETHEREUM) => {
 
   // Load tokens on component mount
   useEffect(() => {
+    let isMounted = true;
+    
     async function loadTokens() {
       setLoading(true);
       setError(null);
@@ -70,6 +73,9 @@ export const useTokens = (initialChainId: ChainId = ChainId.ETHEREUM) => {
       try {
         console.log('Fetching all tokens...');
         const tokens = await fetchAllTokens();
+        
+        if (!isMounted) return;
+        
         console.log('Tokens fetched:', Object.keys(tokens).map(chainId => 
           `Chain ${chainId}: ${tokens[Number(chainId)]?.length || 0} tokens`
         ));
@@ -81,17 +87,19 @@ export const useTokens = (initialChainId: ChainId = ChainId.ETHEREUM) => {
           const chainId = Number(chainIdStr);
           const fetchedTokens = tokens[chainId] || [];
           
-          // Ensure all tokens have valid addresses
-          const validatedTokens = fetchedTokens.map(ensureValidAddress);
+          // Ensure all tokens have valid addresses and valid properties
+          const validatedTokens = fetchedTokens
+            .filter(token => token && token.symbol && token.name) // Filter out invalid tokens
+            .map(ensureValidAddress);
           
           // Make sure required tokens are always present
           const defaultSymbols = new Set(defaultTokensByChain[chainId].map(t => t.symbol));
           
           // Find default tokens that need to be added
           const existingSymbols = new Set(validatedTokens.map(t => t.symbol));
-          const missingDefaultTokens = defaultTokensByChain[chainId].filter(
-            dt => !existingSymbols.has(dt.symbol)
-          ).map(ensureValidAddress);
+          const missingDefaultTokens = defaultTokensByChain[chainId]
+            .filter(dt => !existingSymbols.has(dt.symbol))
+            .map(ensureValidAddress);
           
           // Combine default tokens with fetched tokens, putting defaults first
           ensuredTokens[chainId] = [...missingDefaultTokens, ...validatedTokens];
@@ -99,6 +107,7 @@ export const useTokens = (initialChainId: ChainId = ChainId.ETHEREUM) => {
           // Filter out duplicates (keep the first occurrence which will be from defaults if present)
           const seenSymbols = new Set<string>();
           ensuredTokens[chainId] = ensuredTokens[chainId].filter(token => {
+            if (!token.symbol) return false;
             if (seenSymbols.has(token.symbol)) {
               return false;
             }
@@ -112,23 +121,26 @@ export const useTokens = (initialChainId: ChainId = ChainId.ETHEREUM) => {
         
         // Ethereum popular tokens
         popular[ChainId.ETHEREUM] = ensuredTokens[ChainId.ETHEREUM]
-          ?.filter(token => ['ETH', 'WETH', 'USDT', 'USDC', 'DAI', 'WBTC', 'UNI', 'LINK', 'AAVE'].includes(token.symbol))
+          ?.filter(token => ['ETH', 'WETH', 'USDT', 'USDC', 'DAI', 'WBTC', 'UNI', 'LINK', 'AAVE'].includes(token.symbol || ''))
           ?.slice(0, 10) || defaultTokensByChain[ChainId.ETHEREUM];
         
         // BNB Chain popular tokens
         popular[ChainId.BNB] = ensuredTokens[ChainId.BNB]
-          ?.filter(token => ['BNB', 'WBNB', 'CAKE', 'BUSD', 'USDT', 'ETH', 'BTCB', 'DOT', 'ADA', 'XRP'].includes(token.symbol))
+          ?.filter(token => ['BNB', 'WBNB', 'CAKE', 'BUSD', 'USDT', 'ETH', 'BTCB', 'DOT', 'ADA', 'XRP'].includes(token.symbol || ''))
           ?.slice(0, 10) || defaultTokensByChain[ChainId.BNB];
         
         // Solana popular tokens
         popular[ChainId.SOLANA] = ensuredTokens[ChainId.SOLANA]
-          ?.filter(token => ['SOL', 'USDC', 'USDT', 'BTC', 'ETH', 'BONK', 'JUP', 'RAY', 'ORCA', 'MNGO'].includes(token.symbol))
+          ?.filter(token => ['SOL', 'USDC', 'USDT', 'BTC', 'ETH', 'BONK', 'JUP', 'RAY', 'ORCA', 'MNGO'].includes(token.symbol || ''))
           ?.slice(0, 10) || defaultTokensByChain[ChainId.SOLANA];
         
         setAllTokens(ensuredTokens);
         setPopularTokens(popular);
       } catch (error) {
         console.error('Error loading tokens:', error);
+        
+        if (!isMounted) return;
+        
         setError('Failed to load token list');
         toast({
           title: "Failed to load tokens",
@@ -146,11 +158,17 @@ export const useTokens = (initialChainId: ChainId = ChainId.ETHEREUM) => {
         setAllTokens(fallbackTokens);
         setPopularTokens(fallbackTokens); // Use same tokens for popular
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     }
 
     loadTokens();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [ensureValidAddress, toast]);
 
   // Handle chain selection change
@@ -169,7 +187,7 @@ export const useTokens = (initialChainId: ChainId = ChainId.ETHEREUM) => {
     
     const commonSymbols = commonQuoteTokens[selectedChain] || [];
     const filteredTokens = chainTokens.filter(token => 
-      commonSymbols.includes(token.symbol)
+      token.symbol && commonSymbols.includes(token.symbol)
     );
     
     console.log(`Found ${filteredTokens.length} quote tokens`);
