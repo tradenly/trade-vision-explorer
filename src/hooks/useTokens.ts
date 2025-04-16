@@ -107,7 +107,7 @@ export const useTokens = (initialChainId: ChainId = ChainId.ETHEREUM) => {
         toast({
           title: "Failed to load tokens",
           description: "Using fallback token lists. Some features may be limited.",
-          variant: "warning"
+          variant: "default" // Changed from "warning" to "default" to fix the TypeScript error
         });
         
         // Use default tokens as fallback
