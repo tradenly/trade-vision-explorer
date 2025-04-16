@@ -33,7 +33,9 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
   
   // Load quote tokens when chain changes
   useEffect(() => {
-    setQuoteTokens(getQuoteTokens());
+    const tokens = getQuoteTokens();
+    console.log('Quote tokens loaded:', tokens.length);
+    setQuoteTokens(tokens);
     
     // Reset selections when chain changes
     setBaseToken(null);
@@ -83,9 +85,9 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
   };
 
   // Generate safe token value - ensure it's never empty
-  const getSafeTokenValue = (token: TokenInfo): string => {
-    if (!token.address || token.address === '') {
-      return `token-${token.symbol}-${Math.random().toString(36).substring(7)}`;
+  const getSafeTokenValue = (token: TokenInfo | null): string => {
+    if (!token || !token.address || token.address === '') {
+      return `generated-token-${Math.random().toString(36).substring(2, 10)}`;
     }
     return token.address;
   };
@@ -154,7 +156,7 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
           <div className="space-y-1 md:col-start-2 md:row-start-1">
             <label className="text-sm font-medium">Quote Token (To)</label>
             <Select
-              value={quoteToken ? getSafeTokenValue(quoteToken) : ""}
+              value={quoteToken ? getSafeTokenValue(quoteToken) : undefined}
               onValueChange={(value) => {
                 const selected = quoteTokens.find(token => getSafeTokenValue(token) === value);
                 if (selected) handleQuoteTokenSelect(selected);
@@ -187,12 +189,17 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Loading quote tokens...
                     </div>
+                  ) : quoteTokens.length === 0 ? (
+                    <div className="p-2 text-center text-muted-foreground">
+                      No quote tokens available
+                    </div>
                   ) : (
                     quoteTokens.map((token) => {
+                      // Generate safe unique value for each token
                       const safeValue = getSafeTokenValue(token);
                       return (
                         <SelectItem 
-                          key={safeValue} 
+                          key={`quote-${safeValue}`} 
                           value={safeValue}
                         >
                           <div className="flex items-center">
