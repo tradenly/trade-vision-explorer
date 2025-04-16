@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { ChainId, CHAIN_NAMES, TokenInfo } from '@/services/tokenListService';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -6,10 +5,9 @@ import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ArrowRightLeft, Loader2, AlertCircle } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useTokensSimple } from '@/hooks/useTokensSimple';
 import { TokenSelectorNew } from './TokenSelectorNew';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface TokenPairSelectorProps {
   onSelectTokenPair: (baseToken: TokenInfo, quoteToken: TokenInfo) => void;
@@ -26,8 +24,6 @@ const TokenPairSelectorNew: React.FC<TokenPairSelectorProps> = ({
   investmentAmount = 1000,
   onInvestmentAmountChange
 }) => {
-  const { toast } = useToast();
-  
   const {
     loading,
     error,
@@ -42,43 +38,29 @@ const TokenPairSelectorNew: React.FC<TokenPairSelectorProps> = ({
   const [baseToken, setBaseToken] = useState<TokenInfo | null>(null);
   const [quoteToken, setQuoteToken] = useState<TokenInfo | null>(null);
   
-  // Handle chain selection change
   const handleChainChange = (chainId: ChainId) => {
     try {
       hookHandleChainChange(chainId);
       if (onSelectChain) {
         onSelectChain(chainId);
       }
-      // Reset token selections when chain changes
       setBaseToken(null);
       setQuoteToken(null);
     } catch (error) {
       console.error('Error changing chain:', error);
-      toast({
-        title: "Error",
-        description: "Failed to change blockchain",
-        variant: "destructive"
-      });
     }
   };
   
-  // When both tokens are selected, notify the parent
   useEffect(() => {
     if (baseToken && quoteToken) {
       try {
         onSelectTokenPair(baseToken, quoteToken);
       } catch (error) {
         console.error('Error in onSelectTokenPair:', error);
-        toast({
-          title: "Error",
-          description: "Failed to select token pair",
-          variant: "destructive"
-        });
       }
     }
-  }, [baseToken, quoteToken, onSelectTokenPair, toast]);
+  }, [baseToken, quoteToken, onSelectTokenPair]);
   
-  // Handle base token selection
   const handleBaseTokenSelect = (token: TokenInfo) => {
     if (!token) return;
     try {
@@ -86,15 +68,9 @@ const TokenPairSelectorNew: React.FC<TokenPairSelectorProps> = ({
       setBaseToken(validToken);
     } catch (error) {
       console.error('Error selecting base token:', error);
-      toast({
-        title: "Error",
-        description: "Failed to select token",
-        variant: "destructive"
-      });
     }
   };
   
-  // Handle quote token selection
   const handleQuoteTokenSelect = (token: TokenInfo) => {
     if (!token) return;
     try {
@@ -102,11 +78,6 @@ const TokenPairSelectorNew: React.FC<TokenPairSelectorProps> = ({
       setQuoteToken(validToken);
     } catch (error) {
       console.error('Error selecting quote token:', error);
-      toast({
-        title: "Error",
-        description: "Failed to select token",
-        variant: "destructive"
-      });
     }
   };
   
@@ -118,11 +89,6 @@ const TokenPairSelectorNew: React.FC<TokenPairSelectorProps> = ({
         setQuoteToken(temp);
       } catch (error) {
         console.error('Error swapping tokens:', error);
-        toast({
-          title: "Error",
-          description: "Failed to swap tokens",
-          variant: "destructive"
-        });
       }
     }
   };
@@ -137,15 +103,9 @@ const TokenPairSelectorNew: React.FC<TokenPairSelectorProps> = ({
       }
     } catch (error) {
       console.error('Error changing investment amount:', error);
-      toast({
-        title: "Error",
-        description: "Please enter a valid amount",
-        variant: "destructive"
-      });
     }
   };
   
-  // Chain logo mapping
   const chainLogos: Record<number, string> = {
     [ChainId.ETHEREUM]: 'https://fkagpyfzgczcaxsqwsoi.supabase.co/storage/v1/object/public/chains//ethereum-icon.png',
     [ChainId.BNB]: 'https://fkagpyfzgczcaxsqwsoi.supabase.co/storage/v1/object/public/chains//bnb-icon.png',
@@ -158,7 +118,6 @@ const TokenPairSelectorNew: React.FC<TokenPairSelectorProps> = ({
         <h3 className="text-lg font-semibold">Select Token Pair</h3>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Chain Selector */}
         <div className="space-y-1">
           <label className="text-sm font-medium">Blockchain</label>
           <Select 
@@ -201,7 +160,6 @@ const TokenPairSelectorNew: React.FC<TokenPairSelectorProps> = ({
           </Alert>
         )}
 
-        {/* Token Pair Selection */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
           <div className="space-y-1">
             <label className="text-sm font-medium">Base Token (From)</label>
@@ -240,7 +198,6 @@ const TokenPairSelectorNew: React.FC<TokenPairSelectorProps> = ({
           </div>
         </div>
 
-        {/* Investment Amount Input */}
         <div className="space-y-1 mt-4">
           <label htmlFor="investment-amount" className="text-sm font-medium">Investment Amount (USD)</label>
           <div className="flex items-center">

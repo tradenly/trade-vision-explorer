@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { TokenInfo, ChainId } from '@/services/tokenListService';
 import { ArbitrageOpportunity, scanForArbitrageOpportunities } from '@/services/dexService';
@@ -6,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { RefreshCw, Loader2, ArrowRightLeft, Scale, DollarSign, CircleDollarSign, Droplets } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
@@ -44,16 +42,15 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
   const [quoteToken, setQuoteToken] = useState<TokenInfo | null>(initialQuoteToken || null);
   const [amount, setAmount] = useState<number>(investmentAmount);
   const [scanError, setScanError] = useState<string | null>(null);
-  const { toast } = useToast();
   const { isConnected: isEVMConnected, address: evmAddress } = useEthereumWallet();
   const { isConnected: isSolanaConnected, address: solanaAddress } = useSolanaWallet();
 
   const handleTokenPairSelect = (base: TokenInfo, quote: TokenInfo) => {
     console.log("Token pair selected:", base.symbol, quote.symbol);
-    setScanError(null); // Clear previous scan error
+    setScanError(null);
     setBaseToken(base);
     setQuoteToken(quote);
-    setOpportunities([]); // Clear previous opportunities when pair changes
+    setOpportunities([]);
     
     if (onTokenPairSelect) {
       onTokenPairSelect(base, quote);
@@ -69,7 +66,6 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
   };
 
   const handleChainSelect = (chainId: ChainId) => {
-    // Clear previous results when chain changes
     setOpportunities([]);
     setScanError(null);
     
@@ -100,23 +96,12 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
       
       if (results.length === 0) {
         console.log("No arbitrage opportunities found");
-        // Only show toast for user-initiated actions
-        toast({
-          title: "No opportunities found",
-          description: "Try a different token pair or check again later",
-        });
+        setScanError("No opportunities found. Try a different token pair or check again later.");
       }
     } catch (error) {
       console.error('Error during scan:', error);
       const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
       setScanError(`Scan failed: ${errorMessage}`);
-      
-      // Only show critical errors as toast
-      toast({
-        title: "Scan failed",
-        description: "There was an error during the scan. Please try again.",
-        variant: "destructive",
-      });
     } finally {
       setLoading(false);
     }
@@ -128,11 +113,7 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
       (opportunity.network === 'solana') ? isSolanaConnected : false;
 
     if (!isCorrectWalletConnected) {
-      toast({
-        title: "Wallet not connected",
-        description: `Please connect your ${opportunity.network === 'solana' ? 'Solana' : 'EVM'} wallet to execute this trade`,
-        variant: "destructive"
-      });
+      setScanError(`Please connect your ${opportunity.network === 'solana' ? 'Solana' : 'EVM'} wallet to execute this trade`);
       return;
     }
 
@@ -157,26 +138,15 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
       
       if (result.success) {
         setTransactionStatus('success');
-        toast({
-          title: "Trade successful",
-          description: `Successfully executed arbitrage trade for ${selectedOpportunity.tokenPair}`,
-        });
+        setScanError("Trade successfully executed.");
       } else {
         setTransactionStatus('error');
-        toast({
-          title: "Trade failed",
-          description: result.error || "There was an error executing the trade",
-          variant: "destructive",
-        });
+        setScanError(result.error || "There was an error executing the trade");
       }
     } catch (error) {
       console.error('Error executing trade:', error);
       setTransactionStatus('error');
-      toast({
-        title: "Trade failed",
-        description: error instanceof Error ? error.message : "Unknown error occurred",
-        variant: "destructive",
-      });
+      setScanError(error instanceof Error ? error.message : "Unknown error occurred");
     } finally {
       setTimeout(() => {
         setExecuting(null);
