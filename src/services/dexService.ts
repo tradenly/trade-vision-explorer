@@ -1,5 +1,6 @@
 
 import { TokenInfo } from './tokenListService';
+import { supabase } from '@/lib/supabaseClient';
 
 export interface PriceQuote {
   dexName: string;
@@ -19,6 +20,12 @@ export interface ArbitrageOpportunity {
   estimatedProfit: number;
   estimatedProfitPercentage: number;
   network: string;
+}
+
+export interface TradeResult {
+  success: boolean;
+  txHash?: string;
+  error?: string;
 }
 
 const DEX_TRADING_FEES: Record<string, number> = {
@@ -159,5 +166,124 @@ export async function scanForArbitrageOpportunities(
   } catch (error) {
     console.error('Error scanning for arbitrage opportunities:', error);
     return [];
+  }
+}
+
+// Execute a trade for an arbitrage opportunity
+export async function executeTrade(
+  opportunity: ArbitrageOpportunity,
+  walletAddress: string
+): Promise<TradeResult> {
+  try {
+    console.log(`Executing trade for ${opportunity.tokenPair} on networks ${opportunity.network}`);
+    console.log(`Buy on ${opportunity.buyDex} at ${opportunity.buyPrice}, sell on ${opportunity.sellDex} at ${opportunity.sellPrice}`);
+    console.log(`Wallet address: ${walletAddress}`);
+    
+    // Simulate trade execution delay (1-3 seconds)
+    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+    
+    // In a real implementation, this would use the appropriate DEX SDK:
+    // - For EVM chains: ethers.js + DEX contract interactions
+    // - For Solana: @solana/web3.js + DEX program instructions
+    
+    // Simulate success with 90% probability
+    const isSuccess = Math.random() > 0.1;
+    
+    // Generate a mock transaction hash
+    const mockTxHash = isSuccess ? 
+      '0x' + Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join('') : 
+      undefined;
+      
+    // Log the trade to Supabase
+    await logTradeToSupabase({
+      wallet_address: walletAddress,
+      token_pair: opportunity.tokenPair,
+      buy_dex: opportunity.buyDex, 
+      sell_dex: opportunity.sellDex,
+      buy_price: opportunity.buyPrice,
+      sell_price: opportunity.sellPrice,
+      profit: opportunity.estimatedProfit,
+      network: opportunity.network,
+      tx_hash: mockTxHash,
+      status: isSuccess ? 'success' : 'failed',
+      error: isSuccess ? null : 'Transaction rejected by user or failed',
+    });
+    
+    if (!isSuccess) {
+      return {
+        success: false,
+        error: 'Transaction failed or was rejected by the user'
+      };
+    }
+    
+    return {
+      success: true,
+      txHash: mockTxHash
+    };
+  } catch (error) {
+    console.error('Error executing trade:', error);
+    
+    // Log the failed trade
+    await logTradeToSupabase({
+      wallet_address: walletAddress,
+      token_pair: opportunity.tokenPair,
+      buy_dex: opportunity.buyDex, 
+      sell_dex: opportunity.sellDex,
+      buy_price: opportunity.buyPrice,
+      sell_price: opportunity.sellPrice,
+      profit: opportunity.estimatedProfit,
+      network: opportunity.network,
+      status: 'error',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'An unknown error occurred'
+    };
+  }
+}
+
+// Log the trade to Supabase
+async function logTradeToSupabase(tradeData: {
+  wallet_address: string;
+  token_pair: string;
+  buy_dex: string;
+  sell_dex: string;
+  buy_price: number;
+  sell_price: number;
+  profit: number;
+  network: string;
+  tx_hash?: string;
+  status: 'success' | 'failed' | 'error';
+  error?: string | null;
+}) {
+  try {
+    const { error } = await supabase
+      .from('trading_activity')
+      .insert({
+        type: 'arbitrage',
+        strategy: 'manual',
+        token_pair: tradeData.token_pair,
+        price: tradeData.buy_price,
+        amount: tradeData.profit,
+        status: tradeData.status === 'success' ? 'completed' : 'failed',
+        tx_hash: tradeData.tx_hash,
+        details: {
+          buy_dex: tradeData.buy_dex,
+          sell_dex: tradeData.sell_dex,
+          buy_price: tradeData.buy_price,
+          sell_price: tradeData.sell_price,
+          wallet_address: tradeData.wallet_address,
+          network: tradeData.network,
+          error: tradeData.error
+        }
+      });
+
+    if (error) {
+      console.error('Error logging trade to Supabase:', error);
+    }
+  } catch (error) {
+    console.error('Error logging trade to Supabase:', error);
   }
 }
