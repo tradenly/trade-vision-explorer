@@ -16,13 +16,14 @@ interface TokenSelectorProps {
   onSelectToken?: (token: TokenInfo) => void;
   selectedChain?: ChainId;
   onSelectChain?: (chainId: ChainId) => void;
-  placeholder?: string; // Added placeholder prop
+  placeholder?: string;
 }
 
 const TokenSelector: React.FC<TokenSelectorProps> = ({ 
   onSelectToken, 
   selectedChain = ChainId.ETHEREUM,
-  onSelectChain
+  onSelectChain,
+  placeholder = "Select a token"
 }) => {
   const [tokens, setTokens] = useState<Record<number, TokenInfo[]>>({});
   const [loading, setLoading] = useState(true);
@@ -30,12 +31,15 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
   const [open, setOpen] = useState(false);
   const [selectedToken, setSelectedToken] = useState<TokenInfo | null>(null);
   const [popularTokens, setPopularTokens] = useState<Record<number, TokenInfo[]>>({});
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Load tokens on component mount
   useEffect(() => {
     async function loadTokens() {
       setLoading(true);
+      setError(null);
+      
       try {
         const allTokens = await fetchAllTokens();
         
@@ -61,6 +65,7 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
         setPopularTokens(popular);
       } catch (error) {
         console.error('Error loading tokens:', error);
+        setError('Failed to load token list');
         toast({
           title: "Failed to load tokens",
           description: "Could not fetch token list. Please try again later.",
@@ -89,11 +94,16 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
     []
   );
 
+  // Get chain tokens safely
+  const getChainTokens = (): TokenInfo[] => {
+    return tokens[selectedChain] || [];
+  };
+
   // Filter tokens based on search input
-  const filteredTokens = tokens[selectedChain]?.filter(token => 
+  const filteredTokens = getChainTokens().filter(token => 
     token.name.toLowerCase().includes(search.toLowerCase()) || 
     token.symbol.toLowerCase().includes(search.toLowerCase())
-  )?.slice(0, 50) || [];
+  ).slice(0, 50);
 
   // Handle token selection
   const handleTokenSelect = (token: TokenInfo) => {
@@ -191,7 +201,7 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
                   <span>{selectedToken.symbol}</span>
                 </div>
               ) : (
-                "Select a token"
+                placeholder
               )}
               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
@@ -208,6 +218,10 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
                     <div className="flex items-center justify-center p-4">
                       <Loader2 className="h-5 w-5 animate-spin mr-2" />
                       <span>Loading tokens...</span>
+                    </div>
+                  ) : error ? (
+                    <div className="flex items-center justify-center p-4 text-red-500">
+                      <span>Error loading tokens</span>
                     </div>
                   ) : (
                     "No tokens found"
