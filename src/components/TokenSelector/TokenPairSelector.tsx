@@ -30,7 +30,8 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
     getQuoteTokens, 
     handleChainChange: hookHandleChainChange, 
     getSafeTokenValue,
-    getStableTokenId
+    getStableTokenId,
+    findTokenByValue
   } = useTokens(selectedChain);
   
   const [baseToken, setBaseToken] = useState<TokenInfo | null>(null);
@@ -159,8 +160,15 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
             <Select
               value={quoteToken ? getSafeTokenValue(quoteToken) : ""}
               onValueChange={(value) => {
-                const selected = quoteTokens.find(token => getSafeTokenValue(token) === value);
-                if (selected) handleQuoteTokenSelect(selected);
+                // Ensure the value is a valid token by using the findByValue helper
+                if (value) {
+                  const found = findTokenByValue(value);
+                  if (found) {
+                    handleQuoteTokenSelect(found);
+                  } else {
+                    console.warn("Selected token not found:", value);
+                  }
+                }
               }}
               disabled={loading || quoteTokens.length === 0}
             >
@@ -199,10 +207,13 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
                     quoteTokens.map((token) => {
                       // Use the token's address as a unique, stable value
                       const tokenValue = getSafeTokenValue(token);
-                      const key = `quote-${token.symbol}-${getStableTokenId(token)}`;
                       
-                      // Only render if we have a valid value
-                      return tokenValue ? (
+                      // Skip tokens without an address or value
+                      if (!tokenValue) return null;
+                      
+                      const key = `quote-${token.symbol}-${token.chainId}`;
+                      
+                      return (
                         <SelectItem 
                           key={key}
                           value={tokenValue}
@@ -221,7 +232,7 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
                             {token.symbol}
                           </div>
                         </SelectItem>
-                      ) : null;
+                      );
                     })
                   )}
                 </SelectGroup>
