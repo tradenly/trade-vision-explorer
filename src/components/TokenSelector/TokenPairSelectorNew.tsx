@@ -1,13 +1,14 @@
+
 import React, { useState, useEffect } from 'react';
-import { ChainId, CHAIN_NAMES, TokenInfo } from '@/services/tokenListService';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { ArrowRightLeft, Loader2, AlertCircle } from 'lucide-react';
+import { ChainId, TokenInfo } from '@/services/tokenListService';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 import { useTokensSimple } from '@/hooks/useTokensSimple';
-import { TokenSelectorNew } from './TokenSelectorNew';
+import ChainSelector from './ChainSelector';
+import TokenPairControls from './TokenPairControls';
+import InvestmentAmountInput from './InvestmentAmountInput';
+import TokenPairDisplay from './TokenPairDisplay';
 
 interface TokenPairSelectorProps {
   onSelectTokenPair: (baseToken: TokenInfo, quoteToken: TokenInfo) => void;
@@ -93,63 +94,26 @@ const TokenPairSelectorNew: React.FC<TokenPairSelectorProps> = ({
     }
   };
   
-  const handleInvestmentAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInvestmentAmountChange = (amount: number) => {
     try {
-      const amount = parseFloat(e.target.value);
-      if (!isNaN(amount) && amount > 0) {
-        if (onInvestmentAmountChange) {
-          onInvestmentAmountChange(amount);
-        }
+      if (onInvestmentAmountChange) {
+        onInvestmentAmountChange(amount);
       }
     } catch (error) {
       console.error('Error changing investment amount:', error);
     }
   };
   
-  const chainLogos: Record<number, string> = {
-    [ChainId.ETHEREUM]: 'https://fkagpyfzgczcaxsqwsoi.supabase.co/storage/v1/object/public/chains//ethereum-icon.png',
-    [ChainId.BNB]: 'https://fkagpyfzgczcaxsqwsoi.supabase.co/storage/v1/object/public/chains//bnb-icon.png',
-    [ChainId.SOLANA]: 'https://fkagpyfzgczcaxsqwsoi.supabase.co/storage/v1/object/public/chains//solana-icon.png',
-  };
-
   return (
     <Card className="w-full">
       <CardHeader className="pb-2">
-        <h3 className="text-lg font-semibold">Select Token Pair</h3>
+        <CardTitle className="text-lg font-semibold">Select Token Pair</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-1">
-          <label className="text-sm font-medium">Blockchain</label>
-          <Select 
-            value={hookSelectedChain.toString()} 
-            onValueChange={(value) => handleChainChange(parseInt(value) as ChainId)}
-          >
-            <SelectTrigger className="w-full bg-background">
-              <SelectValue placeholder="Select Blockchain">
-                {CHAIN_NAMES[hookSelectedChain]}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent className="bg-background z-[100]">
-              <SelectGroup>
-                {Object.entries(CHAIN_NAMES).map(([id, name]) => (
-                  <SelectItem key={id} value={id}>
-                    <div className="flex items-center gap-2">
-                      <img 
-                        src={chainLogos[Number(id)] || `https://fkagpyfzgczcaxsqwsoi.supabase.co/storage/v1/object/public/chains//${name.toLowerCase().replace(' ', '-')}-icon.png`}
-                        alt={name} 
-                        className="w-5 h-5 rounded-full"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                        }}
-                      />
-                      {name}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
+        <ChainSelector
+          selectedChain={hookSelectedChain}
+          onChainChange={handleChainChange}
+        />
         
         {error && (
           <Alert variant="destructive">
@@ -160,72 +124,29 @@ const TokenPairSelectorNew: React.FC<TokenPairSelectorProps> = ({
           </Alert>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Base Token (From)</label>
-            <TokenSelectorNew
-              tokens={popularTokens.length ? popularTokens : allChainTokens}
-              selectedToken={baseToken}
-              onSelectToken={handleBaseTokenSelect}
-              placeholder="Select Base Token"
-              disabled={loading}
-              loading={loading}
-            />
-          </div>
-          
-          <div className="flex items-center justify-center">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="rounded-full"
-              onClick={handleSwapTokens}
-              disabled={!baseToken || !quoteToken}
-            >
-              <ArrowRightLeft />
-            </Button>
-          </div>
-          
-          <div className="space-y-1 md:col-start-2 md:row-start-1">
-            <label className="text-sm font-medium">Quote Token (To)</label>
-            <TokenSelectorNew
-              tokens={quoteTokens.length ? quoteTokens : popularTokens}
-              selectedToken={quoteToken}
-              onSelectToken={handleQuoteTokenSelect}
-              placeholder="Select Quote Token"
-              disabled={loading}
-              loading={loading}
-            />
-          </div>
-        </div>
+        <TokenPairControls
+          baseToken={baseToken}
+          quoteToken={quoteToken}
+          onBaseTokenSelect={handleBaseTokenSelect}
+          onQuoteTokenSelect={handleQuoteTokenSelect}
+          onSwapTokens={handleSwapTokens}
+          popularTokens={popularTokens}
+          quoteTokens={quoteTokens}
+          allChainTokens={allChainTokens}
+          loading={loading}
+        />
 
-        <div className="space-y-1 mt-4">
-          <label htmlFor="investment-amount" className="text-sm font-medium">Investment Amount (USD)</label>
-          <div className="flex items-center">
-            <span className="bg-muted px-3 py-2 border border-r-0 rounded-l-md">$</span>
-            <Input
-              id="investment-amount"
-              type="number"
-              min="1"
-              value={investmentAmount}
-              onChange={handleInvestmentAmountChange}
-              className="rounded-l-none"
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">Enter the amount you want to invest in this arbitrage opportunity</p>
-        </div>
+        <InvestmentAmountInput
+          amount={investmentAmount}
+          onChange={handleInvestmentAmountChange}
+        />
       </CardContent>
       <CardFooter>
         <div className="w-full">
-          {baseToken && quoteToken ? (
-            <div className="bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300 p-2 rounded-md text-sm">
-              <p>Selected pair: <span className="font-bold">{baseToken.symbol}/{quoteToken.symbol}</span></p>
-              <p>Ready to scan for arbitrage opportunities</p>
-            </div>
-          ) : (
-            <div className="bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 p-2 rounded-md text-sm">
-              <p>Please select both base and quote tokens to continue</p>
-            </div>
-          )}
+          <TokenPairDisplay
+            baseToken={baseToken}
+            quoteToken={quoteToken}
+          />
         </div>
       </CardFooter>
     </Card>
