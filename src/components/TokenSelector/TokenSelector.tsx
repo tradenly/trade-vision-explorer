@@ -121,6 +121,11 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
     [ChainId.SOLANA]: 'https://fkagpyfzgczcaxsqwsoi.supabase.co/storage/v1/object/public/chains//solana-icon.png',
   };
 
+  // Generate safe SelectItem value
+  const getSafeSelectValue = (token: TokenInfo): string => {
+    return token.address || `token-${token.symbol}-${Math.random().toString(36).substring(7)}`;
+  };
+
   return (
     <div className="space-y-4">
       {/* Chain Selector */}
@@ -153,7 +158,7 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
             <SelectGroup>
               <SelectLabel>Supported Chains</SelectLabel>
               {Object.entries(CHAIN_NAMES).map(([id, name]) => (
-                <SelectItem key={id} value={id}>
+                <SelectItem key={id} value={id || "unknown-chain"}>
                   <div className="flex items-center gap-2">
                     <img 
                       src={chainLogos[Number(id)]} 
@@ -233,8 +238,8 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
                     <ScrollArea className="h-[200px]">
                       {popularTokens[selectedChain].map((token) => (
                         <CommandItem
-                          key={`popular-${token.address}`}
-                          value={`popular-${token.symbol}-${token.address}`}
+                          key={`popular-${token.address || token.symbol}`}
+                          value={`popular-${token.symbol}-${token.address || Math.random().toString(36).substring(7)}`}
                           onSelect={() => handleTokenSelect(token)}
                           className="flex items-center"
                         >
@@ -273,8 +278,8 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
                     ) : (
                       filteredTokens.map((token) => (
                         <CommandItem
-                          key={token.address}
-                          value={`${token.symbol}-${token.address}`}
+                          key={token.address || `token-${token.symbol}-${Math.random().toString(36).substr(2, 9)}`}
+                          value={`${token.symbol}-${token.address || Math.random().toString(36).substring(7)}`}
                           onSelect={() => handleTokenSelect(token)}
                           className="flex items-center"
                         >

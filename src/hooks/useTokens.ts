@@ -48,6 +48,20 @@ export const useTokens = (initialChainId: ChainId = ChainId.ETHEREUM) => {
           ?.filter(token => ['SOL', 'USDC', 'USDT', 'BTC', 'ETH', 'BONK', 'JUP', 'RAY', 'ORCA', 'MNGO'].includes(token.symbol))
           ?.slice(0, 10) || [];
         
+        // Ensure no tokens have empty addresses
+        Object.keys(tokens).forEach(chainIdStr => {
+          const chainId = Number(chainIdStr) as ChainId;
+          tokens[chainId] = tokens[chainId].map(token => {
+            if (!token.address || token.address === '') {
+              return {
+                ...token,
+                address: `generated-${token.symbol}-${Math.random().toString(36).substring(2, 15)}`
+              };
+            }
+            return token;
+          });
+        });
+        
         setAllTokens(tokens);
         setPopularTokens(popular);
       } catch (error) {

@@ -130,7 +130,7 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
             <SelectContent>
               <SelectGroup>
                 {Object.entries(CHAIN_NAMES).map(([id, name]) => (
-                  <SelectItem key={id} value={id}>
+                  <SelectItem key={id} value={id || "unknown-chain"}>
                     <div className="flex items-center gap-2">
                       <img 
                         src={`https://fkagpyfzgczcaxsqwsoi.supabase.co/storage/v1/object/public/chains//${name.toLowerCase().replace(' ', '-')}-icon.png`}
@@ -175,7 +175,7 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
           <div className="space-y-1 md:col-start-2 md:row-start-1">
             <label className="text-sm font-medium">Quote Token (To)</label>
             <Select
-              value={quoteToken?.address}
+              value={quoteToken?.address || ""}
               onValueChange={(value) => {
                 const selected = quoteTokens.find(token => token.address === value);
                 if (selected) handleQuoteTokenSelect(selected);
@@ -210,7 +210,10 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
                     </div>
                   ) : (
                     quoteTokens.map(token => (
-                      <SelectItem key={token.address} value={token.address}>
+                      <SelectItem 
+                        key={token.address} 
+                        value={token.address || `token-${token.symbol}`}
+                      >
                         <div className="flex items-center">
                           {token.logoURI && (
                             <img 

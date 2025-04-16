@@ -57,6 +57,20 @@ const isCacheValid = (chainId: number): boolean => {
   return (now - cache.timestamp) < CACHE_EXPIRY_MS;
 };
 
+// Ensure all tokens have valid addresses
+const validateTokens = (tokens: TokenInfo[]): TokenInfo[] => {
+  return tokens.map(token => {
+    if (!token.address || token.address === '') {
+      // Generate a pseudo-address if needed to avoid empty strings
+      return {
+        ...token,
+        address: `generated-${token.symbol}-${Math.random().toString(36).substring(2, 15)}`
+      };
+    }
+    return token;
+  });
+};
+
 // Fetch Ethereum tokens with error handling and retry logic
 export async function fetchEthereumTokens(): Promise<TokenInfo[]> {
   if (isCacheValid(ChainId.ETHEREUM)) {
@@ -70,7 +84,7 @@ export async function fetchEthereumTokens(): Promise<TokenInfo[]> {
     }
     
     const data: TokenList = await response.json();
-    const tokens = data.tokens.filter(token => token.chainId === ChainId.ETHEREUM);
+    const tokens = validateTokens(data.tokens.filter(token => token.chainId === ChainId.ETHEREUM));
     
     // Cache the results
     tokenCache[ChainId.ETHEREUM] = {
@@ -105,7 +119,7 @@ export async function fetchBnbTokens(): Promise<TokenInfo[]> {
     }
     
     const data: TokenList = await response.json();
-    const tokens = data.tokens.filter(token => token.chainId === ChainId.BNB);
+    const tokens = validateTokens(data.tokens.filter(token => token.chainId === ChainId.BNB));
     
     // Cache the results
     tokenCache[ChainId.BNB] = {
@@ -142,10 +156,13 @@ export async function fetchSolanaTokens(): Promise<TokenInfo[]> {
     const data: TokenList = await response.json();
     
     // Transform to match our interface
-    const tokens = data.tokens.map(token => ({
+    let tokens = data.tokens.map(token => ({
       ...token,
       chainId: ChainId.SOLANA,
     }));
+    
+    // Validate tokens to ensure they have addresses
+    tokens = validateTokens(tokens);
     
     // Cache the results
     tokenCache[ChainId.SOLANA] = {
