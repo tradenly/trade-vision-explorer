@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { TokenInfo } from '@/services/tokenListService';
+import { TokenInfo, ChainId } from '@/services/tokenListService';
 import { ArbitrageOpportunity, scanForArbitrageOpportunities } from '@/services/dexService';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,12 +18,20 @@ interface ArbitrageScannerProps {
   initialBaseToken?: TokenInfo | null;
   initialQuoteToken?: TokenInfo | null;
   investmentAmount?: number;
+  onTokenPairSelect?: (base: TokenInfo, quote: TokenInfo) => void;
+  onInvestmentAmountChange?: (amount: number) => void;
+  onChainSelect?: (chainId: ChainId) => void;
+  selectedChain?: ChainId;
 }
 
 const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
   initialBaseToken,
   initialQuoteToken,
-  investmentAmount = 1000
+  investmentAmount = 1000,
+  onTokenPairSelect,
+  onInvestmentAmountChange,
+  onChainSelect,
+  selectedChain = ChainId.ETHEREUM
 }) => {
   const [opportunities, setOpportunities] = useState<ArbitrageOpportunity[]>([]);
   const [loading, setLoading] = useState(false);
@@ -42,10 +49,24 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
   const handleTokenPairSelect = (base: TokenInfo, quote: TokenInfo) => {
     setBaseToken(base);
     setQuoteToken(quote);
+    
+    if (onTokenPairSelect) {
+      onTokenPairSelect(base, quote);
+    }
   };
 
   const handleAmountChange = (newAmount: number) => {
     setAmount(newAmount);
+    
+    if (onInvestmentAmountChange) {
+      onInvestmentAmountChange(newAmount);
+    }
+  };
+
+  const handleChainSelect = (chainId: ChainId) => {
+    if (onChainSelect) {
+      onChainSelect(chainId);
+    }
   };
 
   const handleScan = async () => {
@@ -93,7 +114,6 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
   };
 
   const handleExecuteClick = (opportunity: ArbitrageOpportunity) => {
-    // Check if wallet is connected for the right chain
     const isCorrectWalletConnected = 
       (opportunity.network === 'ethereum' || opportunity.network === 'bnb') ? isEVMConnected : 
       (opportunity.network === 'solana') ? isSolanaConnected : false;
@@ -154,7 +174,7 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
         setExecuting(null);
         setTransactionStatus(null);
         setShowConfirmDialog(false);
-      }, 3000); // Close dialog after showing status for 3 seconds
+      }, 3000);
     }
   };
 
@@ -166,14 +186,14 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Token Pair Selector */}
         <TokenPairSelector 
           onSelectTokenPair={handleTokenPairSelect}
           investmentAmount={amount}
           onInvestmentAmountChange={handleAmountChange}
+          selectedChain={selectedChain}
+          onSelectChain={handleChainSelect}
         />
         
-        {/* Scan Button */}
         <div className="flex justify-end">
           <Button 
             onClick={handleScan} 
@@ -194,7 +214,6 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
           </Button>
         </div>
 
-        {/* Results */}
         {opportunities.length > 0 ? (
           <div className="overflow-x-auto">
             <Table>
@@ -290,7 +309,6 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
         )}
       </CardContent>
 
-      {/* Trade Confirmation Dialog */}
       <Dialog open={showConfirmDialog} onOpenChange={(open) => !executing && setShowConfirmDialog(open)}>
         <DialogContent>
           <DialogHeader>

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { fetchArbitrageOpportunities } from '@/services/supabaseService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

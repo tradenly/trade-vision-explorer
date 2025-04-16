@@ -16,6 +16,7 @@ interface TokenSelectorProps {
   onSelectToken?: (token: TokenInfo) => void;
   selectedChain?: ChainId;
   onSelectChain?: (chainId: ChainId) => void;
+  placeholder?: string; // Added placeholder prop
 }
 
 const TokenSelector: React.FC<TokenSelectorProps> = ({ 
