@@ -77,8 +77,8 @@ export async function getPriceComparisonData(
       .select('*')
       .eq('token_pair', tokenPair)
       .in('dex_name', dexNames)
-      .order('timestamp', { ascending: false })
-      .limit(200);
+      .order('timestamp', { ascending: true })
+      .limit(500);
 
     if (error) {
       throw error;
@@ -100,9 +100,7 @@ export async function getPriceComparisonData(
 
     return Object.entries(groupedByDex).map(([dexName, dataPoints]) => ({
       dexName,
-      data: dataPoints.sort((a, b) => 
-        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-      )
+      data: dataPoints
     }));
   } catch (error) {
     console.error('Error fetching price comparison data:', error);
@@ -128,13 +126,20 @@ export async function fetchAndSavePriceData(
       return;
     }
     
-    const tokenPair = `${baseToken.symbol}/${quoteToken.symbol}`;
+    const tokenPair = `${baseToken.symbol}/${quoteToken?.symbol || 'USD'}`;
     
     // Get real quotes from DEX adapters and save to database
     for (const adapter of adapters) {
       try {
-        const quote = await adapter.fetchQuote(baseToken, quoteToken);
-        await savePriceData(tokenPair, adapter.getName(), chainId, quote.price);
+        const quote = await adapter.fetchQuote(baseToken, quoteToken || {
+          address: '0x0',
+          chainId: baseToken.chainId,
+          decimals: 18,
+          name: 'USD',
+          symbol: 'USD'
+        });
+        
+        await savePriceData(tokenPair, adapter.getName().toLowerCase(), chainId, quote.price);
       } catch (adapterError) {
         console.error(`Error fetching quote from ${adapter.getName()}:`, adapterError);
       }
