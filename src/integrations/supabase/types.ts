@@ -220,6 +220,48 @@ export type Database = {
         }
         Relationships: []
       }
+      dex_settings: {
+        Row: {
+          api_key: string | null
+          api_url: string | null
+          chain_ids: number[]
+          created_at: string
+          enabled: boolean
+          id: string
+          name: string
+          rate_limit_per_second: number | null
+          slug: string
+          trading_fee_percentage: number
+          updated_at: string
+        }
+        Insert: {
+          api_key?: string | null
+          api_url?: string | null
+          chain_ids: number[]
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          name: string
+          rate_limit_per_second?: number | null
+          slug: string
+          trading_fee_percentage?: number
+          updated_at?: string
+        }
+        Update: {
+          api_key?: string | null
+          api_url?: string | null
+          chain_ids?: number[]
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          name?: string
+          rate_limit_per_second?: number | null
+          slug?: string
+          trading_fee_percentage?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       fees: {
         Row: {
           created_at: string | null
@@ -244,6 +286,39 @@ export type Database = {
         }
         Relationships: []
       }
+      gas_fees: {
+        Row: {
+          base_fee: number
+          compute_units: number | null
+          created_at: string
+          id: string
+          is_lamports: boolean | null
+          network: string
+          priority_fee: number | null
+          updated_at: string
+        }
+        Insert: {
+          base_fee: number
+          compute_units?: number | null
+          created_at?: string
+          id?: string
+          is_lamports?: boolean | null
+          network: string
+          priority_fee?: number | null
+          updated_at?: string
+        }
+        Update: {
+          base_fee?: number
+          compute_units?: number | null
+          created_at?: string
+          id?: string
+          is_lamports?: boolean | null
+          network?: string
+          priority_fee?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       price_data: {
         Row: {
           id: string
@@ -265,6 +340,33 @@ export type Database = {
           source?: string
           timestamp?: string
           token_pair?: string
+        }
+        Relationships: []
+      }
+      scan_settings: {
+        Row: {
+          created_at: string
+          gas_fee_threshold: number
+          id: number
+          profit_threshold: number
+          scan_interval: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          gas_fee_threshold?: number
+          id?: number
+          profit_threshold?: number
+          scan_interval?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          gas_fee_threshold?: number
+          id?: number
+          profit_threshold?: number
+          scan_interval?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -353,6 +455,7 @@ export type Database = {
           fee_amount: number | null
           fee_token: string | null
           id: string
+          network_type: string | null
           price: number
           status: string
           strategy: string
@@ -368,6 +471,7 @@ export type Database = {
           fee_amount?: number | null
           fee_token?: string | null
           id?: string
+          network_type?: string | null
           price: number
           status?: string
           strategy: string
@@ -383,6 +487,7 @@ export type Database = {
           fee_amount?: number | null
           fee_token?: string | null
           id?: string
+          network_type?: string | null
           price?: number
           status?: string
           strategy?: string
