@@ -1,7 +1,7 @@
 
 import { supabase } from '@/lib/supabaseClient';
 import { TokenInfo } from './tokenListService';
-import { PriceQuote, getQuotesForChain } from './dexService';
+import { PriceQuote } from './dex/types';
 
 export interface PriceHistoryDataPoint {
   timestamp: string;
@@ -111,16 +111,35 @@ export async function getPriceComparisonData(
 // Fetch current quotes and save them to the database
 export async function fetchAndSavePriceData(
   baseToken: TokenInfo,
-  quoteToken: TokenInfo
+  quoteToken: TokenInfo,
+  dexNamesList: string[]
 ): Promise<void> {
   try {
-    const quotes = await getQuotesForChain(baseToken, quoteToken, baseToken.chainId);
+    // Get all enabled DEX adapters for the chain
+    const { data: dexes, error } = await supabase
+      .from('dex_settings')
+      .select('*')
+      .eq('enabled', true)
+      .in('name', dexNamesList);
+      
+    if (error) throw error;
+    
     const tokenPair = `${baseToken.symbol}/${quoteToken.symbol}`;
     
-    // Save each quote to the database
-    await Promise.all(quotes.map(quote => 
-      savePriceData(tokenPair, quote.dexName, baseToken.chainId, quote.price)
-    ));
+    // Simulate quotes and save to database
+    for (const dex of dexes) {
+      // Simulate a price
+      const basePrice = baseToken.symbol === 'ETH' 
+        ? 3000 + Math.random() * 100 
+        : baseToken.symbol === 'BNB' 
+          ? 500 + Math.random() * 20 
+          : 100 + Math.random() * 10;
+      
+      const variation = 0.95 + Math.random() * 0.1;
+      const price = basePrice * variation;
+      
+      await savePriceData(tokenPair, dex.name, baseToken.chainId, price);
+    }
   } catch (error) {
     console.error('Error fetching and saving price data:', error);
   }

@@ -7,6 +7,9 @@ import TokenSelector from '@/components/TokenSelector/TokenSelector';
 import { ChainId, TokenInfo } from '@/services/tokenListService';
 import ArbitrageScanner from '@/components/ArbitrageScanner/ArbitrageScanner';
 import PriceChart from '@/components/PriceChart/PriceChart';
+import { Link } from 'react-router-dom';
+import { Settings } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface ArbitrageOpportunity {
   id: string;
@@ -56,7 +59,15 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <Link to="/settings">
+          <Button variant="outline" className="flex gap-2 items-center">
+            <Settings size={16} />
+            Settings
+          </Button>
+        </Link>
+      </div>
       
       {/* Wallet Connection Section */}
       <WalletSection />
