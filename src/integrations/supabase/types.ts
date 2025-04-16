@@ -193,6 +193,33 @@ export type Database = {
           },
         ]
       }
+      dex_price_history: {
+        Row: {
+          chain_id: number
+          dex_name: string
+          id: string
+          price: number
+          timestamp: string
+          token_pair: string
+        }
+        Insert: {
+          chain_id: number
+          dex_name: string
+          id?: string
+          price: number
+          timestamp?: string
+          token_pair: string
+        }
+        Update: {
+          chain_id?: number
+          dex_name?: string
+          id?: string
+          price?: number
+          timestamp?: string
+          token_pair?: string
+        }
+        Relationships: []
+      }
       fees: {
         Row: {
           created_at: string | null

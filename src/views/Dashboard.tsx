@@ -6,6 +6,7 @@ import WalletSection from '@/components/WalletConnect/WalletSection';
 import TokenSelector from '@/components/TokenSelector/TokenSelector';
 import { ChainId, TokenInfo } from '@/services/tokenListService';
 import ArbitrageScanner from '@/components/ArbitrageScanner/ArbitrageScanner';
+import PriceChart from '@/components/PriceChart/PriceChart';
 
 interface ArbitrageOpportunity {
   id: string;
@@ -73,7 +74,7 @@ const Dashboard: React.FC = () => {
           />
           
           {selectedToken && (
-            <div className="mt-4 p-3 bg-green-50 rounded-md border border-green-200">
+            <div className="mt-4 p-3 bg-green-50 rounded-md border border-green-200 dark:bg-green-900/20 dark:border-green-800">
               <h3 className="font-medium">Selected Token:</h3>
               <div className="flex items-center mt-2">
                 {selectedToken.logoURI && (
@@ -96,6 +97,11 @@ const Dashboard: React.FC = () => {
         </CardContent>
       </Card>
 
+      {/* Price Chart Component */}
+      <PriceChart 
+        baseToken={selectedToken} 
+      />
+      
       {/* Arbitrage Scanner Component */}
       <ArbitrageScanner 
         selectedToken={selectedToken} 

@@ -1,6 +1,6 @@
-
 import { TokenInfo } from './tokenListService';
 import { supabase } from '@/lib/supabaseClient';
+import { savePriceData } from './priceHistoryService';
 
 export interface PriceQuote {
   dexName: string;
@@ -91,7 +91,17 @@ export async function getQuotesForChain(
   
   // Fetch quotes from all relevant DEXs
   const quotePromises = dexes.map(dex => fetchQuote(baseToken, quoteToken, dex));
-  return await Promise.all(quotePromises);
+  const quotes = await Promise.all(quotePromises);
+  
+  // Save to price history
+  const tokenPair = `${baseToken.symbol}/${quoteToken.symbol}`;
+  quotes.forEach(quote => {
+    // Save to database for historical tracking
+    savePriceData(tokenPair, quote.dexName, baseToken.chainId, quote.price)
+      .catch(error => console.error('Failed to save price data:', error));
+  });
+  
+  return quotes;
 }
 
 // Calculate the arbitrage opportunities based on quotes
