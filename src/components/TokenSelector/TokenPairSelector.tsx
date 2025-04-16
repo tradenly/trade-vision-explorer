@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { ChainId, CHAIN_NAMES, TokenInfo, fetchAllTokens } from '@/services/tokenListService';
+import { ChainId, CHAIN_NAMES, TokenInfo } from '@/services/tokenListService';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,7 @@ import TokenSelector from './TokenSelector';
 import { Button } from '../ui/button';
 import { ArrowRightLeft, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useTokens } from '@/hooks/useTokens';
 
 interface TokenPairSelectorProps {
   onSelectTokenPair: (baseToken: TokenInfo, quoteToken: TokenInfo) => void;
@@ -17,12 +18,6 @@ interface TokenPairSelectorProps {
   onInvestmentAmountChange?: (amount: number) => void;
 }
 
-const commonQuoteTokens: Record<number, string[]> = {
-  [ChainId.ETHEREUM]: ['USDT', 'USDC', 'DAI', 'WETH', 'WBTC'],
-  [ChainId.BNB]: ['BUSD', 'USDT', 'USDC', 'WBNB', 'ETH'],
-  [ChainId.SOLANA]: ['USDC', 'USDT', 'SOL', 'BTC', 'ETH']
-};
-
 const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({ 
   onSelectTokenPair, 
   selectedChain = ChainId.ETHEREUM,
@@ -30,45 +25,20 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
   investmentAmount = 1000,
   onInvestmentAmountChange
 }) => {
+  const { loading, getQuoteTokens, handleChainChange: hookHandleChainChange } = useTokens(selectedChain);
   const [baseToken, setBaseToken] = useState<TokenInfo | null>(null);
   const [quoteToken, setQuoteToken] = useState<TokenInfo | null>(null);
   const [quoteTokens, setQuoteTokens] = useState<TokenInfo[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
   const { toast } = useToast();
   
   // Load quote tokens when chain changes
   useEffect(() => {
-    const loadQuoteTokens = async () => {
-      setLoading(true);
-      try {
-        const allTokens = await fetchAllTokens();
-        const chainTokens = allTokens[selectedChain] || [];
-        
-        // Filter to common quote tokens for the selected chain
-        const commonSymbols = commonQuoteTokens[selectedChain] || [];
-        const filtered = chainTokens.filter(token => 
-          commonSymbols.includes(token.symbol)
-        );
-        
-        setQuoteTokens(filtered);
-        
-        // Reset selections when chain changes
-        setBaseToken(null);
-        setQuoteToken(null);
-      } catch (error) {
-        console.error('Error loading quote tokens:', error);
-        toast({
-          title: 'Failed to load tokens',
-          description: 'Could not fetch quote tokens for the selected chain',
-          variant: 'destructive',
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
+    setQuoteTokens(getQuoteTokens());
     
-    loadQuoteTokens();
-  }, [selectedChain, toast]);
+    // Reset selections when chain changes
+    setBaseToken(null);
+    setQuoteToken(null);
+  }, [selectedChain, getQuoteTokens]);
 
   // When both tokens are selected, notify the parent
   useEffect(() => {
@@ -79,6 +49,7 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
 
   // Handle chain change
   const handleChainChange = (chainId: ChainId) => {
+    hookHandleChainChange(chainId);
     if (onSelectChain) {
       onSelectChain(chainId);
     }
@@ -111,6 +82,14 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
     }
   };
 
+  // Generate safe token value - ensure it's never empty
+  const getSafeTokenValue = (token: TokenInfo): string => {
+    if (!token.address || token.address === '') {
+      return `token-${token.symbol}-${Math.random().toString(36).substring(7)}`;
+    }
+    return token.address;
+  };
+
   return (
     <Card className="w-full">
       <CardHeader className="pb-2">
@@ -130,7 +109,7 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
             <SelectContent>
               <SelectGroup>
                 {Object.entries(CHAIN_NAMES).map(([id, name]) => (
-                  <SelectItem key={id} value={id || "unknown-chain"}>
+                  <SelectItem key={id} value={id}>
                     <div className="flex items-center gap-2">
                       <img 
                         src={`https://fkagpyfzgczcaxsqwsoi.supabase.co/storage/v1/object/public/chains//${name.toLowerCase().replace(' ', '-')}-icon.png`}
@@ -175,9 +154,9 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
           <div className="space-y-1 md:col-start-2 md:row-start-1">
             <label className="text-sm font-medium">Quote Token (To)</label>
             <Select
-              value={quoteToken?.address || ""}
+              value={quoteToken ? getSafeTokenValue(quoteToken) : ""}
               onValueChange={(value) => {
-                const selected = quoteTokens.find(token => token.address === value);
+                const selected = quoteTokens.find(token => getSafeTokenValue(token) === value);
                 if (selected) handleQuoteTokenSelect(selected);
               }}
               disabled={loading || quoteTokens.length === 0}
@@ -209,26 +188,29 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
                       Loading quote tokens...
                     </div>
                   ) : (
-                    quoteTokens.map(token => (
-                      <SelectItem 
-                        key={token.address} 
-                        value={token.address || `token-${token.symbol}`}
-                      >
-                        <div className="flex items-center">
-                          {token.logoURI && (
-                            <img 
-                              src={token.logoURI} 
-                              alt={token.name} 
-                              className="w-5 h-5 mr-2 rounded-full"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).style.display = 'none';
-                              }}
-                            />
-                          )}
-                          {token.symbol}
-                        </div>
-                      </SelectItem>
-                    ))
+                    quoteTokens.map((token) => {
+                      const safeValue = getSafeTokenValue(token);
+                      return (
+                        <SelectItem 
+                          key={safeValue} 
+                          value={safeValue}
+                        >
+                          <div className="flex items-center">
+                            {token.logoURI && (
+                              <img 
+                                src={token.logoURI} 
+                                alt={token.name} 
+                                className="w-5 h-5 mr-2 rounded-full"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                }}
+                              />
+                            )}
+                            {token.symbol}
+                          </div>
+                        </SelectItem>
+                      );
+                    })
                   )}
                 </SelectGroup>
               </SelectContent>

@@ -1,4 +1,3 @@
-
 import { supabase } from '@/lib/supabaseClient';
 
 export interface TokenInfo {
@@ -57,18 +56,34 @@ const isCacheValid = (chainId: number): boolean => {
   return (now - cache.timestamp) < CACHE_EXPIRY_MS;
 };
 
+// Generate a valid token address if needed
+const generateTokenAddress = (token: TokenInfo): string => {
+  // If the address is empty, null or undefined, generate a pseudo-address
+  if (!token.address || token.address === '' || token.address === 'undefined') {
+    return `generated-${token.symbol}-${Math.random().toString(36).substring(2, 15)}`;
+  }
+  return token.address;
+};
+
 // Ensure all tokens have valid addresses
 const validateTokens = (tokens: TokenInfo[]): TokenInfo[] => {
   return tokens.map(token => {
-    if (!token.address || token.address === '') {
+    if (!token.address || token.address === '' || token.address === 'undefined') {
       // Generate a pseudo-address if needed to avoid empty strings
       return {
         ...token,
-        address: `generated-${token.symbol}-${Math.random().toString(36).substring(2, 15)}`
+        address: generateTokenAddress(token)
       };
     }
     return token;
-  });
+  })
+  // Filter out duplicates and invalid tokens
+  .filter((token, index, self) => 
+    // Keep only tokens with valid properties
+    token.symbol && token.name && 
+    // Remove duplicates by address
+    index === self.findIndex(t => t.address === token.address)
+  );
 };
 
 // Fetch Ethereum tokens with error handling and retry logic
@@ -78,12 +93,14 @@ export async function fetchEthereumTokens(): Promise<TokenInfo[]> {
   }
 
   try {
+    // Try primary source
     const response = await fetch('https://gateway.ipfs.io/ipns/tokens.uniswap.org');
     if (!response.ok) {
       throw new Error(`Failed to fetch Ethereum tokens: ${response.status} ${response.statusText}`);
     }
     
     const data: TokenList = await response.json();
+    // Only include Ethereum tokens and validate them
     const tokens = validateTokens(data.tokens.filter(token => token.chainId === ChainId.ETHEREUM));
     
     // Cache the results
@@ -92,9 +109,30 @@ export async function fetchEthereumTokens(): Promise<TokenInfo[]> {
       timestamp: Date.now()
     };
     
+    console.log(`Fetched ${tokens.length} Ethereum tokens`);
     return tokens;
   } catch (error) {
-    console.error('Error fetching Ethereum tokens:', error);
+    console.error('Error fetching Ethereum tokens from primary source:', error);
+    
+    try {
+      // Try backup source
+      const backupResponse = await fetch('https://tokens.coingecko.com/uniswap/all.json');
+      if (backupResponse.ok) {
+        const backupData: TokenList = await backupResponse.json();
+        const tokens = validateTokens(backupData.tokens.filter(token => token.chainId === ChainId.ETHEREUM));
+        
+        // Cache the results
+        tokenCache[ChainId.ETHEREUM] = {
+          tokens,
+          timestamp: Date.now()
+        };
+        
+        console.log(`Fetched ${tokens.length} Ethereum tokens from backup source`);
+        return tokens;
+      }
+    } catch (backupError) {
+      console.error('Error fetching Ethereum tokens from backup source:', backupError);
+    }
     
     // Return cached data if available, even if expired
     if (tokenCache[ChainId.ETHEREUM]) {
@@ -102,7 +140,17 @@ export async function fetchEthereumTokens(): Promise<TokenInfo[]> {
       return tokenCache[ChainId.ETHEREUM].tokens;
     }
     
-    return [];
+    // Last resort: Return some predefined tokens
+    const fallbackTokens: TokenInfo[] = [
+      { name: 'Ethereum', symbol: 'ETH', address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', decimals: 18, chainId: ChainId.ETHEREUM },
+      { name: 'Wrapped Ether', symbol: 'WETH', address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals: 18, chainId: ChainId.ETHEREUM },
+      { name: 'USD Coin', symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals: 6, chainId: ChainId.ETHEREUM },
+      { name: 'Tether', symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6, chainId: ChainId.ETHEREUM },
+      { name: 'Dai', symbol: 'DAI', address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', decimals: 18, chainId: ChainId.ETHEREUM },
+    ];
+    
+    console.log('Using fallback Ethereum token data');
+    return fallbackTokens;
   }
 }
 
@@ -186,7 +234,10 @@ export async function fetchSolanaTokens(): Promise<TokenInfo[]> {
 
 // Fetch all tokens from all supported chains with improved error handling
 export async function fetchAllTokens(): Promise<Record<number, TokenInfo[]>> {
+  const results: Record<number, TokenInfo[]> = {};
+  
   try {
+    // Fetch tokens for each chain in parallel with individual error handling
     const [ethereumTokens, bnbTokens, solanaTokens] = await Promise.all([
       fetchEthereumTokens().catch(err => {
         console.error('Error in Ethereum token fetch:', err);
@@ -201,12 +252,35 @@ export async function fetchAllTokens(): Promise<Record<number, TokenInfo[]>> {
         return [] as TokenInfo[];
       }),
     ]);
-
-    return {
-      [ChainId.ETHEREUM]: ethereumTokens,
-      [ChainId.BNB]: bnbTokens,
-      [ChainId.SOLANA]: solanaTokens,
-    };
+    
+    // Only add chains with valid tokens
+    if (ethereumTokens.length > 0) results[ChainId.ETHEREUM] = ethereumTokens;
+    if (bnbTokens.length > 0) results[ChainId.BNB] = bnbTokens;
+    if (solanaTokens.length > 0) results[ChainId.SOLANA] = solanaTokens;
+    
+    // If any chain has no tokens, try to get cached data
+    if (!results[ChainId.ETHEREUM] && tokenCache[ChainId.ETHEREUM]) {
+      results[ChainId.ETHEREUM] = tokenCache[ChainId.ETHEREUM].tokens;
+    }
+    if (!results[ChainId.BNB] && tokenCache[ChainId.BNB]) {
+      results[ChainId.BNB] = tokenCache[ChainId.BNB].tokens;
+    }
+    if (!results[ChainId.SOLANA] && tokenCache[ChainId.SOLANA]) {
+      results[ChainId.SOLANA] = tokenCache[ChainId.SOLANA].tokens;
+    }
+    
+    // If still no tokens for a chain, add fallbacks
+    if (!results[ChainId.ETHEREUM] || results[ChainId.ETHEREUM].length === 0) {
+      results[ChainId.ETHEREUM] = [
+        { name: 'Ethereum', symbol: 'ETH', address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', decimals: 18, chainId: ChainId.ETHEREUM },
+        { name: 'Wrapped Ether', symbol: 'WETH', address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals: 18, chainId: ChainId.ETHEREUM },
+        { name: 'USD Coin', symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals: 6, chainId: ChainId.ETHEREUM },
+        { name: 'Tether', symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6, chainId: ChainId.ETHEREUM },
+        { name: 'Dai', symbol: 'DAI', address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', decimals: 18, chainId: ChainId.ETHEREUM },
+      ];
+    }
+    
+    return results;
   } catch (error) {
     console.error('Error fetching all tokens:', error);
     

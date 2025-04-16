@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChainId, CHAIN_NAMES, TokenInfo, fetchAllTokens } from '@/services/tokenListService';
+import { ChainId, CHAIN_NAMES, TokenInfo } from '@/services/tokenListService';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import debounce from 'lodash.debounce';
 import { useToast } from '@/hooks/use-toast';
+import { useTokens } from '@/hooks/useTokens';
 
 interface TokenSelectorProps {
   onSelectToken?: (token: TokenInfo) => void;
@@ -25,59 +26,19 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
   onSelectChain,
   placeholder = "Select a token"
 }) => {
-  const [tokens, setTokens] = useState<Record<number, TokenInfo[]>>({});
-  const [loading, setLoading] = useState(true);
+  const { 
+    loading, 
+    error, 
+    allTokens, 
+    popularTokens, 
+    handleChainChange: hookHandleChainChange,
+    getChainTokens
+  } = useTokens(selectedChain);
+  
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
   const [selectedToken, setSelectedToken] = useState<TokenInfo | null>(null);
-  const [popularTokens, setPopularTokens] = useState<Record<number, TokenInfo[]>>({});
-  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
-
-  // Load tokens on component mount
-  useEffect(() => {
-    async function loadTokens() {
-      setLoading(true);
-      setError(null);
-      
-      try {
-        const allTokens = await fetchAllTokens();
-        
-        // Create a set of popular tokens per chain
-        const popular: Record<number, TokenInfo[]> = {};
-        
-        // Ethereum popular tokens
-        popular[ChainId.ETHEREUM] = allTokens[ChainId.ETHEREUM]
-          ?.filter(token => ['ETH', 'WETH', 'USDT', 'USDC', 'DAI', 'WBTC', 'UNI', 'LINK', 'AAVE'].includes(token.symbol))
-          ?.slice(0, 10) || [];
-        
-        // BNB Chain popular tokens
-        popular[ChainId.BNB] = allTokens[ChainId.BNB]
-          ?.filter(token => ['BNB', 'WBNB', 'CAKE', 'BUSD', 'USDT', 'ETH', 'BTCB', 'DOT', 'ADA', 'XRP'].includes(token.symbol))
-          ?.slice(0, 10) || [];
-        
-        // Solana popular tokens
-        popular[ChainId.SOLANA] = allTokens[ChainId.SOLANA]
-          ?.filter(token => ['SOL', 'USDC', 'USDT', 'BTC', 'ETH', 'BONK', 'JUP', 'RAY', 'ORCA', 'MNGO'].includes(token.symbol))
-          ?.slice(0, 10) || [];
-        
-        setTokens(allTokens);
-        setPopularTokens(popular);
-      } catch (error) {
-        console.error('Error loading tokens:', error);
-        setError('Failed to load token list');
-        toast({
-          title: "Failed to load tokens",
-          description: "Could not fetch token list. Please try again later.",
-          variant: "destructive"
-        });
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadTokens();
-  }, [toast]);
 
   // Handler for chain selection
   const handleChainChange = (value: string) => {
@@ -85,6 +46,7 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
     if (onSelectChain) {
       onSelectChain(chainId);
     }
+    hookHandleChainChange(chainId);
     setSelectedToken(null);
   };
 
@@ -93,11 +55,6 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
     debounce((value: string) => setSearch(value), 300),
     []
   );
-
-  // Get chain tokens safely
-  const getChainTokens = (): TokenInfo[] => {
-    return tokens[selectedChain] || [];
-  };
 
   // Filter tokens based on search input
   const filteredTokens = getChainTokens().filter(token => 
@@ -121,9 +78,12 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
     [ChainId.SOLANA]: 'https://fkagpyfzgczcaxsqwsoi.supabase.co/storage/v1/object/public/chains//solana-icon.png',
   };
 
-  // Generate safe SelectItem value
+  // Generate safe SelectItem value - ensure it's never empty
   const getSafeSelectValue = (token: TokenInfo): string => {
-    return token.address || `token-${token.symbol}-${Math.random().toString(36).substring(7)}`;
+    if (!token.address || token.address === '') {
+      return `token-${token.symbol}-${Math.random().toString(36).substring(7)}`;
+    }
+    return token.address;
   };
 
   return (
@@ -158,7 +118,7 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
             <SelectGroup>
               <SelectLabel>Supported Chains</SelectLabel>
               {Object.entries(CHAIN_NAMES).map(([id, name]) => (
-                <SelectItem key={id} value={id || "unknown-chain"}>
+                <SelectItem key={id} value={id}>
                   <div className="flex items-center gap-2">
                     <img 
                       src={chainLogos[Number(id)]} 
@@ -236,34 +196,38 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
                 {!search && popularTokens[selectedChain]?.length > 0 && (
                   <CommandGroup heading="Popular Tokens">
                     <ScrollArea className="h-[200px]">
-                      {popularTokens[selectedChain].map((token) => (
-                        <CommandItem
-                          key={`popular-${token.address || token.symbol}`}
-                          value={`popular-${token.symbol}-${token.address || Math.random().toString(36).substring(7)}`}
-                          onSelect={() => handleTokenSelect(token)}
-                          className="flex items-center"
-                        >
-                          <div className="flex items-center flex-1">
-                            {token.logoURI && (
-                              <img
-                                src={token.logoURI}
-                                alt={token.name}
-                                className="w-5 h-5 mr-2 rounded-full"
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).style.display = 'none';
-                                }}
-                              />
+                      {popularTokens[selectedChain].map((token) => {
+                        // Ensure token has a valid address for value prop
+                        const safeValue = getSafeSelectValue(token);
+                        return (
+                          <CommandItem
+                            key={`popular-${safeValue}`}
+                            value={`popular-${token.symbol}-${safeValue}`}
+                            onSelect={() => handleTokenSelect(token)}
+                            className="flex items-center"
+                          >
+                            <div className="flex items-center flex-1">
+                              {token.logoURI && (
+                                <img
+                                  src={token.logoURI}
+                                  alt={token.name}
+                                  className="w-5 h-5 mr-2 rounded-full"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
+                              )}
+                              <span className="font-medium">{token.symbol}</span>
+                              <span className="ml-2 text-sm text-gray-500 truncate">
+                                {token.name}
+                              </span>
+                            </div>
+                            {selectedToken?.address === token.address && (
+                              <Check className="h-4 w-4 ml-auto" />
                             )}
-                            <span className="font-medium">{token.symbol}</span>
-                            <span className="ml-2 text-sm text-gray-500 truncate">
-                              {token.name}
-                            </span>
-                          </div>
-                          {selectedToken?.address === token.address && (
-                            <Check className="h-4 w-4 ml-auto" />
-                          )}
-                        </CommandItem>
-                      ))}
+                          </CommandItem>
+                        );
+                      })}
                     </ScrollArea>
                   </CommandGroup>
                 )}
@@ -276,34 +240,38 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
                         <span>Searching...</span>
                       </div>
                     ) : (
-                      filteredTokens.map((token) => (
-                        <CommandItem
-                          key={token.address || `token-${token.symbol}-${Math.random().toString(36).substr(2, 9)}`}
-                          value={`${token.symbol}-${token.address || Math.random().toString(36).substring(7)}`}
-                          onSelect={() => handleTokenSelect(token)}
-                          className="flex items-center"
-                        >
-                          <div className="flex items-center flex-1">
-                            {token.logoURI && (
-                              <img
-                                src={token.logoURI}
-                                alt={token.name}
-                                className="w-5 h-5 mr-2 rounded-full"
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).style.display = 'none';
-                                }}
-                              />
+                      filteredTokens.map((token) => {
+                        // Ensure token has a valid address for value prop
+                        const safeValue = getSafeSelectValue(token);
+                        return (
+                          <CommandItem
+                            key={`token-${safeValue}`}
+                            value={`${token.symbol}-${safeValue}`}
+                            onSelect={() => handleTokenSelect(token)}
+                            className="flex items-center"
+                          >
+                            <div className="flex items-center flex-1">
+                              {token.logoURI && (
+                                <img
+                                  src={token.logoURI}
+                                  alt={token.name}
+                                  className="w-5 h-5 mr-2 rounded-full"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
+                              )}
+                              <span className="font-medium">{token.symbol}</span>
+                              <span className="ml-2 text-sm text-gray-500 truncate">
+                                {token.name}
+                              </span>
+                            </div>
+                            {selectedToken?.address === token.address && (
+                              <Check className="h-4 w-4 ml-auto" />
                             )}
-                            <span className="font-medium">{token.symbol}</span>
-                            <span className="ml-2 text-sm text-gray-500 truncate">
-                              {token.name}
-                            </span>
-                          </div>
-                          {selectedToken?.address === token.address && (
-                            <Check className="h-4 w-4 ml-auto" />
-                          )}
-                        </CommandItem>
-                      ))
+                          </CommandItem>
+                        );
+                      })
                     )}
                   </ScrollArea>
                 </CommandGroup>
