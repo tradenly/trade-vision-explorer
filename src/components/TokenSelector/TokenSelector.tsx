@@ -1,17 +1,14 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ChainId, CHAIN_NAMES, TokenInfo } from '@/services/tokenListService';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Check, ChevronsUpDown, Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import debounce from 'lodash.debounce';
-import { useToast } from '@/hooks/use-toast';
 import { useTokens } from '@/hooks/useTokens';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface TokenSelectorProps {
   onSelectToken?: (token: TokenInfo) => void;
@@ -29,16 +26,16 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
   const { 
     loading, 
     error, 
-    allTokens, 
     popularTokens, 
     handleChainChange: hookHandleChainChange,
-    getChainTokens
+    getChainTokens,
+    getSafeTokenValue,
+    getStableTokenId
   } = useTokens(selectedChain);
   
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
   const [selectedToken, setSelectedToken] = useState<TokenInfo | null>(null);
-  const { toast } = useToast();
 
   // Handler for chain selection
   const handleChainChange = (value: string) => {
@@ -78,14 +75,6 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
     [ChainId.SOLANA]: 'https://fkagpyfzgczcaxsqwsoi.supabase.co/storage/v1/object/public/chains//solana-icon.png',
   };
 
-  // Generate safe SelectItem value - ensure it's never empty
-  const getSafeSelectValue = (token: TokenInfo): string => {
-    if (!token.address || token.address === '') {
-      return `token-${token.symbol}-${Math.random().toString(36).substring(7)}`;
-    }
-    return token.address;
-  };
-
   return (
     <div className="space-y-4">
       {/* Chain Selector */}
@@ -116,7 +105,6 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              <SelectLabel>Supported Chains</SelectLabel>
               {Object.entries(CHAIN_NAMES).map(([id, name]) => (
                 <SelectItem key={id} value={id}>
                   <div className="flex items-center gap-2">
@@ -197,12 +185,17 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
                   <CommandGroup heading="Popular Tokens">
                     <ScrollArea className="h-[200px]">
                       {popularTokens[selectedChain].map((token) => {
-                        // Ensure token has a valid address for value prop
-                        const safeValue = getSafeSelectValue(token);
+                        // Generate stable ID for the token
+                        const tokenId = getStableTokenId(token);
+                        const tokenValue = getSafeTokenValue(token);
+                        
+                        // Skip tokens with empty values
+                        if (!tokenValue) return null;
+                        
                         return (
                           <CommandItem
-                            key={`popular-${safeValue}`}
-                            value={`popular-${token.symbol}-${safeValue}`}
+                            key={`popular-${tokenId}`}
+                            value={`popular-${token.symbol}-${tokenId}`}
                             onSelect={() => handleTokenSelect(token)}
                             className="flex items-center"
                           >
@@ -241,12 +234,17 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
                       </div>
                     ) : (
                       filteredTokens.map((token) => {
-                        // Ensure token has a valid address for value prop
-                        const safeValue = getSafeSelectValue(token);
+                        // Generate stable ID for the token
+                        const tokenId = getStableTokenId(token);
+                        const tokenValue = getSafeTokenValue(token);
+                        
+                        // Skip tokens with empty values
+                        if (!tokenValue) return null;
+                        
                         return (
                           <CommandItem
-                            key={`token-${safeValue}`}
-                            value={`${token.symbol}-${safeValue}`}
+                            key={`token-${tokenId}`}
+                            value={`${token.symbol}-${tokenId}`}
                             onSelect={() => handleTokenSelect(token)}
                             className="flex items-center"
                           >

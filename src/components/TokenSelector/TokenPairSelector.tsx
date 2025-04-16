@@ -25,7 +25,14 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
   investmentAmount = 1000,
   onInvestmentAmountChange
 }) => {
-  const { loading, getQuoteTokens, handleChainChange: hookHandleChainChange } = useTokens(selectedChain);
+  const { 
+    loading, 
+    getQuoteTokens, 
+    handleChainChange: hookHandleChainChange, 
+    getSafeTokenValue,
+    getStableTokenId
+  } = useTokens(selectedChain);
+  
   const [baseToken, setBaseToken] = useState<TokenInfo | null>(null);
   const [quoteToken, setQuoteToken] = useState<TokenInfo | null>(null);
   const [quoteTokens, setQuoteTokens] = useState<TokenInfo[]>([]);
@@ -84,14 +91,6 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
     }
   };
 
-  // Generate safe token value - ensure it's never empty
-  const getSafeTokenValue = (token: TokenInfo | null): string => {
-    if (!token || !token.address || token.address === '') {
-      return `generated-token-${Math.random().toString(36).substring(2, 10)}`;
-    }
-    return token.address;
-  };
-
   return (
     <Card className="w-full">
       <CardHeader className="pb-2">
@@ -106,7 +105,9 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
             onValueChange={(value) => handleChainChange(parseInt(value) as ChainId)}
           >
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select Blockchain" />
+              <SelectValue placeholder="Select Blockchain">
+                {CHAIN_NAMES[selectedChain]}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
@@ -156,7 +157,7 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
           <div className="space-y-1 md:col-start-2 md:row-start-1">
             <label className="text-sm font-medium">Quote Token (To)</label>
             <Select
-              value={quoteToken ? getSafeTokenValue(quoteToken) : undefined}
+              value={quoteToken ? getSafeTokenValue(quoteToken) : ""}
               onValueChange={(value) => {
                 const selected = quoteTokens.find(token => getSafeTokenValue(token) === value);
                 if (selected) handleQuoteTokenSelect(selected);
@@ -184,6 +185,7 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
+                  <SelectLabel>Quote Tokens</SelectLabel>
                   {loading ? (
                     <div className="flex justify-center p-2">
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -195,12 +197,15 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
                     </div>
                   ) : (
                     quoteTokens.map((token) => {
-                      // Generate safe unique value for each token
-                      const safeValue = getSafeTokenValue(token);
-                      return (
+                      // Use the token's address as a unique, stable value
+                      const tokenValue = getSafeTokenValue(token);
+                      const key = `quote-${token.symbol}-${getStableTokenId(token)}`;
+                      
+                      // Only render if we have a valid value
+                      return tokenValue ? (
                         <SelectItem 
-                          key={`quote-${safeValue}`} 
-                          value={safeValue}
+                          key={key}
+                          value={tokenValue}
                         >
                           <div className="flex items-center">
                             {token.logoURI && (
@@ -216,7 +221,7 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
                             {token.symbol}
                           </div>
                         </SelectItem>
-                      );
+                      ) : null;
                     })
                   )}
                 </SelectGroup>

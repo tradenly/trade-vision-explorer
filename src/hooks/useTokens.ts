@@ -43,6 +43,15 @@ export const useTokens = (initialChainId: ChainId = ChainId.ETHEREUM) => {
     ],
   };
 
+  // Generate a stable unique ID for tokens to prevent dropdown issues
+  const getStableTokenId = useCallback((token: TokenInfo): string => {
+    if (!token.address || token.address === '' || token.address === 'undefined') {
+      // Create a deterministic ID based on symbol and chain for tokens without addresses
+      return `${token.symbol}-${token.chainId}`;
+    }
+    return token.address;
+  }, []);
+
   // Load tokens on component mount
   useEffect(() => {
     async function loadTokens() {
@@ -64,6 +73,22 @@ export const useTokens = (initialChainId: ChainId = ChainId.ETHEREUM) => {
           if (!ensuredTokens[chainId] || ensuredTokens[chainId].length === 0) {
             console.log(`Adding default tokens for chain ${chainId}`);
             ensuredTokens[chainId] = defaultTokensByChain[chainId];
+          } else {
+            // Make sure required tokens are always present at the top
+            const defaultSymbols = new Set(defaultTokensByChain[chainId].map(t => t.symbol));
+            
+            // Find tokens that already exist in fetched list
+            const existingDefaultTokens = ensuredTokens[chainId].filter(
+              t => defaultSymbols.has(t.symbol)
+            );
+            
+            // Find default tokens that need to be added
+            const missingDefaultTokens = defaultTokensByChain[chainId].filter(
+              dt => !existingDefaultTokens.some(et => et.symbol === dt.symbol)
+            );
+            
+            // Add missing default tokens to the beginning
+            ensuredTokens[chainId] = [...missingDefaultTokens, ...ensuredTokens[chainId]];
           }
         });
         
@@ -85,14 +110,14 @@ export const useTokens = (initialChainId: ChainId = ChainId.ETHEREUM) => {
           ?.filter(token => ['SOL', 'USDC', 'USDT', 'BTC', 'ETH', 'BONK', 'JUP', 'RAY', 'ORCA', 'MNGO'].includes(token.symbol))
           ?.slice(0, 10) || defaultTokensByChain[ChainId.SOLANA];
         
-        // Ensure no tokens have empty addresses
+        // Ensure no tokens have empty addresses and assign stable unique IDs
         Object.keys(ensuredTokens).forEach(chainIdStr => {
           const chainId = Number(chainIdStr) as ChainId;
           ensuredTokens[chainId] = ensuredTokens[chainId].map(token => {
             if (!token.address || token.address === '' || token.address === 'undefined') {
               return {
                 ...token,
-                address: `generated-${token.symbol}-${Math.random().toString(36).substring(2, 15)}`
+                address: `generated-${token.symbol}-${chainId}-${Math.random().toString(36).substring(2, 7)}`
               };
             }
             return token;
@@ -107,7 +132,7 @@ export const useTokens = (initialChainId: ChainId = ChainId.ETHEREUM) => {
         toast({
           title: "Failed to load tokens",
           description: "Using fallback token lists. Some features may be limited.",
-          variant: "default" // Changed from "warning" to "default" to fix the TypeScript error
+          variant: "default"
         });
         
         // Use default tokens as fallback
@@ -157,7 +182,7 @@ export const useTokens = (initialChainId: ChainId = ChainId.ETHEREUM) => {
     }
     
     return filteredTokens;
-  }, [allTokens, selectedChain, commonQuoteTokens]);
+  }, [allTokens, selectedChain]);
 
   // Get chain tokens
   const getChainTokens = useCallback((): TokenInfo[] => {
@@ -173,6 +198,14 @@ export const useTokens = (initialChainId: ChainId = ChainId.ETHEREUM) => {
     return tokens;
   }, [allTokens, selectedChain]);
 
+  // Get a stable token value for dropdowns
+  const getSafeTokenValue = useCallback((token: TokenInfo | null): string => {
+    if (!token || !token.address || token.address === '') {
+      return "";
+    }
+    return token.address;
+  }, []);
+
   return {
     loading,
     error,
@@ -185,6 +218,8 @@ export const useTokens = (initialChainId: ChainId = ChainId.ETHEREUM) => {
     setBaseToken,
     setQuoteToken,
     getQuoteTokens,
-    getChainTokens
+    getChainTokens,
+    getSafeTokenValue,
+    getStableTokenId
   };
 };
