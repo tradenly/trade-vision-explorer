@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { fetchArbitrageOpportunities } from '@/services/supabaseService';
 import { Card } from '@/components/ui/card';
+import WalletSection from '@/components/WalletConnect/WalletSection';
 
 interface ArbitrageOpportunity {
   id: string;
@@ -38,6 +39,9 @@ const Dashboard: React.FC = () => {
   return (
     <div className="container mx-auto py-8">
       <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
+      
+      {/* Wallet Connection Section */}
+      <WalletSection />
       
       <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6">
         <p className="font-bold">Connected to Supabase</p>
