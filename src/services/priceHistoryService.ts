@@ -112,7 +112,8 @@ export async function getPriceComparisonData(
 export async function fetchAndSavePriceData(
   baseToken: TokenInfo,
   quoteToken: TokenInfo,
-  dexNamesList: string[]
+  dexNamesList: string[],
+  chainId: number
 ): Promise<void> {
   try {
     // Get all enabled DEX adapters for the chain
@@ -138,7 +139,7 @@ export async function fetchAndSavePriceData(
       const variation = 0.95 + Math.random() * 0.1;
       const price = basePrice * variation;
       
-      await savePriceData(tokenPair, dex.name, baseToken.chainId, price);
+      await savePriceData(tokenPair, dex.name, chainId, price);
     }
   } catch (error) {
     console.error('Error fetching and saving price data:', error);
