@@ -2,6 +2,8 @@
 import { supabase } from '@/lib/supabaseClient';
 import { TokenInfo } from './tokenListService';
 import { PriceQuote } from './dex/types';
+import { DexAdapter } from './dex/types';
+import DexRegistry from './dex/DexRegistry';
 
 export interface PriceHistoryDataPoint {
   timestamp: string;
@@ -108,7 +110,7 @@ export async function getPriceComparisonData(
   }
 }
 
-// Fetch current quotes and save them to the database
+// Fetch current quotes from real DEX adapters and save to database
 export async function fetchAndSavePriceData(
   baseToken: TokenInfo,
   quoteToken: TokenInfo,
@@ -117,29 +119,25 @@ export async function fetchAndSavePriceData(
 ): Promise<void> {
   try {
     // Get all enabled DEX adapters for the chain
-    const { data: dexes, error } = await supabase
-      .from('dex_settings')
-      .select('*')
-      .eq('enabled', true)
-      .in('name', dexNamesList);
-      
-    if (error) throw error;
+    const dexRegistry = DexRegistry.getInstance();
+    const adapters = dexRegistry.getAdaptersForChain(chainId)
+      .filter(adapter => dexNamesList.includes(adapter.getName().toLowerCase()));
+    
+    if (adapters.length === 0) {
+      console.warn(`No matching DEX adapters found for chain ${chainId} and DEXs: ${dexNamesList.join(', ')}`);
+      return;
+    }
     
     const tokenPair = `${baseToken.symbol}/${quoteToken.symbol}`;
     
-    // Simulate quotes and save to database
-    for (const dex of dexes) {
-      // Simulate a price
-      const basePrice = baseToken.symbol === 'ETH' 
-        ? 3000 + Math.random() * 100 
-        : baseToken.symbol === 'BNB' 
-          ? 500 + Math.random() * 20 
-          : 100 + Math.random() * 10;
-      
-      const variation = 0.95 + Math.random() * 0.1;
-      const price = basePrice * variation;
-      
-      await savePriceData(tokenPair, dex.name, chainId, price);
+    // Get real quotes from DEX adapters and save to database
+    for (const adapter of adapters) {
+      try {
+        const quote = await adapter.fetchQuote(baseToken, quoteToken);
+        await savePriceData(tokenPair, adapter.getName(), chainId, quote.price);
+      } catch (adapterError) {
+        console.error(`Error fetching quote from ${adapter.getName()}:`, adapterError);
+      }
     }
   } catch (error) {
     console.error('Error fetching and saving price data:', error);

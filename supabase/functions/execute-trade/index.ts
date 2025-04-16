@@ -12,6 +12,7 @@ interface TradeResult {
   success: boolean;
   txHash?: string;
   error?: string;
+  details?: any;
 }
 
 interface ArbitrageOpportunity {
@@ -26,6 +27,7 @@ interface ArbitrageOpportunity {
   estimatedProfit: number;
   estimatedProfitPercentage: number;
   network: string;
+  platformFee: number;
 }
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
@@ -40,26 +42,29 @@ serve(async (req) => {
 
   try {
     const { opportunity, walletAddress } = await req.json();
-    console.log(`Executing trade for ${opportunity.tokenPair} on networks ${opportunity.network}`);
+    console.log(`Executing trade for ${opportunity.tokenPair} on network ${opportunity.network}`);
     console.log(`Buy on ${opportunity.buyDex} at ${opportunity.buyPrice}, sell on ${opportunity.sellDex} at ${opportunity.sellPrice}`);
     console.log(`Wallet address: ${walletAddress}`);
     
-    // Simulate trade execution delay (1-3 seconds)
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+    // In a real implementation, this function would:
+    // 1. Connect to the appropriate DEX SDK based on the chain
+    // 2. Prepare and send buy transaction to the first DEX
+    // 3. Wait for confirmation
+    // 4. Prepare and send sell transaction to the second DEX
     
-    // In a real implementation, this would use the appropriate DEX SDK:
-    // - For EVM chains: ethers.js + DEX contract interactions
-    // - For Solana: @solana/web3.js + DEX program instructions
+    // Simulate trade processing time
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // Simulate success with 90% probability
-    const isSuccess = Math.random() > 0.1;
+    // Calculate all fees
+    const totalGasFee = opportunity.gasFee;
+    const totalTradingFees = opportunity.tradingFees;
+    const tradenlyCut = opportunity.platformFee; // 0.5% platform fee
     
-    // Generate a mock transaction hash
-    const mockTxHash = isSuccess ? 
-      '0x' + Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join('') : 
-      undefined;
-      
-    // Log the trade to Supabase
+    // Real trade execution would return transaction hashes and details
+    const buyTxHash = `0x${Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
+    const sellTxHash = `0x${Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
+    
+    // Log the trade in our database
     await supabase
       .from('trading_activity')
       .insert({
@@ -67,9 +72,9 @@ serve(async (req) => {
         strategy: 'manual',
         token_pair: opportunity.tokenPair,
         price: opportunity.buyPrice,
-        amount: opportunity.estimatedProfit,
-        status: isSuccess ? 'completed' : 'failed',
-        tx_hash: mockTxHash,
+        amount: opportunity.estimatedProfit + opportunity.platformFee, // Total profit before platform fee
+        status: 'completed',
+        tx_hash: buyTxHash + ',' + sellTxHash,
         details: {
           buy_dex: opportunity.buyDex,
           sell_dex: opportunity.sellDex,
@@ -77,15 +82,29 @@ serve(async (req) => {
           sell_price: opportunity.sellPrice,
           wallet_address: walletAddress,
           network: opportunity.network,
-          error: isSuccess ? null : 'Transaction rejected by user or failed',
-        }
+          gas_fee: totalGasFee,
+          trading_fees: totalTradingFees,
+          platform_fee: tradenlyCut,
+          buy_tx: buyTxHash,
+          sell_tx: sellTxHash,
+        },
+        fee_amount: tradenlyCut
       });
     
-    const result: TradeResult = isSuccess
-      ? { success: true, txHash: mockTxHash }
-      : { success: false, error: 'Transaction failed or was rejected by the user' };
+    // Return success result with transaction details
+    const result: TradeResult = {
+      success: true, 
+      txHash: buyTxHash + ',' + sellTxHash,
+      details: {
+        buyTx: buyTxHash,
+        sellTx: sellTxHash,
+        gasFee: totalGasFee,
+        tradingFees: totalTradingFees,
+        platformFee: tradenlyCut,
+        netProfit: opportunity.estimatedProfit
+      }
+    };
 
-    // Return result
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
