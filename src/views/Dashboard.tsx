@@ -1,14 +1,13 @@
+
 import React, { useState, useEffect } from 'react';
 import { fetchArbitrageOpportunities } from '@/services/supabaseService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import WalletSection from '@/components/WalletConnect/WalletSection';
 import { ChainId, TokenInfo } from '@/services/tokenListService';
-import ArbitrageScanner from '@/components/ArbitrageScanner/ArbitrageScanner';
-import PriceChart from '@/components/PriceChart/PriceChart';
 import { Link } from 'react-router-dom';
-import { Settings } from 'lucide-react';
+import { ArrowRight, Loader2, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from '@/hooks/use-toast';
 
 interface ArbitrageOpportunity {
   id: string;
@@ -33,15 +32,12 @@ const Dashboard: React.FC = () => {
   const [opportunities, setOpportunities] = useState<ArbitrageOpportunity[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedChain, setSelectedChain] = useState<ChainId>(ChainId.ETHEREUM);
-  const [baseToken, setBaseToken] = useState<TokenInfo | null>(null);
-  const [quoteToken, setQuoteToken] = useState<TokenInfo | null>(null);
-  const [investmentAmount, setInvestmentAmount] = useState<number>(1000);
-  const { toast } = useToast();
+  const [investmentAmount] = useState<number>(1000);
 
   useEffect(() => {
     const loadData = async () => {
       try {
+        setLoading(true);
         const data = await fetchArbitrageOpportunities();
         
         // Enhance the data with additional arbitrage details
@@ -59,6 +55,7 @@ const Dashboard: React.FC = () => {
         
         setOpportunities(enhancedData);
         setLoading(false);
+        setError(null);
       } catch (err) {
         console.error('Failed to load opportunities:', err);
         setError('Failed to load data from Supabase');
@@ -73,75 +70,78 @@ const Dashboard: React.FC = () => {
     };
 
     loadData();
-  }, [toast]);
-
-  // Handle token pair selection from child components
-  const handleTokenPairSelect = (base: TokenInfo, quote: TokenInfo) => {
-    setBaseToken(base);
-    setQuoteToken(quote);
-    console.log('Selected tokens:', base.symbol, quote.symbol);
-    
-    toast({
-      title: "Token pair selected",
-      description: `Selected pair: ${base.symbol}/${quote.symbol}`,
-    });
-  };
-
-  // Handle investment amount changes
-  const handleInvestmentAmountChange = (amount: number) => {
-    setInvestmentAmount(amount);
-  };
-
-  // Handle chain selection change
-  const handleChainChange = (chainId: ChainId) => {
-    setSelectedChain(chainId);
-    // Reset tokens when chain changes
-    setBaseToken(null);
-    setQuoteToken(null);
-  };
+  }, []);
 
   return (
     <div className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Dashboard</h1>
-        <Link to="/settings">
-          <Button variant="outline" className="flex gap-2 items-center">
-            <Settings size={16} />
-            Settings
-          </Button>
-        </Link>
+        <div className="flex space-x-2">
+          <Link to="/arbitrage">
+            <Button variant="outline" className="flex gap-2 items-center">
+              Arbitrage Scanner <ArrowRight size={16} />
+            </Button>
+          </Link>
+          <Link to="/settings">
+            <Button variant="outline" className="flex gap-2 items-center">
+              <Settings size={16} />
+              Settings
+            </Button>
+          </Link>
+        </div>
       </div>
       
       {/* Wallet Connection Section */}
       <WalletSection />
       
-      {/* ArbitrageScanner with TokenPairSelector integrated */}
-      <ArbitrageScanner 
-        initialBaseToken={baseToken}
-        initialQuoteToken={quoteToken}
-        investmentAmount={investmentAmount}
-        onTokenPairSelect={handleTokenPairSelect}
-        onInvestmentAmountChange={handleInvestmentAmountChange}
-        onChainSelect={handleChainChange}
-        selectedChain={selectedChain}
-      />
-      
-      {/* Price Chart Component - will use the selected tokens */}
-      {baseToken && quoteToken && (
-        <PriceChart 
-          baseToken={baseToken} 
-          quoteToken={quoteToken}
-        />
-      )}
-      
-      <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6 dark:bg-green-900/20 dark:border-green-800 dark:text-green-300">
-        <p className="font-bold">Connected to Supabase</p>
-        <p>Your application is successfully connected to your Supabase project.</p>
-      </div>
+      {/* Introduction Card */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Welcome to Tradenly Trading Bot</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-4">
+            Tradenly is an AI-powered trading platform that helps you find arbitrage opportunities across multiple blockchains and DEXs.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+            <Link to="/arbitrage" className="block">
+              <Card className="hover:bg-muted transition-colors">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg">Arbitrage Scanner</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p>Find price differences between DEXs and execute profitable trades.</p>
+                </CardContent>
+              </Card>
+            </Link>
+            
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">AI Analysis</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p>Get AI-powered insights and recommendations for your trading strategy.</p>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">Copy Trading</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p>Follow successful traders and automatically copy their trades.</p>
+              </CardContent>
+            </Card>
+          </div>
+        </CardContent>
+      </Card>
       
       {loading ? (
-        <div className="flex justify-center">
-          <p className="text-gray-500">Loading data...</p>
+        <div className="flex justify-center p-12">
+          <div className="flex flex-col items-center">
+            <Loader2 className="h-8 w-8 animate-spin mb-2 text-primary" />
+            <p className="text-muted-foreground">Loading arbitrage opportunities...</p>
+          </div>
         </div>
       ) : error ? (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded dark:bg-red-900/20 dark:border-red-800 dark:text-red-300">
@@ -232,7 +232,14 @@ const Dashboard: React.FC = () => {
               ))}
             </div>
           ) : (
-            <p>No recent arbitrage opportunities found.</p>
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded dark:bg-amber-900/20 dark:border-amber-900 dark:text-amber-300">
+              <p>No recent arbitrage opportunities found. Go to the Arbitrage Scanner to start scanning for new opportunities.</p>
+              <Link to="/arbitrage" className="mt-2 inline-block">
+                <Button variant="outline" size="sm" className="mt-2">
+                  Go to Arbitrage Scanner
+                </Button>
+              </Link>
+            </div>
           )}
         </div>
       )}

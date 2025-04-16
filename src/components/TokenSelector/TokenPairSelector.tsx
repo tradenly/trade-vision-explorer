@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import TokenSelector from './TokenSelector';
 import { Button } from '../ui/button';
 import { ArrowRightLeft, Loader2 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from '@/hooks/use-toast';
 import { useTokens } from '@/hooks/useTokens';
 
 interface TokenPairSelectorProps {
@@ -37,7 +37,6 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
   const [baseToken, setBaseToken] = useState<TokenInfo | null>(null);
   const [quoteToken, setQuoteToken] = useState<TokenInfo | null>(null);
   const [quoteTokens, setQuoteTokens] = useState<TokenInfo[]>([]);
-  const { toast } = useToast();
   
   // Load quote tokens when chain changes
   useEffect(() => {
@@ -58,7 +57,7 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
       });
       setQuoteTokens([]);
     }
-  }, [selectedChain, getQuoteTokens, toast]);
+  }, [selectedChain, getQuoteTokens]);
 
   // When both tokens are selected, notify the parent
   useEffect(() => {
@@ -67,6 +66,11 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
         onSelectTokenPair(baseToken, quoteToken);
       } catch (error) {
         console.error('Error in onSelectTokenPair:', error);
+        toast({
+          title: "Error",
+          description: "Failed to select token pair",
+          variant: "destructive"
+        });
       }
     }
   }, [baseToken, quoteToken, onSelectTokenPair]);
@@ -147,6 +151,11 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
       }
     } catch (error) {
       console.error('Error changing investment amount:', error);
+      toast({
+        title: "Error",
+        description: "Please enter a valid amount",
+        variant: "destructive"
+      });
     }
   };
 
@@ -163,12 +172,12 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
             value={selectedChain.toString()} 
             onValueChange={(value) => handleChainChange(parseInt(value) as ChainId)}
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="w-full bg-background">
               <SelectValue placeholder="Select Blockchain">
                 {CHAIN_NAMES[selectedChain]}
               </SelectValue>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-background z-50">
               <SelectGroup>
                 {Object.entries(CHAIN_NAMES).map(([id, name]) => (
                   <SelectItem key={id} value={id}>
@@ -237,7 +246,7 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
                 }}
                 disabled={loading || quoteTokens.length === 0}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full bg-background">
                   <SelectValue placeholder="Select Quote Token">
                     {quoteToken && (
                       <div className="flex items-center">
@@ -256,7 +265,7 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
                     )}
                   </SelectValue>
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-background z-50">
                   <SelectGroup>
                     <SelectLabel>Quote Tokens</SelectLabel>
                     {quoteTokens.map((token, index) => {

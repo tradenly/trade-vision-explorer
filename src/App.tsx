@@ -5,6 +5,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Dashboard from "./views/Dashboard";
+import ArbitrageAnalysis from "./pages/ArbitrageAnalysis";
 import Settings from "./pages/Settings";
 import { EthereumWalletProvider } from "./context/EthereumWalletContext";
 import { SolanaWalletProvider } from "./context/SolanaWalletContext";
@@ -31,6 +32,7 @@ const App = () => (
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/arbitrage" element={<ArbitrageAnalysis />} />
                 <Route path="/settings" element={<Settings />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />

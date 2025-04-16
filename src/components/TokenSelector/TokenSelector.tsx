@@ -9,6 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import debounce from 'lodash.debounce';
 import { useTokens } from '@/hooks/useTokens';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { toast } from '@/hooks/use-toast';
 
 interface TokenSelectorProps {
   onSelectToken?: (token: TokenInfo) => void;
@@ -58,6 +59,11 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
       setInternalSelectedToken(null);
     } catch (error) {
       console.error("Error changing chain:", error);
+      toast({
+        title: "Error",
+        description: "Failed to change blockchain",
+        variant: "destructive"
+      });
     }
   };
 
@@ -112,6 +118,11 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
       setOpen(false);
     } catch (error) {
       console.error("Error selecting token:", error);
+      toast({
+        title: "Error",
+        description: "Failed to select token. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -140,7 +151,7 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
           onValueChange={handleChainChange}
           disabled={disabled}
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full bg-background">
             <SelectValue placeholder="Select a chain">
               {selectedChain && (
                 <div className="flex items-center gap-2">
@@ -157,7 +168,7 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
               )}
             </SelectValue>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="bg-background">
             <SelectGroup>
               {Object.entries(CHAIN_NAMES).map(([id, name]) => (
                 <SelectItem key={id} value={id}>
@@ -213,7 +224,7 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="p-0 w-[300px] max-h-[500px]" align="start">
+          <PopoverContent className="p-0 w-[300px] max-h-[500px] bg-background" align="start">
             <Command className="rounded-lg border shadow-md">
               <CommandInput 
                 placeholder="Search tokens..." 
