@@ -4,7 +4,6 @@ import { ChainId, TokenInfo } from '@/services/tokenListService';
 import ArbitrageScanner from '@/components/ArbitrageScanner/ArbitrageScanner';
 import PriceChart from '@/components/PriceChart/PriceChart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { toast } from '@/hooks/use-toast';
 import WalletSection from '@/components/WalletConnect/WalletSection';
 import { Link } from 'react-router-dom';
 import { Settings } from 'lucide-react';
@@ -22,18 +21,10 @@ const ArbitrageAnalysis = () => {
       setBaseToken(base);
       setQuoteToken(quote);
       console.log('Selected tokens:', base.symbol, quote.symbol);
-      
-      toast({
-        title: "Token pair selected",
-        description: `Selected pair: ${base.symbol}/${quote.symbol}`,
-      });
+      // Toast notifications removed
     } catch (error) {
       console.error('Error selecting token pair:', error);
-      toast({
-        title: "Error selecting tokens",
-        description: "Failed to select token pair. Please try again.",
-        variant: "destructive"
-      });
+      // Toast error notification removed
     }
   };
 
