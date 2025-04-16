@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import WalletSection from '@/components/WalletConnect/WalletSection';
 import TokenSelector from '@/components/TokenSelector/TokenSelector';
 import { ChainId, TokenInfo } from '@/services/tokenListService';
+import ArbitrageScanner from '@/components/ArbitrageScanner/ArbitrageScanner';
 
 interface ArbitrageOpportunity {
   id: string;
@@ -23,6 +24,7 @@ const Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedChain, setSelectedChain] = useState<ChainId>(ChainId.ETHEREUM);
   const [selectedToken, setSelectedToken] = useState<TokenInfo | null>(null);
+  const [investmentAmount, setInvestmentAmount] = useState<number>(1000);
 
   useEffect(() => {
     const loadData = async () => {
@@ -43,7 +45,6 @@ const Dashboard: React.FC = () => {
   const handleTokenSelect = (token: TokenInfo) => {
     setSelectedToken(token);
     console.log('Selected token:', token);
-    // Later you can use this to scan for arbitrage pairs
   };
 
   const handleChainSelect = (chainId: ChainId) => {
@@ -94,6 +95,12 @@ const Dashboard: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Arbitrage Scanner Component */}
+      <ArbitrageScanner 
+        selectedToken={selectedToken} 
+        investmentAmount={investmentAmount} 
+      />
       
       <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6">
         <p className="font-bold">Connected to Supabase</p>
@@ -110,7 +117,7 @@ const Dashboard: React.FC = () => {
         </div>
       ) : (
         <div>
-          <h2 className="text-xl font-semibold mb-4">Arbitrage Opportunities</h2>
+          <h2 className="text-xl font-semibold mb-4">Sample Arbitrage Opportunities (from Supabase)</h2>
           {opportunities.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {opportunities.map((opportunity) => (
