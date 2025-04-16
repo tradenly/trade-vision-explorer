@@ -5,6 +5,7 @@ export interface PriceQuote {
   dexName: string;
   price: number;
   fees: number; // in percentage
+  liquidityInfo?: any; // Added to support additional liquidity information
 }
 
 export interface DexConfig {
