@@ -14,14 +14,18 @@ export async function fetchAndStorePriceData(
 
   for (const adapter of adapters) {
     try {
+      // Get the adapter name and ensure it's a valid key for the errorTracker
+      const adapterName = adapter.getName().toLowerCase();
+      const validDexName = adapterName as keyof typeof errorTracker;
+      
       // Apply backoff if there were previous errors
-      await applyBackoff(adapter.getName().toLowerCase());
+      await applyBackoff(validDexName);
       
       const quote = await adapter.fetchQuote(baseToken, quoteToken);
       
       if (quote) {
         await supabase.from('dex_price_history').insert({
-          dex_name: adapter.getName().toLowerCase(),
+          dex_name: adapterName,
           token_pair: tokenPair,
           chain_id: baseToken.chainId,
           price: quote.price,
@@ -31,7 +35,8 @@ export async function fetchAndStorePriceData(
     } catch (error) {
       console.error(`Error fetching price from ${adapter.getName()}:`, error);
       // Update error tracking for backoff
-      const tracker = errorTracker[adapter.getName().toLowerCase()];
+      const adapterName = adapter.getName().toLowerCase();
+      const tracker = errorTracker[adapterName as keyof typeof errorTracker];
       if (tracker) {
         tracker.consecutiveErrors++;
         tracker.lastErrorTime = Date.now();
