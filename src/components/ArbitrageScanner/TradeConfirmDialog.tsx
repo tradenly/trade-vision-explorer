@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -46,8 +45,8 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
   const estimatedTokenAmount = (tradeAmount - tradingFee) / opportunity.buyPrice;
   
   // Calculate price impact based on liquidity (simplified model)
-  const buyPriceImpact = opportunity.liquidityUSD 
-    ? Math.min((tradeAmount / opportunity.liquidityUSD) * 100, 5) 
+  const buyPriceImpact = opportunity.liquidity 
+    ? Math.min((tradeAmount / opportunity.liquidity) * 100, 5) 
     : 0.1;
   
   const handleSlippageChange = (value: number[]) => {
@@ -99,8 +98,10 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
             <span className="font-medium">Platform Fee (0.5%):</span>
             <span>${opportunity.platformFee.toFixed(4)}</span>
             
-            <span className="font-medium">Available Liquidity:</span>
-            <span>${opportunity.liquidityUSD?.toLocaleString() || 'Unknown'}</span>
+            <span className="font-medium">Available Liquidity</span>
+            <div className="text-muted-foreground">
+              ${opportunity.liquidity?.toLocaleString() || 'Unknown'}
+            </div>
           </div>
 
           <Separator />
