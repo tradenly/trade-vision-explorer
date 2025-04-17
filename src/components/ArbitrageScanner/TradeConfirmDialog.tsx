@@ -10,7 +10,7 @@ import { useExecutionProgress } from '@/hooks/useExecutionProgress';
 import { TransactionStatus } from '@/services/dex/types';
 import TradeDetails from './TradeDetails';
 import TradeSettings from './TradeSettings';
-import TransactionStatus from './TransactionStatus';
+import TransactionStatusIndicator from './TransactionStatus';
 
 interface TradeConfirmDialogProps {
   open: boolean;
@@ -98,7 +98,7 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
             onAdvancedModeChange={setAdvancedMode}
           />
 
-          <TransactionStatus
+          <TransactionStatusIndicator
             transactionStatus={transactionStatus}
             progress={progress}
             step={step}

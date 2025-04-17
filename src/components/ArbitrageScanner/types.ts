@@ -1,5 +1,6 @@
 
 import { ArbitrageOpportunity } from '@/services/dexService';
+import { TransactionStatus } from '@/services/dex/types';
 
 export interface TradeDetailsProps {
   opportunity: ArbitrageOpportunity;

@@ -4,12 +4,12 @@ import { Progress } from '@/components/ui/progress';
 import { TransactionStatus as TxStatus } from '@/services/dex/types';
 import { TransactionStatusProps } from './types';
 
-const TransactionStatus: React.FC<TransactionStatusProps> = ({
+const TransactionStatusIndicator: React.FC<TransactionStatusProps> = ({
   transactionStatus,
   progress,
   step
 }) => {
-  if (transactionStatus === TxStatus.NONE) return null;
+  if (transactionStatus === TxStatus.IDLE) return null;
 
   return (
     <div className="space-y-2">
@@ -19,4 +19,4 @@ const TransactionStatus: React.FC<TransactionStatusProps> = ({
   );
 };
 
-export default TransactionStatus;
+export default TransactionStatusIndicator;
