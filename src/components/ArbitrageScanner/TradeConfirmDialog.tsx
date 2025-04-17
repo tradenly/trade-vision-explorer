@@ -33,7 +33,7 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
   transactionStatus,
   investmentAmount,
 }) => {
-  const [slippageTolerance, setSlippageTolerance] = useState<number>(0.5); // 0.5% default
+  const [slippageTolerance, setSlippageTolerance] = useState<number>(0.5);
   const [advancedMode, setAdvancedMode] = useState<boolean>(false);
   const [customAmount, setCustomAmount] = useState<number>(investmentAmount);
   const [executionProgress, setExecutionProgress] = useState<number>(0);
@@ -59,7 +59,7 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
       
       let currentStep = 0;
       const progressInterval = setInterval(() => {
-        if (currentStep < steps.length && transactionStatus === 'pending') {
+        if (currentStep < steps.length) {
           setExecutionProgress(steps[currentStep].progress);
           setExecutionStep(steps[currentStep].message);
           currentStep++;
