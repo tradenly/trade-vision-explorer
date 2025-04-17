@@ -6,6 +6,7 @@ import {
   getQuoteTokensForChain,
   getPopularTokensForChain,
   DEFAULT_TOKENS,
+  getSafeTokenValue,
 } from '@/services/tokenDataService';
 import { toast } from '@/hooks/use-toast';
 
@@ -17,6 +18,19 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
   const [quoteTokens, setQuoteTokens] = useState<TokenInfo[]>([]);
   const [popularTokens, setPopularTokens] = useState<TokenInfo[]>([]);
   const [isLoadingChain, setIsLoadingChain] = useState<boolean>(false);
+
+  // Add the ensureValidAddress function
+  const ensureValidAddress = useCallback((token: TokenInfo): TokenInfo => {
+    if (!token.address || token.address === '' || token.address === 'undefined') {
+      // Generate a safe value for the token
+      const safeValue = getSafeTokenValue(token);
+      return {
+        ...token,
+        address: safeValue
+      };
+    }
+    return token;
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -101,6 +115,7 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
     allChainTokens,
     quoteTokens,
     popularTokens,
-    handleChainChange
+    handleChainChange,
+    ensureValidAddress
   };
 };
