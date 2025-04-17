@@ -2,188 +2,162 @@
 import { BaseAdapter } from './BaseAdapter';
 import { PriceQuote } from '../types';
 import { TokenInfo } from '../../tokenListService';
+import { uniswapRateLimiter } from '../utils/rateLimiter';
 
 export class UniswapAdapter extends BaseAdapter {
+  private static SUBGRAPH_URLS: Record<number, string> = {
+    1: 'https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3',
+    42161: 'https://api.thegraph.com/subgraphs/name/ianlapham/arbitrum-minimal',
+    10: 'https://api.thegraph.com/subgraphs/name/ianlapham/optimism-post-regenesis',
+    8453: 'https://api.studio.thegraph.com/query/48211/uniswap-v3-base/version/latest'
+  };
+
   public async fetchQuote(baseToken: TokenInfo, quoteToken: TokenInfo, amount: number = 1): Promise<PriceQuote> {
     try {
-      // Prepare API parameters
-      const fromAddress = baseToken.address;
-      const toAddress = quoteToken.address;
-      const chainId = baseToken.chainId;
-      
-      // Convert amount to wei (smallest unit)
-      const amountInWei = (amount * Math.pow(10, baseToken.decimals || 18)).toString();
-      
-      console.log(`[UniswapAdapter] Fetching quote for ${baseToken.symbol}/${quoteToken.symbol} on chain ${chainId}`);
-      console.log(`[UniswapAdapter] Token addresses: ${fromAddress} -> ${toAddress}, amount: ${amount}`);
-      
-      // Use 1inch API for getting quotes
-      // This is a free API that provides price data across multiple DEXs
-      const apiUrl = `https://api.1inch.io/v5.0/${chainId}/quote?` +
-                     `fromTokenAddress=${fromAddress}&toTokenAddress=${toAddress}&amount=${amountInWei}`;
-      
-      console.log(`[UniswapAdapter] Calling API: ${apiUrl}`);
-      
-      const response = await fetch(apiUrl, {
-        headers: {
-          'Accept': 'application/json',
-        },
-        // Add cache control to prevent excessive API calls
-        cache: 'no-cache'
+      // Apply rate limiting
+      await uniswapRateLimiter.waitForSlot();
+
+      // Verify chain is supported
+      const subgraphUrl = UniswapAdapter.SUBGRAPH_URLS[baseToken.chainId];
+      if (!subgraphUrl) {
+        throw new Error(`Uniswap not supported on chain ${baseToken.chainId}`);
+      }
+
+      // Query Uniswap V3 subgraph for pool data
+      const query = `{
+        pool(id: "${this.getPoolAddress(baseToken.address, quoteToken.address)}") {
+          token0Price
+          token1Price
+          liquidity
+          feeTier
+          totalValueLockedUSD
+        }
+      }`;
+
+      const response = await fetch(subgraphUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query })
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[UniswapAdapter] 1inch API error: ${response.status} - ${errorText}`);
-        throw new Error(`1inch API error: ${response.status} ${errorText}`);
+        throw new Error(`Subgraph error: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log(`[UniswapAdapter] 1inch API response:`, data);
-      
-      // Calculate price from the response
-      const fromAmount = Number(data.fromTokenAmount) / Math.pow(10, baseToken.decimals || 18);
-      const toAmount = Number(data.toTokenAmount) / Math.pow(10, quoteToken.decimals || 18);
-      const price = toAmount / fromAmount;
-      
-      // Extract liquidity information from protocols data if available
-      let liquidityUSD = 0;
-      
-      if (data.protocols && data.protocols.length > 0) {
-        // Sum up liquidity from all protocol routes when available
-        // This is an estimation based on the protocols data
-        try {
-          data.protocols.forEach((route: any) => {
-            route.forEach((protocol: any) => {
-              // Some protocols include liquidity information
-              if (protocol.liquidity) {
-                liquidityUSD += Number(protocol.liquidity) || 0;
-              }
-            });
-          });
-        } catch (liquidityErr) {
-          console.warn('[UniswapAdapter] Error extracting liquidity data', liquidityErr);
-        }
+      if (!data.data?.pool) {
+        throw new Error('Pool not found');
       }
-      
-      // If no liquidity was found in the response, use a default value
-      if (liquidityUSD <= 0) {
-        liquidityUSD = 1000000; // Default fallback liquidity estimate
-      }
-      
-      // Extract gas fees from 1inch response if available
-      const gasEstimateGwei = Number(data.estimatedGas) || 150000;
-      const gasPriceGwei = 50; // Using a reasonable default gas price in Gwei
-      const ethPrice = 3500; // Estimated ETH price in USD
-      const gasEstimateUSD = (gasEstimateGwei * gasPriceGwei * 1e-18) * ethPrice;
-      
-      console.log(`[UniswapAdapter] Fetched price for ${baseToken.symbol}/${quoteToken.symbol}: ${price}, gas: $${gasEstimateUSD}`);
-      
+
+      const pool = data.data.pool;
+      const price = baseToken.address.toLowerCase() < quoteToken.address.toLowerCase() 
+        ? Number(pool.token0Price) 
+        : Number(pool.token1Price);
+
+      // Calculate gas based on chain
+      const gasEstimateGwei = this.getGasEstimate(baseToken.chainId);
+      const gasPriceGwei = this.getGasPrice(baseToken.chainId);
+      const nativePriceUSD = this.getNativeTokenPrice(baseToken.chainId);
+      const gasEstimateUSD = (gasEstimateGwei * gasPriceGwei * 1e-18) * nativePriceUSD;
+
       return {
-        source: this.getName(),
+        dexName: this.getName(),
         price: price,
         fees: this.getTradingFeePercentage(),
         gasEstimate: gasEstimateUSD,
-        liquidityUSD: liquidityUSD,
+        liquidityUSD: Number(pool.totalValueLockedUSD),
         liquidityInfo: {
-          protocols: data.protocols || [],
-          estimatedGas: data.estimatedGas,
-          route: data.protocols || [],
-          toTokenAmount: data.toTokenAmount,
-          fromTokenAmount: data.fromTokenAmount
+          feeTier: pool.feeTier,
+          totalValueLockedUSD: pool.totalValueLockedUSD,
+          liquidity: pool.liquidity
         }
       };
     } catch (error) {
-      console.error(`[UniswapAdapter] Error fetching ${this.getName()} quote:`, error);
-      
-      // Implement a more robust fallback strategy with informative logging
-      // This helps maintain app functionality even when API calls fail
-      return this.getFallbackQuote(baseToken, quoteToken, amount, error);
+      console.error(`[UniswapAdapter] Primary API error:`, error);
+      return this.getFallbackQuote(baseToken, quoteToken);
     }
   }
-  
-  /**
-   * Provides a fallback price quote when the API call fails
-   * This helps maintain app functionality during API outages or rate limiting
-   */
-  private getFallbackQuote(baseToken: TokenInfo, quoteToken: TokenInfo, amount: number, error: any): PriceQuote {
-    console.log(`[UniswapAdapter] Using fallback price quote mechanism for ${baseToken.symbol}/${quoteToken.symbol}`);
-    
+
+  private getPoolAddress(token0: string, token1: string): string {
+    // Sort tokens to match Uniswap's pool addressing
+    const [tokenA, tokenB] = [token0.toLowerCase(), token1.toLowerCase()].sort();
+    // This is a simplified version - in production you'd want to query all fee tiers
+    const feeTier = 3000; // 0.3% fee tier
+    return `${tokenA}-${tokenB}-${feeTier}`;
+  }
+
+  private getGasEstimate(chainId: number): number {
+    const estimates: Record<number, number> = {
+      1: 180000,    // Ethereum
+      42161: 550000, // Arbitrum
+      10: 350000,    // Optimism
+      8453: 150000   // Base
+    };
+    return estimates[chainId] || 180000;
+  }
+
+  private getGasPrice(chainId: number): number {
+    const prices: Record<number, number> = {
+      1: 50,     // Ethereum (~50 gwei)
+      42161: 0.1, // Arbitrum (~0.1 gwei)
+      10: 0.001,  // Optimism (~0.001 gwei)
+      8453: 0.1   // Base (~0.1 gwei)
+    };
+    return prices[chainId] || 50;
+  }
+
+  private getNativeTokenPrice(chainId: number): number {
+    const prices: Record<number, number> = {
+      1: 3500,    // ETH
+      42161: 3500, // ETH on Arbitrum
+      10: 3500,    // ETH on Optimism
+      8453: 3500   // ETH on Base
+    };
+    return prices[chainId] || 3500;
+  }
+
+  private async getFallbackQuote(baseToken: TokenInfo, quoteToken: TokenInfo): Promise<PriceQuote> {
     try {
-      // First try to use a simulated price based on well-known token values
-      const basePrice = this.getTokenBasePrice(baseToken.symbol);
-      const quotePrice = this.getTokenBasePrice(quoteToken.symbol);
+      // Try 1inch API as fallback
+      const amountInWei = (1 * Math.pow(10, baseToken.decimals || 18)).toString();
       
-      if (basePrice && quotePrice) {
-        // Calculate a realistic price with a small random variation to simulate market conditions
-        const variation = 0.995 + Math.random() * 0.01; // 0.995 - 1.005
-        const simulatedPrice = (basePrice / quotePrice) * variation;
-        
-        console.log(`[UniswapAdapter] Generated fallback price: ${simulatedPrice} using base prices ${basePrice}/${quotePrice}`);
-        
-        return {
-          source: this.getName(),
-          price: simulatedPrice,
-          fees: this.getTradingFeePercentage(),
-          gasEstimate: 0.005, // Default estimated gas in USD for EVM chains
-          liquidityUSD: 1000000, // Default liquidity estimate
-          error: error instanceof Error ? error.message : 'Unknown API error',
-          isFallback: true
-        };
+      const response = await fetch(
+        `https://api.1inch.io/v5.0/${baseToken.chainId}/quote?` +
+        `fromTokenAddress=${baseToken.address}&toTokenAddress=${quoteToken.address}&amount=${amountInWei}`,
+        {
+          headers: { 'Accept': 'application/json' }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`1inch API error: ${response.status}`);
       }
-      
-      // If we don't have base prices, use the generic estimate from BaseAdapter
+
+      const data = await response.json();
+      const fromAmount = parseInt(data.fromTokenAmount) / Math.pow(10, baseToken.decimals || 18);
+      const toAmount = parseInt(data.toTokenAmount) / Math.pow(10, quoteToken.decimals || 18);
+      const price = toAmount / fromAmount;
+
       return {
-        source: this.getName(),
+        dexName: this.getName(),
+        price: price,
+        fees: this.getTradingFeePercentage(),
+        gasEstimate: 0.005,
+        liquidityUSD: 1000000,
+        isFallback: true
+      };
+    } catch (error) {
+      console.error('[UniswapAdapter] Fallback error:', error);
+      
+      // Final fallback using cached data
+      return {
+        dexName: this.getName(),
         price: this.getEstimatedPrice(baseToken, quoteToken),
         fees: this.getTradingFeePercentage(),
         gasEstimate: 0.005,
         liquidityUSD: 1000000,
-        error: error instanceof Error ? error.message : 'Unknown API error',
-        isFallback: true
-      };
-    } catch (fallbackError) {
-      console.error('[UniswapAdapter] Critical error in fallback mechanism:', fallbackError);
-      
-      // Last resort fallback - return a basic estimate
-      return {
-        source: this.getName(),
-        price: 1.0, // Neutral price as ultimate fallback
-        fees: this.getTradingFeePercentage(),
-        gasEstimate: 0.005,
-        liquidityUSD: 1000000,
-        error: 'Multiple failures in price fetching',
         isFallback: true
       };
     }
-  }
-  
-  /**
-   * Get estimated base price for common tokens
-   * This helps provide realistic fallbacks when API calls fail
-   */
-  private getTokenBasePrice(symbol: string): number | null {
-    const normalizedSymbol = symbol?.toUpperCase();
-    
-    const prices: Record<string, number> = {
-      'ETH': 3500,
-      'WETH': 3500,
-      'BTC': 65000,
-      'WBTC': 65000,
-      'BNB': 550,
-      'WBNB': 550,
-      'SOL': 150,
-      'USDC': 1,
-      'USDT': 1,
-      'DAI': 1,
-      'BUSD': 1,
-      'MATIC': 1.2,
-      'AVAX': 35,
-      'LINK': 15,
-      'UNI': 10,
-      'AAVE': 95,
-    };
-    
-    return prices[normalizedSymbol] || null;
   }
 }
