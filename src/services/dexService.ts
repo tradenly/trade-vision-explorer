@@ -1,3 +1,4 @@
+
 import { TokenInfo } from "@/services/tokenListService";
 import { PriceQuote, TransactionStatus } from "./dex/types";
 import DexRegistry from "./dex/DexRegistry";
@@ -11,8 +12,8 @@ export interface ArbitrageOpportunity {
   priceDifferencePercentage: number;
   estimatedProfit: number;
   estimatedProfitPercentage: number;
-  baseToken: TokenInfo; // Added this property
-  quoteToken: TokenInfo; // Added this property
+  baseToken: TokenInfo;
+  quoteToken: TokenInfo;
   timestamp: number;
   buyGasFee: number;
   sellGasFee: number;
@@ -21,6 +22,12 @@ export interface ArbitrageOpportunity {
   investmentAmount: number;
   netProfit: number;
   netProfitPercentage: number;
+  // Add missing properties
+  tokenPair: string;
+  token: string;
+  gasFee: number;
+  liquidity: number;
+  network: string;
 }
 
 /**
@@ -73,9 +80,18 @@ export async function scanForArbitrageOpportunities(
           const tradingFees = calculateTradingFees(investmentAmount, buyDex, sellDex);
           const platformFee = calculatePlatformFee(investmentAmount);
           const [buyGasFee, sellGasFee] = [0.5, 0.5]; // Mock gas fees
+          const gasFee = buyGasFee + sellGasFee; // Combined gas fee
 
           const netProfit = estimatedProfit - tradingFees - platformFee - buyGasFee - sellGasFee;
           const netProfitPercentage = (netProfit / investmentAmount) * 100;
+
+          // Determine network based on chain ID
+          const network = baseToken.chainId === 1 ? 'ethereum' : 
+                          baseToken.chainId === 56 ? 'bnb' : 
+                          baseToken.chainId === 101 ? 'solana' : 'unknown';
+
+          // Create token pair string
+          const tokenPair = `${baseToken.symbol}/${quoteToken.symbol}`;
 
           if (netProfitPercentage >= minProfitPercentage) {
             const opportunity: ArbitrageOpportunity = {
@@ -97,6 +113,12 @@ export async function scanForArbitrageOpportunities(
               investmentAmount: investmentAmount,
               netProfit: netProfit,
               netProfitPercentage: netProfitPercentage,
+              // Add the missing properties
+              tokenPair: tokenPair,
+              token: baseToken.symbol,
+              gasFee: gasFee,
+              liquidity: buyQuote.liquidity || sellQuote.liquidity || investmentAmount * 100, // Default to 100x investment amount if not specified
+              network: network
             };
 
             opportunities.push(opportunity);

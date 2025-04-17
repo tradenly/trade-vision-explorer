@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { PriceQuote } from '@/services/dex/types';
 import { TokenInfo } from '@/services/tokenListService';
-import DexRegistry from '@/services/dex/DexRegistry'; // Changed from { DexRegistry }
+import DexRegistry from '@/services/dex/DexRegistry';
 
 export function useDexQuotes(baseToken: TokenInfo | null, quoteToken: TokenInfo | null, amount: number = 1) {
   const [quotes, setQuotes] = useState<PriceQuote[]>([]);
