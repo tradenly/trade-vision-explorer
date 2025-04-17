@@ -1,17 +1,13 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { ChainId, TokenInfo } from '@/services/tokenListService';
 import {
   getTokensForChain,
   getQuoteTokensForChain,
   getPopularTokensForChain,
-  getSafeTokenValue,
-  findTokenByAddress,
-  DEFAULT_TOKENS
+  DEFAULT_TOKENS,
 } from '@/services/tokenDataService';
 
-/**
- * Simplified hook for managing token data across different chains
- */
 export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +56,7 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
         
         setError('Failed to load tokens');
         
+        // Use defaults as fallback
         const defaults = DEFAULT_TOKENS[selectedChain] || [];
         setAllChainTokens(defaults);
         setQuoteTokens(defaults);
@@ -96,14 +93,18 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
     return token;
   }, []);
 
+  const getSafeTokenValue = useCallback((token: TokenInfo | null): string => {
+    if (!token || !token.symbol) return "";
+    if (!token.address || token.address === '') {
+      return `${token.symbol}-${token.chainId}-fallback`;
+    }
+    return token.address;
+  }, []);
+
   const findTokenByValue = useCallback((value: string): TokenInfo | undefined => {
     if (!value) return undefined;
-    
-    return allChainTokens.find(token => 
-      token.address === value || 
-      getSafeTokenValue(token) === value
-    );
-  }, [allChainTokens]);
+    return allChainTokens.find(token => getSafeTokenValue(token) === value);
+  }, [allChainTokens, getSafeTokenValue]);
 
   return {
     loading,
