@@ -18,7 +18,6 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
   const [popularTokens, setPopularTokens] = useState<TokenInfo[]>([]);
   const [isLoadingChain, setIsLoadingChain] = useState<boolean>(false);
 
-  // Load tokens when chain changes
   useEffect(() => {
     let isMounted = true;
     
@@ -37,23 +36,22 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
           throw new Error('Unsupported chain selected');
         }
 
+        const defaultTokens = DEFAULT_TOKENS[selectedChain] || [];
+        
+        // Set defaults immediately while loading
+        setAllChainTokens(defaultTokens);
+        setQuoteTokens(getQuoteTokensForChain(selectedChain, defaultTokens));
+        setPopularTokens(getPopularTokensForChain(selectedChain, defaultTokens));
+
+        // Then try to load from API
         const tokens = await getTokensForChain(selectedChain);
         
         if (!isMounted) return;
         
-        if (!tokens || tokens.length === 0) {
-          console.warn(`No tokens found for chain ${selectedChain}, using defaults`);
-          const defaults = DEFAULT_TOKENS[selectedChain] || [];
-          setAllChainTokens(defaults);
-          setQuoteTokens(getQuoteTokensForChain(selectedChain, defaults));
-          setPopularTokens(getPopularTokensForChain(selectedChain, defaults));
-        } else {
+        if (tokens && tokens.length > 0) {
           setAllChainTokens(tokens);
-          const quotes = getQuoteTokensForChain(selectedChain, tokens);
-          setQuoteTokens(quotes);
-          const popular = getPopularTokensForChain(selectedChain, tokens);
-          setPopularTokens(popular);
-          
+          setQuoteTokens(getQuoteTokensForChain(selectedChain, tokens));
+          setPopularTokens(getPopularTokensForChain(selectedChain, tokens));
           console.log(`Successfully loaded ${tokens.length} tokens for chain ${selectedChain}`);
         }
       } catch (err) {
@@ -63,15 +61,10 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
         
         setError('Failed to load tokens');
         toast({
-          title: "Error loading tokens",
-          description: "Using default token list",
-          variant: "destructive"
+          title: "Using default token list",
+          description: "Could not load latest token data",
+          variant: "default"
         });
-        
-        const defaults = DEFAULT_TOKENS[selectedChain] || [];
-        setAllChainTokens(defaults);
-        setQuoteTokens(getQuoteTokensForChain(selectedChain, defaults));
-        setPopularTokens(getPopularTokensForChain(selectedChain, defaults));
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -88,7 +81,6 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
   }, [selectedChain, isLoadingChain]);
 
   const handleChainChange = useCallback((chainId: ChainId) => {
-    // Only allow ETH, BNB, and Solana
     if (![ChainId.ETHEREUM, ChainId.BNB, ChainId.SOLANA].includes(chainId)) {
       console.warn('Unsupported chain selected');
       toast({
@@ -102,31 +94,6 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
     setSelectedChain(chainId);
   }, []);
 
-  const ensureValidAddress = useCallback((token: TokenInfo): TokenInfo => {
-    if (!token) return token;
-    
-    if (!token.address || token.address === '' || token.address === 'undefined') {
-      return {
-        ...token,
-        address: `generated-${token.symbol}-${token.chainId}-${Math.random().toString(36).substring(2, 7)}`
-      };
-    }
-    return token;
-  }, []);
-
-  const getSafeTokenValue = useCallback((token: TokenInfo | null): string => {
-    if (!token || !token.symbol) return "";
-    if (!token.address || token.address === '') {
-      return `${token.symbol}-${token.chainId}-fallback`;
-    }
-    return token.address;
-  }, []);
-
-  const findTokenByValue = useCallback((value: string): TokenInfo | undefined => {
-    if (!value) return undefined;
-    return allChainTokens.find(token => getSafeTokenValue(token) === value);
-  }, [allChainTokens, getSafeTokenValue]);
-
   return {
     loading,
     error,
@@ -134,9 +101,6 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
     allChainTokens,
     quoteTokens,
     popularTokens,
-    handleChainChange,
-    ensureValidAddress,
-    getSafeTokenValue,
-    findTokenByValue
+    handleChainChange
   };
 };

@@ -30,7 +30,7 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
 
   const filteredTokens = useCallback(() => {
     if (!search) {
-      return tokens.slice(0, 50);
+      return tokens;
     }
 
     const searchLower = search.toLowerCase();
@@ -38,8 +38,7 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
       .filter(token => 
         token && ((token.symbol && token.symbol.toLowerCase().includes(searchLower)) ||
         (token.name && token.name.toLowerCase().includes(searchLower)))
-      )
-      .slice(0, 50);
+      );
   }, [tokens, search]);
 
   const handleSelect = (tokenAddress: string) => {
@@ -58,8 +57,7 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
           role="combobox"
           aria-expanded={open}
           className={cn(
-            "w-full justify-between",
-            "bg-background hover:bg-accent hover:text-accent-foreground",
+            "w-full justify-between bg-background border-input",
             disabled && "opacity-50 cursor-not-allowed"
           )}
           disabled={disabled || loading}
@@ -67,15 +65,15 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
           {loading ? (
             <div className="flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Loading...</span>
+              <span>Loading tokens...</span>
             </div>
           ) : selectedToken ? (
-            <div className="flex items-center">
+            <div className="flex items-center gap-2">
               {selectedToken.logoURI && (
                 <img
                   src={selectedToken.logoURI}
                   alt={selectedToken.name}
-                  className="w-5 h-5 mr-2 rounded-full"
+                  className="w-5 h-5 rounded-full"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = 'none';
                   }}
@@ -84,7 +82,7 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
               <span>{selectedToken.symbol}</span>
             </div>
           ) : (
-            <span>{placeholder}</span>
+            <span className="text-muted-foreground">{placeholder}</span>
           )}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -115,7 +113,7 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
                     key={token.address}
                     value={token.address}
                     onSelect={handleSelect}
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-2 cursor-pointer"
                   >
                     {token.logoURI && (
                       <img
