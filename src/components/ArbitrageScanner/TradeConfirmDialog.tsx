@@ -10,7 +10,7 @@ import { useExecutionProgress } from '@/hooks/useExecutionProgress';
 import { TransactionStatus } from '@/services/dex/types';
 import TradeDetails from './TradeDetails';
 import TradeSettings from './TradeSettings';
-import TransactionStatusDisplay from './TransactionStatus';
+import TransactionStatus from './TransactionStatus';
 
 interface TradeConfirmDialogProps {
   open: boolean;
@@ -36,16 +36,13 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
   const [customAmount, setCustomAmount] = useState<number>(investmentAmount);
   const { toast } = useToast();
   
-  // Use our custom hook to manage execution progress
   const { progress, step } = useExecutionProgress(
     executing !== null,
     transactionStatus,
     opportunity
   );
   
-  if (!opportunity) {
-    return null;
-  }
+  if (!opportunity) return null;
   
   const tradeAmount = customAmount || investmentAmount;
   const tradingFee = opportunity.tradingFees / 100 * tradeAmount;
@@ -74,12 +71,14 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
     <Dialog open={open} onOpenChange={(open) => !executing && onOpenChange(open)}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <h2 className="text-lg font-semibold leading-none tracking-tight">Confirm Arbitrage Trade</h2>
+          <h2 className="text-lg font-semibold leading-none tracking-tight">
+            Confirm Arbitrage Trade
+          </h2>
           <p className="text-sm text-muted-foreground">
             Review the details of this arbitrage opportunity before executing the trade.
           </p>
         </DialogHeader>
-        
+
         <div className="space-y-4">
           <TradeDetails 
             opportunity={opportunity}
@@ -99,12 +98,12 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
             onAdvancedModeChange={setAdvancedMode}
           />
 
-          <TransactionStatusDisplay
+          <TransactionStatus
             transactionStatus={transactionStatus}
             progress={progress}
             step={step}
           />
-          
+
           <Alert>
             <Info className="h-4 w-4 mr-2" />
             <AlertDescription className="text-xs">
@@ -113,12 +112,12 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
             </AlertDescription>
           </Alert>
         </div>
-        
+
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={!!executing}>
             Cancel
           </Button>
-          <Button onClick={onConfirm} disabled={!!executing || (isPriceImpactHigh && advancedMode)}>
+          <Button onClick={onConfirm} disabled={!!executing || (isPriceImpactHigh && !advancedMode)}>
             {executing ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

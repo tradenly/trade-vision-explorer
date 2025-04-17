@@ -1,21 +1,11 @@
 
 import React from 'react';
-import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { AlertTriangle } from 'lucide-react';
-
-interface TradeSettingsProps {
-  customAmount: number;
-  slippageTolerance: number;
-  advancedMode: boolean;
-  buyPriceImpact: number;
-  executing: string | null;
-  onCustomAmountChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onSlippageChange: (value: number[]) => void;
-  onAdvancedModeChange: (checked: boolean) => void;
-}
+import { TradeSettingsProps } from './types';
 
 const TradeSettings: React.FC<TradeSettingsProps> = ({
   customAmount,
@@ -25,58 +15,53 @@ const TradeSettings: React.FC<TradeSettingsProps> = ({
   executing,
   onCustomAmountChange,
   onSlippageChange,
-  onAdvancedModeChange,
+  onAdvancedModeChange
 }) => {
   const isPriceImpactHigh = buyPriceImpact > 2;
-  
+
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <div className="font-medium">Investment Amount</div>
+        <Label>Custom Amount</Label>
         <Input
           type="number"
           value={customAmount}
           onChange={onCustomAmountChange}
-          disabled={executing !== null}
+          disabled={!!executing}
+          placeholder="Enter custom amount..."
         />
       </div>
-      
+
+      <div className="space-y-2">
+        <Label>Slippage Tolerance: {slippageTolerance}%</Label>
+        <Slider
+          value={[slippageTolerance]}
+          onValueChange={onSlippageChange}
+          min={0.1}
+          max={5}
+          step={0.1}
+          disabled={!!executing}
+        />
+      </div>
+
       <div className="flex items-center justify-between">
-        <div className="font-medium">Advanced Mode</div>
+        <div className="space-y-0.5">
+          <Label>Advanced Mode</Label>
+          <div className="text-[0.8rem] text-muted-foreground">
+            Enable high-risk trades
+          </div>
+        </div>
         <Switch
           checked={advancedMode}
           onCheckedChange={onAdvancedModeChange}
+          disabled={!!executing}
         />
       </div>
-      
-      {advancedMode && (
-        <div className="space-y-4 border rounded-lg p-3">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="font-medium">Slippage Tolerance ({slippageTolerance}%)</div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Slider
-                defaultValue={[slippageTolerance]}
-                min={0.1}
-                max={3.0}
-                step={0.1}
-                onValueChange={onSlippageChange}
-              />
-              <div className="w-12 text-right">{slippageTolerance}%</div>
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            <div className="font-medium">Estimated Price Impact</div>
-            <div className={`flex items-center gap-2 ${isPriceImpactHigh ? 'text-amber-500' : 'text-muted-foreground'}`}>
-              {isPriceImpactHigh && <AlertTriangle className="h-4 w-4" />}
-              <span>{buyPriceImpact.toFixed(2)}%</span>
-            </div>
-            {isPriceImpactHigh && (
-              <p className="text-xs text-amber-500">Price impact is high. Consider reducing trade size.</p>
-            )}
-          </div>
+
+      {isPriceImpactHigh && advancedMode && (
+        <div className="flex items-center text-amber-500 text-sm">
+          <AlertTriangle className="h-4 w-4 mr-2" />
+          High price impact detected. Trade carefully.
         </div>
       )}
     </div>
