@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TokenInfo, ChainId } from '@/services/tokenListService';
 import { ArbitrageOpportunity, scanForArbitrageOpportunities, executeTrade } from '@/services/dexService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,6 +9,8 @@ import TokenPairSelectorNew from '../TokenSelector/TokenPairSelectorNew';
 import OpportunityTable from './OpportunityTable';
 import TradeConfirmDialog from './TradeConfirmDialog';
 import ScanControls from './ScanControls';
+import { Separator } from '@/components/ui/separator';
+import { supabase } from '@/lib/supabaseClient';
 
 interface ArbitrageScannerProps {
   initialBaseToken?: TokenInfo | null;
@@ -18,6 +20,12 @@ interface ArbitrageScannerProps {
   onInvestmentAmountChange?: (amount: number) => void;
   onChainSelect?: (chainId: ChainId) => void;
   selectedChain?: ChainId;
+}
+
+interface ScanSettings {
+  profit_threshold: number;
+  gas_fee_threshold: number;
+  scan_interval: number;
 }
 
 const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
@@ -39,8 +47,36 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
   const [quoteToken, setQuoteToken] = useState<TokenInfo | null>(initialQuoteToken || null);
   const [amount, setAmount] = useState<number>(investmentAmount);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [scanSettings, setScanSettings] = useState<ScanSettings>({
+    profit_threshold: 0.5,
+    gas_fee_threshold: 5.0,
+    scan_interval: 30
+  });
+  
   const { isConnected: isEVMConnected, address: evmAddress } = useEthereumWallet();
   const { isConnected: isSolanaConnected, address: solanaAddress } = useSolanaWallet();
+
+  // Fetch scan settings on component mount
+  useEffect(() => {
+    const fetchScanSettings = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('scan_settings')
+          .select('*')
+          .single();
+        
+        if (error) {
+          console.error('Error fetching scan settings:', error);
+        } else if (data) {
+          setScanSettings(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch scan settings:', err);
+      }
+    };
+    
+    fetchScanSettings();
+  }, []);
 
   const handleTokenPairSelect = (base: TokenInfo, quote: TokenInfo) => {
     console.log("Token pair selected:", base.symbol, quote.symbol);
@@ -86,7 +122,8 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
       const results = await scanForArbitrageOpportunities(
         baseToken,
         quoteToken,
-        amount
+        amount,
+        scanSettings.profit_threshold
       );
       
       setOpportunities(results);
@@ -106,7 +143,9 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
 
   const handleExecuteClick = (opportunity: ArbitrageOpportunity) => {
     const isCorrectWalletConnected = 
-      (opportunity.network === 'ethereum' || opportunity.network === 'bnb') ? isEVMConnected : 
+      (opportunity.network === 'ethereum' || opportunity.network === 'bnb' || 
+       opportunity.network === 'polygon' || opportunity.network === 'base' || 
+       opportunity.network === 'arbitrum' || opportunity.network === 'optimism') ? isEVMConnected : 
       (opportunity.network === 'solana') ? isSolanaConnected : false;
 
     if (!isCorrectWalletConnected) {
@@ -135,7 +174,7 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
       
       if (result.success) {
         setTransactionStatus('success');
-        setScanError("Trade successfully executed.");
+        setScanError(null);
       } else {
         setTransactionStatus('error');
         setScanError(result.error || "There was an error executing the trade");
@@ -155,7 +194,7 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
 
   return (
     <Card className="w-full mb-8">
-      <CardHeader>
+      <CardHeader className="pb-2">
         <div className="flex justify-between items-center">
           <CardTitle>Arbitrage Scanner</CardTitle>
         </div>
@@ -169,12 +208,15 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
           onSelectChain={handleChainSelect}
         />
         
+        <Separator />
+        
         <ScanControls 
           baseToken={baseToken} 
           quoteToken={quoteToken}
           onScan={handleScan}
           loading={loading}
           scanError={scanError}
+          profitThreshold={scanSettings.profit_threshold}
         />
         
         <OpportunityTable 
@@ -184,6 +226,7 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
           onExecuteClick={handleExecuteClick}
           baseToken={baseToken?.symbol || null}
           quoteToken={quoteToken?.symbol || null}
+          investmentAmount={amount}
         />
 
         <TradeConfirmDialog

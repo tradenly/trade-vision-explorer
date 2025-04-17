@@ -2,8 +2,18 @@
 import React from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowRightLeft, Scale, DollarSign, CircleDollarSign, Droplets } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Loader2, ArrowRightLeft, Scale, DollarSign, 
+  CircleDollarSign, Droplets, TrendingUp 
+} from 'lucide-react';
 import { ArbitrageOpportunity } from '@/services/dexService';
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface OpportunityTableProps {
   opportunities: ArbitrageOpportunity[];
@@ -12,6 +22,7 @@ interface OpportunityTableProps {
   onExecuteClick: (opportunity: ArbitrageOpportunity) => void;
   baseToken: string | null;
   quoteToken: string | null;
+  investmentAmount?: number;
 }
 
 const OpportunityTable: React.FC<OpportunityTableProps> = ({
@@ -21,6 +32,7 @@ const OpportunityTable: React.FC<OpportunityTableProps> = ({
   onExecuteClick,
   baseToken,
   quoteToken,
+  investmentAmount = 1000,
 }) => {
   if (loading) {
     return (
@@ -46,26 +58,24 @@ const OpportunityTable: React.FC<OpportunityTableProps> = ({
         <TableHeader>
           <TableRow>
             <TableHead>Token Pair</TableHead>
-            <TableHead>Buy On</TableHead>
-            <TableHead>Buy Price</TableHead>
-            <TableHead>Sell On</TableHead>
-            <TableHead>Sell Price</TableHead>
             <TableHead>
               <div className="flex items-center gap-1">
                 <DollarSign className="w-4 h-4" />
-                <span>Trading Fees</span>
+                <span>Buy On</span>
               </div>
             </TableHead>
+            <TableHead>Buy Price</TableHead>
+            <TableHead>
+              <div className="flex items-center gap-1">
+                <DollarSign className="w-4 h-4" />
+                <span>Sell On</span>
+              </div>
+            </TableHead>
+            <TableHead>Sell Price</TableHead>
             <TableHead>
               <div className="flex items-center gap-1">
                 <Scale className="w-4 h-4" />
-                <span>Gas Fee</span>
-              </div>
-            </TableHead>
-            <TableHead>
-              <div className="flex items-center gap-1">
-                <CircleDollarSign className="w-4 h-4" />
-                <span>Platform Fee</span>
+                <span>Fees</span>
               </div>
             </TableHead>
             <TableHead>
@@ -74,53 +84,91 @@ const OpportunityTable: React.FC<OpportunityTableProps> = ({
                 <span>Liquidity</span>
               </div>
             </TableHead>
-            <TableHead>Est. Profit</TableHead>
-            <TableHead>ROI %</TableHead>
+            <TableHead>
+              <div className="flex items-center gap-1">
+                <TrendingUp className="w-4 h-4" />
+                <span>Profit</span>
+              </div>
+            </TableHead>
             <TableHead>Network</TableHead>
             <TableHead>Action</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {opportunities.map((op) => (
-            <TableRow key={op.id}>
-              <TableCell>{op.tokenPair}</TableCell>
-              <TableCell>{op.buyDex}</TableCell>
-              <TableCell>${op.buyPrice.toFixed(4)}</TableCell>
-              <TableCell>{op.sellDex}</TableCell>
-              <TableCell>${op.sellPrice.toFixed(4)}</TableCell>
-              <TableCell>${op.tradingFees.toFixed(2)}</TableCell>
-              <TableCell>${op.gasFee.toFixed(2)}</TableCell>
-              <TableCell>${op.platformFee.toFixed(2)}</TableCell>
-              <TableCell>${(op.liquidity || 0).toLocaleString()}</TableCell>
-              <TableCell className="font-medium text-green-600 dark:text-green-400">
-                ${op.estimatedProfit.toFixed(2)}
-              </TableCell>
-              <TableCell className="font-medium">
-                {op.estimatedProfitPercentage.toFixed(2)}%
-              </TableCell>
-              <TableCell className="capitalize">{op.network}</TableCell>
-              <TableCell>
-                <Button 
-                  size="sm"
-                  onClick={() => onExecuteClick(op)}
-                  disabled={executing === op.id}
-                  className="whitespace-nowrap"
-                >
-                  {executing === op.id ? (
-                    <>
-                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <ArrowRightLeft className="mr-1 h-3 w-3" /> 
-                      Execute Trade
-                    </>
-                  )}
-                </Button>
-              </TableCell>
-            </TableRow>
-          ))}
+          {opportunities.map((op) => {
+            const totalFees = op.tradingFees + op.gasFee + op.platformFee;
+            
+            return (
+              <TableRow key={op.id}>
+                <TableCell className="font-medium">{op.tokenPair}</TableCell>
+                <TableCell>{op.buyDex}</TableCell>
+                <TableCell>${op.buyPrice.toFixed(4)}</TableCell>
+                <TableCell>{op.sellDex}</TableCell>
+                <TableCell>${op.sellPrice.toFixed(4)}</TableCell>
+                <TableCell>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>${totalFees.toFixed(2)}</span>
+                      </TooltipTrigger>
+                      <TooltipContent className="w-60">
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span>Trading Fees:</span>
+                            <span>${op.tradingFees.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Gas Fee:</span>
+                            <span>${op.gasFee.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Platform Fee:</span>
+                            <span>${op.platformFee.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </TableCell>
+                <TableCell>${(op.liquidity || 0).toLocaleString()}</TableCell>
+                <TableCell>
+                  <div className="flex flex-col">
+                    <span className="font-medium text-green-600 dark:text-green-400">
+                      ${op.estimatedProfit.toFixed(2)}
+                    </span>
+                    <Badge variant="outline" className="text-xs mt-1">
+                      {op.estimatedProfitPercentage.toFixed(2)}%
+                    </Badge>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="secondary" className="capitalize">
+                    {op.network}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Button 
+                    size="sm"
+                    onClick={() => onExecuteClick(op)}
+                    disabled={executing === op.id}
+                    className="whitespace-nowrap"
+                  >
+                    {executing === op.id ? (
+                      <>
+                        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <ArrowRightLeft className="mr-1 h-3 w-3" /> 
+                        Execute Trade
+                      </>
+                    )}
+                  </Button>
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>
