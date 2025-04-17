@@ -2,17 +2,14 @@
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArbitrageOpportunity } from '@/services/dexService';
-import { Loader2, AlertTriangle, CheckCircle, Info } from 'lucide-react';
-import { Separator } from '@/components/ui/separator';
-import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
-import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
+import { Loader2, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Progress } from '@/components/ui/progress';
 import { TransactionStatus, useExecutionProgress } from '@/hooks/useExecutionProgress';
+import TradeDetails from './TradeDetails';
+import TradeSettings from './TradeSettings';
+import TransactionStatus from './TransactionStatus';
 
 interface TradeConfirmDialogProps {
   open: boolean;
@@ -82,132 +79,30 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
           </p>
         </DialogHeader>
         
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-          <div className="grid grid-cols-2 gap-2 py-2">
-            <span className="font-medium">Token Pair:</span>
-            <span>{opportunity.tokenPair}</span>
-            
-            <span className="font-medium">Buy On:</span>
-            <span>{opportunity.buyDex} (${opportunity.buyPrice.toFixed(4)})</span>
-            
-            <span className="font-medium">Sell On:</span>
-            <span>{opportunity.sellDex} (${opportunity.sellPrice.toFixed(4)})</span>
-            
-            <span className="font-medium">Network:</span>
-            <span className="capitalize">{opportunity.network}</span>
-            
-            <span className="font-medium">Gas Fee:</span>
-            <span>${opportunity.gasFee.toFixed(4)}</span>
-            
-            <span className="font-medium">Trading Fees:</span>
-            <span>${opportunity.tradingFees.toFixed(4)}</span>
-            
-            <span className="font-medium">Platform Fee (0.5%):</span>
-            <span>${opportunity.platformFee.toFixed(4)}</span>
-            
-            <span className="font-medium">Available Liquidity</span>
-            <div className="text-muted-foreground">
-              ${opportunity.liquidity?.toLocaleString() || 'Unknown'}
-            </div>
-          </div>
+        <div className="space-y-4">
+          <TradeDetails 
+            opportunity={opportunity}
+            tradeAmount={tradeAmount}
+            buyPriceImpact={buyPriceImpact}
+            estimatedTokenAmount={estimatedTokenAmount}
+          />
 
-          <Separator />
-          
-          <div className="space-y-2">
-            <div className="font-medium">Investment Amount</div>
-            <Input
-              type="number"
-              value={customAmount || investmentAmount}
-              onChange={handleCustomAmountChange}
-              disabled={executing !== null}
-            />
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>Estimated Token Amount: {estimatedTokenAmount.toFixed(4)}</span>
-            </div>
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <div className="font-medium">Advanced Mode</div>
-            <Switch
-              checked={advancedMode}
-              onCheckedChange={setAdvancedMode}
-            />
-          </div>
-          
-          {advancedMode && (
-            <div className="space-y-4 border rounded-lg p-3">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="font-medium">Slippage Tolerance ({slippageTolerance}%)</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Slider
-                    defaultValue={[slippageTolerance]}
-                    min={0.1}
-                    max={3.0}
-                    step={0.1}
-                    onValueChange={handleSlippageChange}
-                  />
-                  <div className="w-12 text-right">{slippageTolerance}%</div>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <div className="font-medium">Estimated Price Impact</div>
-                <div className={`flex items-center gap-2 ${isPriceImpactHigh ? 'text-amber-500' : 'text-muted-foreground'}`}>
-                  {isPriceImpactHigh && <AlertTriangle className="h-4 w-4" />}
-                  <span>{buyPriceImpact.toFixed(2)}%</span>
-                </div>
-                {isPriceImpactHigh && (
-                  <p className="text-xs text-amber-500">Price impact is high. Consider reducing trade size.</p>
-                )}
-              </div>
-            </div>
-          )}
-          
-          <div className="border rounded-lg p-3">
-            <div className="space-y-2">
-              <div className="font-medium">Expected Profit</div>
-              <div className="flex justify-between text-lg">
-                <span className="text-green-600 font-bold">
-                  ${opportunity.estimatedProfit.toFixed(4)}
-                </span>
-                <span className="text-green-600 font-bold">
-                  ({opportunity.estimatedProfitPercentage.toFixed(2)}%)
-                </span>
-              </div>
-            </div>
-          </div>
+          <TradeSettings
+            customAmount={customAmount}
+            slippageTolerance={slippageTolerance}
+            advancedMode={advancedMode}
+            buyPriceImpact={buyPriceImpact}
+            executing={executing}
+            onCustomAmountChange={handleCustomAmountChange}
+            onSlippageChange={handleSlippageChange}
+            onAdvancedModeChange={setAdvancedMode}
+          />
 
-          {transactionStatus === 'pending' && (
-            <div className="space-y-2">
-              <Alert>
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                <AlertTitle>Processing transaction</AlertTitle>
-                <AlertDescription>Please wait while the trade is being executed...</AlertDescription>
-              </Alert>
-              <div className="space-y-1">
-                <Progress value={progress} />
-                <p className="text-sm text-muted-foreground">{step}</p>
-              </div>
-            </div>
-          )}
-
-          {transactionStatus === 'success' && (
-            <Alert>
-              <CheckCircle className="h-4 w-4 mr-2" />
-              <AlertTitle>Success!</AlertTitle>
-              <AlertDescription>The trade has been successfully executed.</AlertDescription>
-            </Alert>
-          )}
-
-          {transactionStatus === 'error' && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4 mr-2" />
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>Failed to execute the trade. Please try again.</AlertDescription>
-            </Alert>
-          )}
+          <TransactionStatus
+            transactionStatus={transactionStatus}
+            progress={progress}
+            step={step}
+          />
           
           <Alert>
             <Info className="h-4 w-4 mr-2" />
