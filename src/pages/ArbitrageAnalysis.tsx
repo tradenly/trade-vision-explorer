@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChainId, TokenInfo } from '@/services/tokenListService';
 import ArbitrageScanner from '@/components/ArbitrageScanner/ArbitrageScanner';
 import PriceChart from '@/components/PriceChart/PriceChart';
@@ -16,12 +16,17 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import TokenPairSelectorNew from '@/components/TokenSelector/TokenPairSelectorNew';
+import { useTokensSimple } from '@/hooks/useTokensSimple';
 
 const ArbitrageAnalysis = () => {
   const [selectedChain, setSelectedChain] = useState<ChainId>(ChainId.ETHEREUM);
   const [baseToken, setBaseToken] = useState<TokenInfo | null>(null);
   const [quoteToken, setQuoteToken] = useState<TokenInfo | null>(null);
   const [investmentAmount, setInvestmentAmount] = useState<number>(1000);
+  
+  // Initial token data load to ensure we have tokens ready for the selector
+  const { loading: tokensLoading } = useTokensSimple(selectedChain);
 
   // Handle token pair selection from child components
   const handleTokenPairSelect = (base: TokenInfo, quote: TokenInfo) => {
@@ -80,6 +85,17 @@ const ArbitrageAnalysis = () => {
       
       {/* Wallet Connection Section */}
       <WalletSection />
+      
+      {/* Token pair selector */}
+      <div className="mb-6">
+        <TokenPairSelectorNew
+          onSelectTokenPair={handleTokenPairSelect}
+          selectedChain={selectedChain}
+          onSelectChain={handleChainChange}
+          investmentAmount={investmentAmount}
+          onInvestmentAmountChange={handleInvestmentAmountChange}
+        />
+      </div>
       
       {/* ArbitrageScanner */}
       <ArbitrageScanner />

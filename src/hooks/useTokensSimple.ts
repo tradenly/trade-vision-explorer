@@ -50,12 +50,15 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
           throw new Error('Unsupported chain selected');
         }
 
+        // Get default tokens for this chain
         const defaultTokens = DEFAULT_TOKENS[selectedChain] || [];
         
-        // Set defaults immediately while loading
-        setAllChainTokens(defaultTokens);
-        setQuoteTokens(getQuoteTokensForChain(selectedChain, defaultTokens));
-        setPopularTokens(getPopularTokensForChain(selectedChain, defaultTokens));
+        // Set defaults immediately while loading to prevent empty state
+        if (defaultTokens.length > 0) {
+          setAllChainTokens(defaultTokens);
+          setQuoteTokens(getQuoteTokensForChain(selectedChain, defaultTokens));
+          setPopularTokens(getPopularTokensForChain(selectedChain, defaultTokens));
+        }
 
         // Then try to load from API
         const tokens = await getTokensForChain(selectedChain);
@@ -74,6 +77,15 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
         if (!isMounted) return;
         
         setError('Failed to load tokens');
+        // Use default tokens as fallback
+        const defaultTokens = DEFAULT_TOKENS[selectedChain] || [];
+        
+        if (defaultTokens.length > 0) {
+          setAllChainTokens(defaultTokens);
+          setQuoteTokens(getQuoteTokensForChain(selectedChain, defaultTokens));
+          setPopularTokens(getPopularTokensForChain(selectedChain, defaultTokens));
+        }
+        
         toast({
           title: "Using default token list",
           description: "Could not load latest token data",

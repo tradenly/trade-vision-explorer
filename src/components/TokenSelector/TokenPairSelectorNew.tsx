@@ -39,14 +39,18 @@ const TokenPairSelectorNew: React.FC<TokenPairSelectorProps> = ({
   const [baseToken, setBaseToken] = useState<TokenInfo | null>(null);
   const [quoteToken, setQuoteToken] = useState<TokenInfo | null>(null);
   
+  useEffect(() => {
+    // Reset tokens when chain changes
+    setBaseToken(null);
+    setQuoteToken(null);
+  }, [hookSelectedChain]);
+  
   const handleChainChange = (chainId: ChainId) => {
     try {
       hookHandleChainChange(chainId);
       if (onSelectChain) {
         onSelectChain(chainId);
       }
-      setBaseToken(null);
-      setQuoteToken(null);
     } catch (error) {
       console.error('Error changing chain:', error);
     }
@@ -103,6 +107,11 @@ const TokenPairSelectorNew: React.FC<TokenPairSelectorProps> = ({
       console.error('Error changing investment amount:', error);
     }
   };
+
+  // Make sure we have default tokens loaded even if API fails
+  const effectivePopularTokens = popularTokens.length > 0 ? popularTokens : [];
+  const effectiveQuoteTokens = quoteTokens.length > 0 ? quoteTokens : [];
+  const effectiveAllTokens = allChainTokens.length > 0 ? allChainTokens : [];
   
   return (
     <Card className="w-full">
@@ -130,9 +139,9 @@ const TokenPairSelectorNew: React.FC<TokenPairSelectorProps> = ({
           onBaseTokenSelect={handleBaseTokenSelect}
           onQuoteTokenSelect={handleQuoteTokenSelect}
           onSwapTokens={handleSwapTokens}
-          popularTokens={popularTokens}
-          quoteTokens={quoteTokens}
-          allChainTokens={allChainTokens}
+          popularTokens={effectivePopularTokens}
+          quoteTokens={effectiveQuoteTokens}
+          allChainTokens={effectiveAllTokens}
           loading={loading}
         />
 

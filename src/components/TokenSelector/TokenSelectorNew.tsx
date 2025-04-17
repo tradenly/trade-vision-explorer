@@ -29,8 +29,8 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
   const [search, setSearch] = useState('');
 
   const filteredTokens = useCallback(() => {
-    if (!search) {
-      return tokens;
+    if (!search || !tokens || tokens.length === 0) {
+      return tokens || [];
     }
 
     const searchLower = search.toLowerCase();
@@ -41,7 +41,11 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
       );
   }, [tokens, search]);
 
+  // Show placeholder content during initial load
+  const showPlaceholder = loading || !tokens || tokens.length === 0;
+
   const handleSelect = (tokenAddress: string) => {
+    if (!tokens) return;
     const token = tokens.find(t => t.address === tokenAddress);
     if (token) {
       onSelectToken(token);
@@ -60,9 +64,9 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
             "w-full justify-between bg-background border-input",
             disabled && "opacity-50 cursor-not-allowed"
           )}
-          disabled={disabled || loading}
+          disabled={disabled}
         >
-          {loading ? (
+          {showPlaceholder ? (
             <div className="flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
               <span>Loading tokens...</span>
@@ -87,7 +91,7 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-0" align="start">
+      <PopoverContent className="w-[300px] p-0 z-50" align="start">
         <Command shouldFilter={false}>
           <CommandInput
             placeholder="Search tokens..."
@@ -97,7 +101,7 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
           />
           <CommandList>
             <CommandEmpty>
-              {loading ? (
+              {showPlaceholder ? (
                 <div className="flex flex-col items-center justify-center p-4">
                   <Loader2 className="h-5 w-5 animate-spin mb-2" />
                   <p>Loading tokens...</p>
@@ -110,7 +114,7 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
               <ScrollArea className="h-[300px]">
                 {filteredTokens().map((token) => (
                   <CommandItem
-                    key={token.address}
+                    key={token.address || `${token.symbol}-fallback`}
                     value={token.address}
                     onSelect={handleSelect}
                     className="flex items-center gap-2 cursor-pointer"
