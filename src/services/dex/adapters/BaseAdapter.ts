@@ -1,100 +1,72 @@
 
-import { PriceQuote } from '../types';
-import { TokenInfo } from '../../tokenListService';
+import { TokenInfo } from '@/services/tokenListService';
+import { DexConfig, PriceQuote } from '../types';
 
-/**
- * Base adapter class for DEX integrations.
- * All specific DEX adapters should extend this class.
- */
 export abstract class BaseAdapter {
-  private name: string;
-  private supportedChains: number[];
-  private tradingFeePercentage: number;
-  private enabled: boolean;
-
-  constructor(config: {
-    name: string;
-    slug: string;
-    chainIds: number[];
-    tradingFeePercentage: number;
-    enabled: boolean;
-  }) {
-    this.name = config.name;
-    this.supportedChains = config.chainIds;
-    this.tradingFeePercentage = config.tradingFeePercentage;
-    this.enabled = config.enabled;
+  protected config: DexConfig;
+  
+  constructor(config: DexConfig) {
+    this.config = config;
   }
-
-  /**
-   * Get the name of the DEX.
-   */
+  
   public getName(): string {
-    return this.name;
+    return this.config.name;
   }
-
-  /**
-   * Get the chains supported by this DEX.
-   */
+  
+  public getSlug(): string {
+    return this.config.slug;
+  }
+  
   public getSupportedChains(): number[] {
-    return this.supportedChains;
+    return this.config.chainIds;
   }
-
-  /**
-   * Get the trading fee percentage for this DEX.
-   */
-  public getTradingFeePercentage(): number {
-    return this.tradingFeePercentage;
-  }
-
-  /**
-   * Check if this DEX is enabled for scanning.
-   */
+  
   public isEnabled(): boolean {
-    return this.enabled;
+    return this.config.enabled;
   }
-
-  /**
-   * Enable or disable this DEX.
-   */
+  
   public setEnabled(enabled: boolean): void {
-    this.enabled = enabled;
+    this.config.enabled = enabled;
   }
-
-  /**
-   * Fetch price quote for a pair of tokens.
-   * This method must be implemented by specific DEX adapters.
-   * @param baseToken The token to sell
-   * @param quoteToken The token to buy
-   * @param amount Amount of baseToken to sell
-   */
+  
+  public getTradingFeePercentage(): number {
+    return this.config.tradingFeePercentage;
+  }
+  
   public abstract fetchQuote(baseToken: TokenInfo, quoteToken: TokenInfo, amount?: number): Promise<PriceQuote>;
-
-  /**
-   * Fallback method for when API calls fail - provides estimated price
-   * @param baseToken The token to sell
-   * @param quoteToken The token to buy
-   */
+  
+  // Helper method to generate estimated price when API calls fail
   protected getEstimatedPrice(baseToken: TokenInfo, quoteToken: TokenInfo): number {
-    // Base price estimates (for fallback when API calls fail)
-    const basePrices: Record<string, number> = {
+    // Simple price estimation based on token symbols for fallback scenarios
+    const baseSymbol = baseToken.symbol.toUpperCase();
+    const quoteSymbol = quoteToken.symbol.toUpperCase();
+    
+    // Predefined prices for common tokens
+    const tokenPrices: Record<string, number> = {
       'ETH': 3500,
       'WETH': 3500,
-      'BNB': 600,
-      'WBNB': 600,
+      'BTC': 65000,
+      'WBTC': 65000,
+      'BNB': 550,
+      'WBNB': 550,
       'SOL': 150,
       'USDC': 1,
       'USDT': 1,
       'DAI': 1,
       'BUSD': 1,
+      'MATIC': 1.2,
+      'AVAX': 35,
+      'LINK': 15,
+      'UNI': 10,
+      'AAVE': 95,
     };
     
-    // Get base prices or default values
-    const basePrice = basePrices[baseToken.symbol || ''] || 10;
-    const quotePrice = basePrices[quoteToken.symbol || ''] || 0.1;
+    const basePrice = tokenPrices[baseSymbol] || 10;
+    const quotePrice = tokenPrices[quoteSymbol] || 1;
     
-    // Add a slight random variation (±1%) to simulate different DEX prices
-    const variation = 0.99 + Math.random() * 0.02;
+    // Add a small random variation to simulate real-world fluctuations
+    const randomFactor = 0.99 + Math.random() * 0.02; // between 0.99 and 1.01
     
-    return (basePrice / quotePrice) * variation;
+    return (basePrice / quotePrice) * randomFactor;
   }
 }

@@ -64,7 +64,7 @@ export class JupiterAdapter extends BaseAdapter {
     const liquidityUSD = data.marketInfos?.[0]?.liquidityUSD || 100000;
 
     return {
-      dexName: this.getName(),
+      source: this.getName(),
       price: price,
       fees: this.getTradingFeePercentage(),
       gasEstimate: 0.00025,
@@ -97,7 +97,7 @@ export class JupiterAdapter extends BaseAdapter {
 
       if (data?.[0]?.price) {
         return {
-          dexName: this.getName(),
+          source: this.getName(),
           price: data[0].price * (0.995 + Math.random() * 0.01),
           fees: this.getTradingFeePercentage(),
           gasEstimate: 0.00025,
@@ -110,7 +110,7 @@ export class JupiterAdapter extends BaseAdapter {
     } catch (error) {
       console.error('[JupiterAdapter] Fallback error:', error);
       return {
-        dexName: this.getName(),
+        source: this.getName(),
         price: this.getEstimatedPrice(baseToken, quoteToken),
         fees: this.getTradingFeePercentage(),
         gasEstimate: 0.00025,

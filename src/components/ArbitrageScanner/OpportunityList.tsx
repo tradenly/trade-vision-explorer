@@ -30,7 +30,7 @@ export const OpportunityList: React.FC<OpportunityListProps> = ({ opportunities,
           <CardContent className="p-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <h3 className="font-medium">{opportunity.baseToken} / {opportunity.quoteToken}</h3>
+                <h3 className="font-medium">{opportunity.tokenPair}</h3>
                 <div className="flex items-center mt-1">
                   <span className="text-sm">Buy on <span className="font-medium">{opportunity.buyDex}</span></span>
                   <span className="mx-2">→</span>

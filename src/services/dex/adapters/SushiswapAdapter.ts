@@ -1,3 +1,4 @@
+
 import { BaseAdapter } from './BaseAdapter';
 import { PriceQuote } from '../types';
 import { TokenInfo } from '../../tokenListService';
@@ -55,7 +56,7 @@ export class SushiswapAdapter extends BaseAdapter {
       const gasEstimateUSD = (gasEstimateGwei * gasPriceGwei * 1e-18) * ethPrice;
       
       return {
-        dexName: this.getName(),
+        source: this.getName(),
         price: price,
         fees: this.getTradingFeePercentage(),
         gasEstimate: gasEstimateUSD,
@@ -107,7 +108,7 @@ export class SushiswapAdapter extends BaseAdapter {
       console.log(`[SushiswapAdapter] Fetched price for ${baseToken.symbol}/${quoteToken.symbol}: ${price}, gas: $${gasEstimateUSD}`);
       
       return {
-        dexName: this.getName(),
+        source: this.getName(),
         price: price,
         fees: this.getTradingFeePercentage(),
         gasEstimate: gasEstimateUSD,
@@ -131,7 +132,7 @@ export class SushiswapAdapter extends BaseAdapter {
           // Add small variation to simulate slight price changes
           const variation = 0.97 + Math.random() * 0.06; // 0.97 - 1.03
           return {
-            dexName: this.getName(),
+            source: this.getName(),
             price: data[0].price * variation,
             fees: this.getTradingFeePercentage(),
             gasEstimate: 0.006, // Default estimated gas in USD for EVM chains
@@ -144,7 +145,7 @@ export class SushiswapAdapter extends BaseAdapter {
       
       // If all fails, provide a fallback estimation
       return {
-        dexName: this.getName(),
+        source: this.getName(),
         price: this.getEstimatedPrice(baseToken, quoteToken),
         fees: this.getTradingFeePercentage(),
         gasEstimate: 0.006,

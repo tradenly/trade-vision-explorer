@@ -80,7 +80,7 @@ export class UniswapAdapter extends BaseAdapter {
       console.log(`[UniswapAdapter] Fetched price for ${baseToken.symbol}/${quoteToken.symbol}: ${price}, gas: $${gasEstimateUSD}`);
       
       return {
-        dexName: this.getName(),
+        source: this.getName(),
         price: price,
         fees: this.getTradingFeePercentage(),
         gasEstimate: gasEstimateUSD,
@@ -122,7 +122,7 @@ export class UniswapAdapter extends BaseAdapter {
         console.log(`[UniswapAdapter] Generated fallback price: ${simulatedPrice} using base prices ${basePrice}/${quotePrice}`);
         
         return {
-          dexName: this.getName(),
+          source: this.getName(),
           price: simulatedPrice,
           fees: this.getTradingFeePercentage(),
           gasEstimate: 0.005, // Default estimated gas in USD for EVM chains
@@ -134,7 +134,7 @@ export class UniswapAdapter extends BaseAdapter {
       
       // If we don't have base prices, use the generic estimate from BaseAdapter
       return {
-        dexName: this.getName(),
+        source: this.getName(),
         price: this.getEstimatedPrice(baseToken, quoteToken),
         fees: this.getTradingFeePercentage(),
         gasEstimate: 0.005,
@@ -147,7 +147,7 @@ export class UniswapAdapter extends BaseAdapter {
       
       // Last resort fallback - return a basic estimate
       return {
-        dexName: this.getName(),
+        source: this.getName(),
         price: 1.0, // Neutral price as ultimate fallback
         fees: this.getTradingFeePercentage(),
         gasEstimate: 0.005,
