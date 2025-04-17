@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -66,6 +65,7 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
           currentStep++;
         } else {
           clearInterval(progressInterval);
+          
           if (transactionStatus === 'success') {
             setExecutionProgress(100);
             setExecutionStep('Transaction complete!');
