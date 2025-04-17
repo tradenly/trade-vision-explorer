@@ -1,23 +1,38 @@
-
 import { DexAdapter, DexConfig, PriceQuote } from './types';
 import { TokenInfo } from '@/services/tokenListService';
 import { defaultDexConfigs, networkToChainId } from './config/dexConfigs';
 import { DexPersistenceService } from './services/dexPersistenceService';
 import { EVMAdapterRegistry } from './adapters/evm/EVMAdapterRegistry';
 import { SolanaAdapterRegistry } from './adapters/solana/SolanaAdapterRegistry';
+import { PriceService } from './services/PriceService'; // New service for price-related operations
 
 class DexRegistry {
   private static instance: DexRegistry;
   private dexConfigs: DexConfig[] = defaultDexConfigs;
   private persistenceService: DexPersistenceService;
-  private evmRegistry: EVMAdapterRegistry;
-  private solanaRegistry: SolanaAdapterRegistry;
+  private priceService: PriceService;
+  private registries: Map<number, DexAdapter[]> = new Map();
   
   private constructor() {
     this.persistenceService = new DexPersistenceService();
-    this.evmRegistry = new EVMAdapterRegistry(this.dexConfigs);
-    this.solanaRegistry = new SolanaAdapterRegistry(this.dexConfigs);
+    this.priceService = new PriceService(this);
+    this.initializeRegistries();
     this.loadConfigFromSupabase();
+  }
+
+  private initializeRegistries() {
+    // Create registries for different chain types
+    const evmRegistry = new EVMAdapterRegistry(this.dexConfigs);
+    const solanaRegistry = new SolanaAdapterRegistry(this.dexConfigs);
+
+    // Populate registries map
+    evmRegistry.getSupportedChains().forEach(chainId => {
+      this.registries.set(chainId, evmRegistry.getAdaptersForChain(chainId));
+    });
+
+    solanaRegistry.getSupportedChains().forEach(chainId => {
+      this.registries.set(chainId, solanaRegistry.getAdapters());
+    });
   }
 
   public static getInstance(): DexRegistry {
@@ -25,6 +40,16 @@ class DexRegistry {
       DexRegistry.instance = new DexRegistry();
     }
     return DexRegistry.instance;
+  }
+
+  // Simplified method to get adapters for a specific chain
+  public getAdaptersForChain(chainId: number): DexAdapter[] {
+    return this.registries.get(chainId) || [];
+  }
+
+  // Delegate price fetching to a dedicated service
+  public async fetchLatestPricesForPair(baseToken: TokenInfo, quoteToken: TokenInfo): Promise<Record<string, PriceQuote>> {
+    return this.priceService.fetchLatestPricesForPair(baseToken, quoteToken);
   }
 
   private async loadConfigFromSupabase() {
@@ -61,16 +86,6 @@ class DexRegistry {
     }
   }
 
-  public getAdaptersForChain(chainId: number): DexAdapter[] {
-    // For Solana (chainId 101), use the Solana registry
-    if (chainId === 101) {
-      return this.solanaRegistry.getAdapters();
-    }
-    
-    // For all other chains (EVM), use the EVM registry
-    return this.evmRegistry.getAdaptersForChain(chainId);
-  }
-
   public getAllDexConfigs(): DexConfig[] {
     return this.dexConfigs.map(config => {
       const evmAdapter = this.evmRegistry.getAdapter(config.slug);
@@ -102,33 +117,6 @@ class DexRegistry {
     return this.getAdaptersForChain(chainId);
   }
 
-  public async fetchLatestPricesForPair(baseToken: TokenInfo, quoteToken: TokenInfo): Promise<Record<string, PriceQuote>> {
-    try {
-      const adapters = this.getAdaptersForChain(baseToken.chainId);
-      const results: Record<string, PriceQuote> = {};
-      
-      const promises = adapters.map(async (adapter) => {
-        try {
-          const quote = await adapter.fetchQuote(baseToken, quoteToken);
-          if (quote) {
-            results[adapter.getName()] = quote;
-          }
-        } catch (error) {
-          console.error(`Error fetching price from ${adapter.getName()}:`, error);
-        }
-      });
-      
-      await Promise.all(promises);
-      
-      await this.persistenceService.storePriceData(baseToken, quoteToken, results);
-      
-      return results;
-    } catch (error) {
-      console.error('Error fetching latest prices:', error);
-      return {};
-    }
-  }
-
   public async checkDexApiStatus(): Promise<Record<string, boolean>> {
     const status: Record<string, boolean> = {};
     
@@ -156,6 +144,9 @@ class DexRegistry {
     
     return status;
   }
+
+  private evmRegistry: EVMAdapterRegistry = new EVMAdapterRegistry(this.dexConfigs);
+  private solanaRegistry: SolanaAdapterRegistry = new SolanaAdapterRegistry(this.dexConfigs);
 }
 
 export default DexRegistry;
