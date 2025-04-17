@@ -32,6 +32,13 @@ export class SolanaAdapterRegistry {
   }
 
   /**
+   * Get all supported chain IDs (for Solana, just returns [101])
+   */
+  public getSupportedChains(): number[] {
+    return [101]; // Solana mainnet chain ID
+  }
+
+  /**
    * Get all adapters for Solana (chainId 101)
    */
   public getAdapters(): DexAdapter[] {

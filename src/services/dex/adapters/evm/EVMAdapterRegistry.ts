@@ -36,6 +36,18 @@ export class EVMAdapterRegistry {
   }
 
   /**
+   * Get all supported chain IDs across all adapters
+   */
+  public getSupportedChains(): number[] {
+    // Get unique chain IDs supported by all adapters
+    const chainIds = new Set<number>();
+    this.getAllAdapters().forEach(adapter => {
+      adapter.getSupportedChains().forEach(chainId => chainIds.add(chainId));
+    });
+    return Array.from(chainIds);
+  }
+
+  /**
    * Get all adapters for a specific EVM chain
    */
   public getAdaptersForChain(chainId: number): DexAdapter[] {
