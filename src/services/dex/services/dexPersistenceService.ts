@@ -10,7 +10,15 @@ export class DexPersistenceService {
       .select('*');
     
     if (error) throw error;
-    return data || [];
+    
+    // Convert database fields to our DexConfig model
+    return data?.map(item => ({
+      name: item.name,
+      slug: item.slug,
+      chainIds: item.chain_ids,
+      tradingFeePercentage: item.trading_fee_percentage,
+      enabled: item.enabled
+    })) || [];
   }
 
   async saveConfigToSupabase(configs: DexConfig[]): Promise<void> {

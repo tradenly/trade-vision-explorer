@@ -1,26 +1,22 @@
 
 import { DexAdapter, DexConfig, PriceQuote } from './types';
 import { TokenInfo } from '@/services/tokenListService';
-import { UniswapAdapter } from './adapters/UniswapAdapter';
-import { SushiswapAdapter } from './adapters/SushiswapAdapter';
-import { PancakeSwapAdapter } from './adapters/PancakeSwapAdapter';
-import { CurveAdapter } from './adapters/CurveAdapter';
-import { BalancerAdapter } from './adapters/BalancerAdapter';
-import { JupiterAdapter } from './adapters/JupiterAdapter';
-import { OrcaAdapter } from './adapters/OrcaAdapter';
-import { RaydiumAdapter } from './adapters/RaydiumAdapter';
 import { defaultDexConfigs, networkToChainId } from './config/dexConfigs';
 import { DexPersistenceService } from './services/dexPersistenceService';
+import { EVMAdapterRegistry } from './adapters/evm/EVMAdapterRegistry';
+import { SolanaAdapterRegistry } from './adapters/solana/SolanaAdapterRegistry';
 
 class DexRegistry {
   private static instance: DexRegistry;
-  private adapters: Map<string, DexAdapter> = new Map();
   private dexConfigs: DexConfig[] = defaultDexConfigs;
   private persistenceService: DexPersistenceService;
+  private evmRegistry: EVMAdapterRegistry;
+  private solanaRegistry: SolanaAdapterRegistry;
   
   private constructor() {
     this.persistenceService = new DexPersistenceService();
-    this.initializeAdapters();
+    this.evmRegistry = new EVMAdapterRegistry(this.dexConfigs);
+    this.solanaRegistry = new SolanaAdapterRegistry(this.dexConfigs);
     this.loadConfigFromSupabase();
   }
 
@@ -37,9 +33,20 @@ class DexRegistry {
       
       if (data.length > 0) {
         for (const dexConfig of data) {
-          const adapter = this.adapters.get(dexConfig.slug);
-          if (adapter) {
-            adapter.setEnabled(dexConfig.enabled);
+          // Update EVM adapters
+          const evmAdapter = this.evmRegistry.getAdapter(dexConfig.slug);
+          if (evmAdapter) {
+            evmAdapter.setEnabled(dexConfig.enabled);
+            const existingConfig = this.dexConfigs.find(c => c.slug === dexConfig.slug);
+            if (existingConfig && dexConfig.chainIds) {
+              existingConfig.chainIds = dexConfig.chainIds;
+            }
+          }
+          
+          // Update Solana adapters
+          const solanaAdapter = this.solanaRegistry.getAdapter(dexConfig.slug);
+          if (solanaAdapter) {
+            solanaAdapter.setEnabled(dexConfig.enabled);
             const existingConfig = this.dexConfigs.find(c => c.slug === dexConfig.slug);
             if (existingConfig && dexConfig.chainIds) {
               existingConfig.chainIds = dexConfig.chainIds;
@@ -54,48 +61,22 @@ class DexRegistry {
     }
   }
 
-  private initializeAdapters() {
-    this.adapters.set('uniswap', new UniswapAdapter(this.getConfigBySlug('uniswap')));
-    this.adapters.set('sushiswap', new SushiswapAdapter(this.getConfigBySlug('sushiswap')));
-    this.adapters.set('balancer', new BalancerAdapter(this.getConfigBySlug('balancer')));
-    this.adapters.set('curve', new CurveAdapter(this.getConfigBySlug('curve')));
-    this.adapters.set('pancakeswap', new PancakeSwapAdapter(this.getConfigBySlug('pancakeswap')));
-    this.adapters.set('jupiter', new JupiterAdapter(this.getConfigBySlug('jupiter')));
-    this.adapters.set('orca', new OrcaAdapter(this.getConfigBySlug('orca')));
-    this.adapters.set('raydium', new RaydiumAdapter(this.getConfigBySlug('raydium')));
-  }
-
-  private getConfigBySlug(slug: string): DexConfig {
-    const config = this.dexConfigs.find(c => c.slug === slug);
-    if (!config) {
-      throw new Error(`DEX configuration not found for: ${slug}`);
-    }
-    return config;
-  }
-
   public getAdaptersForChain(chainId: number): DexAdapter[] {
-    let adapters = Array.from(this.adapters.values())
-      .filter(adapter => 
-        adapter.getSupportedChains().includes(chainId) && 
-        adapter.isEnabled()
-      );
-    
+    // For Solana (chainId 101), use the Solana registry
     if (chainId === 101) {
-      adapters = adapters.filter(adapter => 
-        ['Jupiter', 'Orca', 'Raydium'].includes(adapter.getName())
-      );
-    } else {
-      adapters = adapters.filter(adapter => 
-        !['Jupiter', 'Orca', 'Raydium'].includes(adapter.getName())
-      );
+      return this.solanaRegistry.getAdapters();
     }
     
-    return adapters;
+    // For all other chains (EVM), use the EVM registry
+    return this.evmRegistry.getAdaptersForChain(chainId);
   }
 
   public getAllDexConfigs(): DexConfig[] {
     return this.dexConfigs.map(config => {
-      const adapter = this.adapters.get(config.slug);
+      const evmAdapter = this.evmRegistry.getAdapter(config.slug);
+      const solanaAdapter = this.solanaRegistry.getAdapter(config.slug);
+      const adapter = evmAdapter || solanaAdapter;
+      
       return {
         ...config,
         enabled: adapter ? adapter.isEnabled() : config.enabled
@@ -104,11 +85,11 @@ class DexRegistry {
   }
 
   public updateDexConfig(slug: string, enabled: boolean): void {
-    const adapter = this.adapters.get(slug);
-    if (adapter) {
-      adapter.setEnabled(enabled);
-      this.persistenceService.saveConfigToSupabase(this.getAllDexConfigs());
-    }
+    // Try to update in both registries
+    this.evmRegistry.updateAdapterEnabled(slug, enabled);
+    this.solanaRegistry.updateAdapterEnabled(slug, enabled);
+    
+    this.persistenceService.saveConfigToSupabase(this.getAllDexConfigs());
   }
   
   public getDexesForNetwork(networkName: string): DexAdapter[] {    
@@ -151,12 +132,25 @@ class DexRegistry {
   public async checkDexApiStatus(): Promise<Record<string, boolean>> {
     const status: Record<string, boolean> = {};
     
-    for (const [name, adapter] of this.adapters.entries()) {
+    // Check EVM adapters
+    const evmAdapters = this.evmRegistry.getAllAdapters();
+    for (const adapter of evmAdapters) {
       try {
-        status[name] = adapter.isEnabled();
+        status[adapter.getSlug()] = adapter.isEnabled();
       } catch (error) {
-        console.error(`Error checking status of ${name}:`, error);
-        status[name] = false;
+        console.error(`Error checking status of ${adapter.getName()}:`, error);
+        status[adapter.getSlug()] = false;
+      }
+    }
+    
+    // Check Solana adapters
+    const solanaAdapters = this.solanaRegistry.getAllAdapters();
+    for (const adapter of solanaAdapters) {
+      try {
+        status[adapter.getSlug()] = adapter.isEnabled();
+      } catch (error) {
+        console.error(`Error checking status of ${adapter.getName()}:`, error);
+        status[adapter.getSlug()] = false;
       }
     }
     
