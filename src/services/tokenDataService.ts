@@ -1,4 +1,3 @@
-
 import { ChainId, TokenInfo } from './tokenListService';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -50,161 +49,40 @@ export const COMMON_QUOTE_TOKENS: Record<number, string[]> = {
   [ChainId.SOLANA]: ['USDC', 'USDT', 'SOL', 'ETH']
 };
 
-/**
- * Fetch tokens from Supabase as first option
- */
-async function fetchTokensFromSupabase(chainId: ChainId): Promise<TokenInfo[]> {
+export async function getTokensForChain(chainId: ChainId): Promise<TokenInfo[]> {
   try {
-    const { data, error } = await supabase
+    // First try to get tokens from our database
+    const { data: tokens, error } = await supabase
       .from('tokens')
       .select('*')
-      .eq('chain_id', chainId);
-      
-    if (error) throw error;
-    if (data && data.length > 0) {
-      console.log(`Loaded ${data.length} tokens for chain ${chainId} from Supabase`);
-      return data as TokenInfo[];
-    }
-    return [];
-  } catch (err) {
-    console.error('Error fetching tokens from Supabase:', err);
-    return [];
-  }
-}
+      .eq('chain_id', chainId)
+      .order('is_popular', { ascending: false });
 
-/**
- * Fetch tokens from a public API with CORS support
- */
-async function fetchTokensFromPublicAPI(chainId: ChainId): Promise<TokenInfo[]> {
-  let url = '';
-  let chainFilter: number | null = null;
-  
-  switch (chainId) {
-    case ChainId.ETHEREUM:
-      url = 'https://tokens.coingecko.com/uniswap/all.json';
-      chainFilter = 1;
-      break;
-    case ChainId.BNB:
-      url = 'https://tokens.coingecko.com/binance-smart-chain/all.json';
-      chainFilter = 56;
-      break;
-    case ChainId.SOLANA:
-      // No direct CORS-friendly endpoint for Solana tokens
-      return DEFAULT_TOKENS[ChainId.SOLANA];
-    default:
+    if (error) {
+      console.error('Error fetching tokens from database:', error);
       return DEFAULT_TOKENS[chainId] || [];
-  }
-  
-  try {
-    console.log(`Fetching tokens for chain ${chainId} from ${url}`);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); // Longer timeout
-    
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: {'Accept': 'application/json'},
-      cache: 'no-store'
-    });
-    
-    clearTimeout(timeoutId);
-    
-    if (!response.ok) {
-      throw new Error(`API response: ${response.status}`);
     }
-    
-    const data = await response.json();
-    
-    if (!data || !data.tokens || !Array.isArray(data.tokens)) {
-      throw new Error('Invalid token list format');
-    }
-    
-    // Filter tokens for specific chain if needed
-    let tokens = data.tokens;
-    if (chainFilter) {
-      tokens = tokens.filter((t: any) => t.chainId === chainFilter);
-    }
-    
-    // Normalize token data
-    const normalizedTokens = tokens.map((token: any) => ({
-      name: token.name,
-      symbol: token.symbol,
-      address: token.address,
-      decimals: token.decimals,
-      logoURI: token.logoURI,
-      chainId: chainId,
-    }));
-    
-    console.log(`Fetched ${normalizedTokens.length} tokens for chain ${chainId}`);
-    return normalizedTokens;
-  } catch (error) {
-    console.error(`Error fetching tokens for chain ${chainId}:`, error);
-    return [];
-  }
-}
 
-/**
- * Get tokens for a specific chain with caching
- */
-export async function getTokensForChain(chainId: ChainId): Promise<TokenInfo[]> {
-  // Check cache first
-  const cachedData = tokenCache[chainId];
-  if (cachedData && Date.now() - cachedData.timestamp < cachedData.expiry) {
-    console.log(`Using cached tokens for chain ${chainId}`);
-    return cachedData.data;
-  }
-  
-  console.log(`Fetching fresh tokens for chain ${chainId}`);
-  
-  try {
-    // First try to get from Supabase
-    let tokens = await fetchTokensFromSupabase(chainId);
-    
-    // If no tokens from Supabase, try public API
-    if (!tokens || tokens.length === 0) {
-      tokens = await fetchTokensFromPublicAPI(chainId);
+    if (tokens && tokens.length > 0) {
+      return tokens.map(token => ({
+        name: token.name,
+        symbol: token.symbol,
+        address: token.address,
+        decimals: token.decimals || 18,
+        chainId: token.chain_id,
+        logoURI: token.logo_uri
+      }));
     }
-    
-    // If still no tokens, use defaults
-    if (!tokens || tokens.length === 0) {
-      tokens = DEFAULT_TOKENS[chainId] || [];
-    } else if (tokens.length < 5) {
-      // If we have very few tokens, merge with defaults to ensure we have core tokens
-      const defaults = DEFAULT_TOKENS[chainId] || [];
-      const existingAddresses = new Set(tokens.map(t => t.address.toLowerCase()));
-      
-      // Add default tokens that aren't already in the list
-      for (const token of defaults) {
-        if (!existingAddresses.has(token.address.toLowerCase())) {
-          tokens.push(token);
-        }
-      }
-    }
-    
-    // Ensure all tokens are valid
-    const validatedTokens = tokens
-      .filter(token => token && token.symbol && token.name)
-      .map(token => {
-        // Ensure token has a valid address
-        if (!token.address || token.address === '' || token.address === 'undefined') {
-          return {
-            ...token,
-            address: `generated-${token.symbol}-${token.chainId}-${Math.random().toString(36).substring(2, 7)}`
-          };
-        }
-        return token;
-      });
-    
-    // Update cache
-    tokenCache[chainId] = {
-      data: validatedTokens,
-      timestamp: Date.now(),
-      expiry: CACHE_DURATION
-    };
-    
-    return validatedTokens;
+
+    // If no tokens in database, trigger sync
+    await supabase.functions.invoke('sync-tokens', {
+      body: { chainId }
+    });
+
+    // Return defaults while sync is running
+    return DEFAULT_TOKENS[chainId] || [];
   } catch (error) {
-    console.error(`Error in getTokensForChain(${chainId}):`, error);
-    // Fall back to default tokens
+    console.error('Error in getTokensForChain:', error);
     return DEFAULT_TOKENS[chainId] || [];
   }
 }

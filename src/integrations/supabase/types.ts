@@ -406,6 +406,86 @@ export type Database = {
         }
         Relationships: []
       }
+      token_prices: {
+        Row: {
+          id: string
+          price_usd: number
+          source: string
+          timestamp: string | null
+          token_id: string | null
+        }
+        Insert: {
+          id?: string
+          price_usd: number
+          source: string
+          timestamp?: string | null
+          token_id?: string | null
+        }
+        Update: {
+          id?: string
+          price_usd?: number
+          source?: string
+          timestamp?: string | null
+          token_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "token_prices_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tokens: {
+        Row: {
+          address: string
+          chain_id: number
+          created_at: string | null
+          decimals: number | null
+          id: string
+          is_popular: boolean | null
+          is_verified: boolean | null
+          last_updated: string | null
+          logo_uri: string | null
+          market_cap: number | null
+          name: string
+          price_usd: number | null
+          symbol: string
+        }
+        Insert: {
+          address: string
+          chain_id: number
+          created_at?: string | null
+          decimals?: number | null
+          id?: string
+          is_popular?: boolean | null
+          is_verified?: boolean | null
+          last_updated?: string | null
+          logo_uri?: string | null
+          market_cap?: number | null
+          name: string
+          price_usd?: number | null
+          symbol: string
+        }
+        Update: {
+          address?: string
+          chain_id?: number
+          created_at?: string | null
+          decimals?: number | null
+          id?: string
+          is_popular?: boolean | null
+          is_verified?: boolean | null
+          last_updated?: string | null
+          logo_uri?: string | null
+          market_cap?: number | null
+          name?: string
+          price_usd?: number | null
+          symbol?: string
+        }
+        Relationships: []
+      }
       trade_metrics: {
         Row: {
           created_at: string
