@@ -6,10 +6,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArbitrageOpportunity } from '@/services/dexService';
 import { Loader2, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { TransactionStatus, useExecutionProgress } from '@/hooks/useExecutionProgress';
+import { type TransactionStatus, useExecutionProgress } from '@/hooks/useExecutionProgress';
 import TradeDetails from './TradeDetails';
 import TradeSettings from './TradeSettings';
-import TransactionStatus from './TransactionStatus';
+import TransactionStatusDisplay from './TransactionStatus';
 
 interface TradeConfirmDialogProps {
   open: boolean;
@@ -98,7 +98,7 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
             onAdvancedModeChange={setAdvancedMode}
           />
 
-          <TransactionStatus
+          <TransactionStatusDisplay
             transactionStatus={transactionStatus}
             progress={progress}
             step={step}

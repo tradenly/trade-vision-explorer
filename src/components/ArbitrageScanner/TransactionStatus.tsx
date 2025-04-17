@@ -1,17 +1,17 @@
 
 import React from 'react';
-import { TransactionStatus } from '@/hooks/useExecutionProgress';
+import { type TransactionStatus } from '@/hooks/useExecutionProgress';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, AlertTriangle, CheckCircle, Info } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle } from 'lucide-react';
 
-interface TransactionStatusProps {
+interface TransactionStatusDisplayProps {
   transactionStatus: TransactionStatus;
   progress: number;
   step: string;
 }
 
-const TransactionStatus: React.FC<TransactionStatusProps> = ({
+const TransactionStatusDisplay: React.FC<TransactionStatusDisplayProps> = ({
   transactionStatus,
   progress,
   step,
@@ -55,4 +55,4 @@ const TransactionStatus: React.FC<TransactionStatusProps> = ({
   return null;
 };
 
-export default TransactionStatus;
+export default TransactionStatusDisplay;
