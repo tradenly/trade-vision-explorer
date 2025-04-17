@@ -1,3 +1,4 @@
+
 import { supabase } from '@/lib/supabaseClient';
 
 export interface TokenInfo {
@@ -24,9 +25,13 @@ export interface TokenList {
   };
 }
 
-// Chain identifiers
+// Chain identifiers - expanded to include additional chains
 export enum ChainId {
   ETHEREUM = 1,
+  OPTIMISM = 10,
+  POLYGON = 137,
+  ARBITRUM = 42161,
+  BASE = 8453,
   BNB = 56,
   SOLANA = 101
 }
@@ -34,6 +39,10 @@ export enum ChainId {
 // Chain names for display
 export const CHAIN_NAMES: Record<number, string> = {
   [ChainId.ETHEREUM]: 'Ethereum',
+  [ChainId.OPTIMISM]: 'Optimism',
+  [ChainId.POLYGON]: 'Polygon',
+  [ChainId.ARBITRUM]: 'Arbitrum',
+  [ChainId.BASE]: 'Base',
   [ChainId.BNB]: 'BNB Chain',
   [ChainId.SOLANA]: 'Solana'
 };
