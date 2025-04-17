@@ -22,12 +22,12 @@ const ChainSelector: React.FC<ChainSelectorProps> = ({ selectedChain, onChainCha
         value={selectedChain.toString()} 
         onValueChange={(value) => onChainChange(parseInt(value) as ChainId)}
       >
-        <SelectTrigger className="w-full bg-background">
+        <SelectTrigger>
           <SelectValue placeholder="Select Blockchain">
             {CHAIN_NAMES[selectedChain]}
           </SelectValue>
         </SelectTrigger>
-        <SelectContent className="bg-background z-[100]">
+        <SelectContent>
           <SelectGroup>
             {Object.entries(CHAIN_NAMES).map(([id, name]) => (
               <SelectItem key={id} value={id}>

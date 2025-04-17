@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { TokenInfo, ChainId } from '@/services/tokenListService';
 import { ArbitrageOpportunity, scanForArbitrageOpportunities, executeTrade } from '@/services/dexService';
@@ -12,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/lib/supabaseClient';
 import DexRegistry from '@/services/dex/DexRegistry';
 import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
@@ -384,14 +385,13 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
         <Dialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Arbitrage Scan Settings</DialogTitle>
+              <div className="text-lg font-semibold">Arbitrage Scan Settings</div>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="profitThreshold">Profit Threshold ({tempSettings.profit_threshold}%)</Label>
+                <div>Profit Threshold ({tempSettings.profit_threshold}%)</div>
                 <div className="flex items-center gap-2">
                   <Slider 
-                    id="profitThreshold"
                     defaultValue={[tempSettings.profit_threshold]}
                     min={0.1}
                     max={10}
@@ -410,10 +410,9 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="gasFeeThreshold">Gas Fee Threshold (${tempSettings.gas_fee_threshold})</Label>
+                <div>Gas Fee Threshold (${tempSettings.gas_fee_threshold})</div>
                 <div className="flex items-center gap-2">
                   <Slider 
-                    id="gasFeeThreshold"
                     defaultValue={[tempSettings.gas_fee_threshold]}
                     min={1}
                     max={50}
@@ -432,10 +431,9 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="scanInterval">Scan Interval ({tempSettings.scan_interval} seconds)</Label>
+                <div>Scan Interval ({tempSettings.scan_interval} seconds)</div>
                 <div className="flex items-center gap-2">
                   <Slider 
-                    id="scanInterval"
                     defaultValue={[tempSettings.scan_interval]}
                     min={5}
                     max={120}
@@ -453,10 +451,10 @@ const ArbitrageScanner: React.FC<ArbitrageScannerProps> = ({
                 </div>
               </div>
             </div>
-            <div className="flex justify-end gap-2">
+            <DialogFooter>
               <Button variant="outline" onClick={() => setShowSettingsDialog(false)}>Cancel</Button>
               <Button onClick={saveSettings}>Save Settings</Button>
-            </div>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </CardContent>

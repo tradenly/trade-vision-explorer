@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ArbitrageOpportunity } from '@/services/dexService';
@@ -111,10 +111,10 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
     <Dialog open={open} onOpenChange={(open) => !executing && onOpenChange(open)}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Confirm Arbitrage Trade</DialogTitle>
-          <DialogDescription>
+          <h2 className="text-lg font-semibold leading-none tracking-tight">Confirm Arbitrage Trade</h2>
+          <p className="text-sm text-muted-foreground">
             Review the details of this arbitrage opportunity before executing the trade.
-          </DialogDescription>
+          </p>
         </DialogHeader>
         
         <div className="space-y-4 max-h-[60vh] overflow-y-auto">
@@ -149,9 +149,8 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
           <Separator />
           
           <div className="space-y-2">
-            <Label htmlFor="customAmount" className="font-medium">Investment Amount</Label>
+            <div className="font-medium">Investment Amount</div>
             <Input
-              id="customAmount"
               type="number"
               value={customAmount || investmentAmount}
               onChange={handleCustomAmountChange}
@@ -163,9 +162,8 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
           </div>
           
           <div className="flex items-center justify-between">
-            <Label htmlFor="advanced-mode" className="font-medium">Advanced Mode</Label>
+            <div className="font-medium">Advanced Mode</div>
             <Switch
-              id="advanced-mode"
               checked={advancedMode}
               onCheckedChange={setAdvancedMode}
               disabled={executing !== null}
@@ -176,11 +174,10 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
             <div className="space-y-4 border rounded-lg p-3">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="slippageTolerance" className="font-medium">Slippage Tolerance ({slippageTolerance}%)</Label>
+                  <div className="font-medium">Slippage Tolerance ({slippageTolerance}%)</div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Slider
-                    id="slippageTolerance"
                     defaultValue={[slippageTolerance]}
                     min={0.1}
                     max={3.0}
@@ -193,7 +190,7 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
               </div>
               
               <div className="space-y-2">
-                <Label className="font-medium">Estimated Price Impact</Label>
+                <div className="font-medium">Estimated Price Impact</div>
                 <div className={`flex items-center gap-2 ${isPriceImpactHigh ? 'text-amber-500' : 'text-muted-foreground'}`}>
                   {isPriceImpactHigh && <AlertTriangle className="h-4 w-4" />}
                   <span>{buyPriceImpact.toFixed(2)}%</span>
@@ -207,7 +204,7 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
           
           <div className="border rounded-lg p-3">
             <div className="space-y-2">
-              <Label className="font-medium">Expected Profit</Label>
+              <div className="font-medium">Expected Profit</div>
               <div className="flex justify-between text-lg">
                 <span className="text-green-600 font-bold">
                   ${opportunity.estimatedProfit.toFixed(4)}
@@ -227,7 +224,7 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
                 <AlertDescription>Please wait while the trade is being executed...</AlertDescription>
               </Alert>
               <div className="space-y-1">
-                <Progress value={executionProgress} className="h-2" />
+                <Progress value={executionProgress} />
                 <p className="text-sm text-muted-foreground">{executionStep}</p>
               </div>
             </div>
@@ -249,7 +246,7 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
             </Alert>
           )}
           
-          <Alert variant="outline" className="bg-blue-50 border-blue-200">
+          <Alert variant="default" className="bg-blue-50 border-blue-200">
             <Info className="h-4 w-4 mr-2" />
             <AlertDescription className="text-xs">
               By executing this trade, you authorize Tradenly to initiate transactions on your behalf using your connected wallet.

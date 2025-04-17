@@ -143,7 +143,7 @@ const ArbitrageDetails: React.FC<ArbitrageDetailsProps> = ({
               <span className="text-muted-foreground">Total Fees:</span>
               <span className="font-medium">-${(opportunity.tradingFees + opportunity.gasFee + opportunity.platformFee).toFixed(2)}</span>
             </div>
-            <Separator className="my-2" />
+            <Separator />
             <div className="flex justify-between font-bold text-lg">
               <span>Net Profit:</span>
               <span className="text-green-600 dark:text-green-400">${formattedProfit}</span>

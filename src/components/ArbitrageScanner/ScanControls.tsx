@@ -75,7 +75,7 @@ const ScanControls: React.FC<ScanControlsProps> = ({
                 
                 <TooltipProvider>
                   <Tooltip>
-                    <TooltipTrigger asChild>
+                    <TooltipTrigger>
                       <Button 
                         variant="ghost" 
                         size="icon"
@@ -108,7 +108,7 @@ const ScanControls: React.FC<ScanControlsProps> = ({
           {onOpenSettings && (
             <TooltipProvider>
               <Tooltip>
-                <TooltipTrigger asChild>
+                <TooltipTrigger>
                   <Button 
                     variant="outline" 
                     size="icon"
