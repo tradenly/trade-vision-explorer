@@ -1,85 +1,94 @@
-export class RateLimiter {
-  private requestCount: number = 0;
-  private lastResetTime: number = Date.now();
-  
-  constructor(
-    private maxRequests: number,
-    private timeWindowMs: number = 60000 // 1 minute default
-  ) {}
 
-  async checkLimit(): Promise<boolean> {
+/**
+ * Utility for rate limiting API calls to prevent throttling
+ */
+
+// Rate limiter for different DEX APIs
+export const jupiterRateLimiter = createRateLimiter(50, 60000); // 50 req/min
+export const orcaRateLimiter = createRateLimiter(30, 60000); // 30 req/min
+export const raydiumRateLimiter = createRateLimiter(30, 60000); // 30 req/min
+export const uniswapRateLimiter = createRateLimiter(100, 60000); // 100 req/min
+export const sushiswapRateLimiter = createRateLimiter(80, 60000); // 80 req/min
+export const pancakeswapRateLimiter = createRateLimiter(60, 60000); // 60 req/min
+export const balancerRateLimiter = createRateLimiter(40, 60000); // 40 req/min
+export const curveRateLimiter = createRateLimiter(40, 60000); // 40 req/min
+
+// Track consecutive errors for backoff strategy
+export const errorTracker: Record<string, { consecutiveErrors: number, lastErrorTime: number }> = {
+  jupiter: { consecutiveErrors: 0, lastErrorTime: 0 },
+  orca: { consecutiveErrors: 0, lastErrorTime: 0 },
+  raydium: { consecutiveErrors: 0, lastErrorTime: 0 },
+  uniswap: { consecutiveErrors: 0, lastErrorTime: 0 },
+  sushiswap: { consecutiveErrors: 0, lastErrorTime: 0 },
+  pancakeswap: { consecutiveErrors: 0, lastErrorTime: 0 },
+  balancer: { consecutiveErrors: 0, lastErrorTime: 0 },
+  curve: { consecutiveErrors: 0, lastErrorTime: 0 }
+};
+
+/**
+ * Creates a rate limiter that manages request timing to stay within API limits
+ */
+function createRateLimiter(requestsPerMinute: number, windowMs: number) {
+  const queue: Array<() => void> = [];
+  const requestTimestamps: number[] = [];
+  let processingQueue = false;
+
+  const removeOldTimestamps = () => {
     const now = Date.now();
-    
-    // Reset counter if time window has passed
-    if (now - this.lastResetTime >= this.timeWindowMs) {
-      this.requestCount = 0;
-      this.lastResetTime = now;
+    const timeWindow = now - windowMs;
+    while (requestTimestamps.length > 0 && requestTimestamps[0] < timeWindow) {
+      requestTimestamps.shift();
     }
+  };
+
+  const processQueue = () => {
+    if (processingQueue || queue.length === 0) return;
     
-    // Check if we're over the limit
-    if (this.requestCount >= this.maxRequests) {
-      return false;
+    processingQueue = true;
+    removeOldTimestamps();
+
+    if (requestTimestamps.length < requestsPerMinute) {
+      const resolve = queue.shift();
+      if (resolve) {
+        requestTimestamps.push(Date.now());
+        resolve();
+      }
     }
-    
-    // Increment counter and allow request
-    this.requestCount++;
-    return true;
-  }
+
+    const timeUntilNextSlot = requestTimestamps.length >= requestsPerMinute 
+      ? (requestTimestamps[0] + windowMs) - Date.now() + 50 // Add 50ms buffer
+      : 0;
+
+    setTimeout(() => {
+      processingQueue = false;
+      processQueue();
+    }, Math.max(timeUntilNextSlot, 0));
+  };
+
+  return {
+    waitForSlot: (): Promise<void> => {
+      return new Promise(resolve => {
+        queue.push(resolve);
+        processQueue();
+      });
+    }
+  };
+}
+
+/**
+ * Apply exponential backoff based on consecutive error count
+ */
+export async function applyBackoff(dexName: keyof typeof errorTracker): Promise<void> {
+  const tracker = errorTracker[dexName];
+  if (!tracker) return;
   
-  async waitForSlot(): Promise<void> {
-    while (!(await this.checkLimit())) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+  if (tracker.consecutiveErrors > 0) {
+    const backoffTime = Math.min(2 ** tracker.consecutiveErrors * 1000, 60000); // Max 1 minute
+    const timeElapsed = Date.now() - tracker.lastErrorTime;
+    
+    if (timeElapsed < backoffTime) {
+      // Wait for the remaining backoff time
+      await new Promise(resolve => setTimeout(resolve, backoffTime - timeElapsed));
     }
   }
 }
-
-// Export a singleton instance for Jupiter with a more production-ready rate limit
-export const jupiterRateLimiter = new RateLimiter(30, 60000); // 30 requests per minute
-
-// Export a singleton instance for Orca
-export const orcaRateLimiter = new RateLimiter(30); // 30 requests per minute
-
-// Export a singleton instance for Raydium
-export const raydiumRateLimiter = new RateLimiter(30); // 30 requests per minute
-
-// Add additional rate limiters for other protocols as needed
-export const uniswapRateLimiter = new RateLimiter(100); // 100 requests per minute
-export const sushiswapRateLimiter = new RateLimiter(80); // 80 requests per minute
-export const pancakeSwapRateLimiter = new RateLimiter(80); // 80 requests per minute
-export const balancerRateLimiter = new RateLimiter(60); // 60 requests per minute
-export const curveRateLimiter = new RateLimiter(60); // 60 requests per minute
-
-// Track when the last error occurred for each provider to implement exponential backoff
-export const errorTracker = {
-  jupiter: { lastErrorTime: 0, consecutiveErrors: 0 },
-  orca: { lastErrorTime: 0, consecutiveErrors: 0 },
-  raydium: { lastErrorTime: 0, consecutiveErrors: 0 },
-  uniswap: { lastErrorTime: 0, consecutiveErrors: 0 },
-  sushiswap: { lastErrorTime: 0, consecutiveErrors: 0 },
-  pancakeswap: { lastErrorTime: 0, consecutiveErrors: 0 },
-  balancer: { lastErrorTime: 0, consecutiveErrors: 0 },
-  curve: { lastErrorTime: 0, consecutiveErrors: 0 },
-};
-
-// Helper function to implement exponential backoff
-export const applyBackoff = async (provider: keyof typeof errorTracker): Promise<void> => {
-  const tracker = errorTracker[provider];
-  
-  // Reset if it's been a while since the last error
-  const now = Date.now();
-  if (now - tracker.lastErrorTime > 60000) { // Reset after 1 minute without errors
-    tracker.consecutiveErrors = 0;
-    return;
-  }
-  
-  tracker.lastErrorTime = now;
-  tracker.consecutiveErrors++;
-  
-  // Exponential backoff: 2^n * 100ms (capped at 30 seconds)
-  const delayMs = Math.min(Math.pow(2, tracker.consecutiveErrors) * 100, 30000);
-  
-  console.log(`[BackoffSystem] ${provider} backing off for ${delayMs}ms after ${tracker.consecutiveErrors} consecutive errors`);
-  
-  // Wait for the backoff period
-  await new Promise(resolve => setTimeout(resolve, delayMs));
-};

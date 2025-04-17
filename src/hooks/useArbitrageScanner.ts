@@ -1,8 +1,8 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { TokenInfo } from '@/services/tokenListService';
 import { ArbitrageOpportunity } from '@/services/dexService';
-import { fetchAndStorePriceData } from '@/services/priceDataCollection';
-import { findArbitrageOpportunities } from '@/services/arbitrageDetection';
+import { fetchAndStorePriceData, findArbitrageOpportunities } from '@/services/priceDataCollection';
 
 export function useArbitrageScanner(
   baseToken: TokenInfo | null,
@@ -33,7 +33,8 @@ export function useArbitrageScanner(
       const results = await findArbitrageOpportunities(
         baseToken,
         quoteToken,
-        minProfitPercentage
+        minProfitPercentage,
+        investmentAmount
       );
 
       setOpportunities(results);
@@ -45,7 +46,7 @@ export function useArbitrageScanner(
     } finally {
       setLoading(false);
     }
-  }, [baseToken, quoteToken, minProfitPercentage]);
+  }, [baseToken, quoteToken, minProfitPercentage, investmentAmount]);
 
   // Set up auto-scan if enabled
   useEffect(() => {

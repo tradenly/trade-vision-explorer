@@ -1,34 +1,12 @@
 
-project_id="fkagpyfzgczcaxsqwsoi"
+project_id = "fkagpyfzgczcaxsqwsoi"
 
-[api]
-enabled = true
-port = 54321
-schemas = ["public", "storage", "graphql_public"]
+# Enable JWT verification for protected functions by default
+[functions]
+verify_jwt = true
 
-[db]
-port = 54322
-
-[studio]
-enabled = true
-port = 54323
-api_url = "http://localhost"
-
-[inbucket]
-enabled = true
-port = 54324
-
-[storage]
-enabled = true
-
-[auth]
-enabled = true
-site_url = "http://localhost:3000"
-
-[analytics]
-enabled = true
-
-[experimental.functions.update-price-data]
+# Allow public access to our arbitrage scanning functions
+[functions.update-price-data]
 verify_jwt = false
 
 [functions.scan-arbitrage]

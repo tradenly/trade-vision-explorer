@@ -5,11 +5,6 @@ import { TokenInfo } from '../../tokenListService';
 import { jupiterRateLimiter } from '../utils/rateLimiter';
 
 export class JupiterAdapter extends BaseAdapter {
-  private static REQUEST_COUNTER = 0;
-  private static LAST_REQUEST_TIME = 0;
-  private static readonly RATE_LIMIT = 50; // requests per minute
-  private static readonly RATE_WINDOW = 60000; // 1 minute in milliseconds
-
   public async fetchQuote(baseToken: TokenInfo, quoteToken: TokenInfo, amount: number = 1): Promise<PriceQuote> {
     try {
       await jupiterRateLimiter.waitForSlot();
@@ -64,7 +59,7 @@ export class JupiterAdapter extends BaseAdapter {
     const liquidityUSD = data.marketInfos?.[0]?.liquidityUSD || 100000;
 
     return {
-      source: this.getName(),
+      dexName: this.getName(),
       price: price,
       fees: this.getTradingFeePercentage(),
       gasEstimate: 0.00025,
@@ -97,7 +92,7 @@ export class JupiterAdapter extends BaseAdapter {
 
       if (data?.[0]?.price) {
         return {
-          source: this.getName(),
+          dexName: this.getName(),
           price: data[0].price * (0.995 + Math.random() * 0.01),
           fees: this.getTradingFeePercentage(),
           gasEstimate: 0.00025,
@@ -110,7 +105,7 @@ export class JupiterAdapter extends BaseAdapter {
     } catch (error) {
       console.error('[JupiterAdapter] Fallback error:', error);
       return {
-        source: this.getName(),
+        dexName: this.getName(),
         price: this.getEstimatedPrice(baseToken, quoteToken),
         fees: this.getTradingFeePercentage(),
         gasEstimate: 0.00025,
