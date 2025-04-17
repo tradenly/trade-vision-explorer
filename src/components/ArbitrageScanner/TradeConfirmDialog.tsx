@@ -1,15 +1,17 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ArbitrageOpportunity } from '@/services/dexService';
-import { Loader2, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Info } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
+import { Progress } from '@/components/ui/progress';
 
 interface TradeConfirmDialogProps {
   open: boolean;
@@ -33,7 +35,47 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
   const [slippageTolerance, setSlippageTolerance] = useState<number>(0.5); // 0.5% default
   const [advancedMode, setAdvancedMode] = useState<boolean>(false);
   const [customAmount, setCustomAmount] = useState<number>(investmentAmount);
+  const [executionProgress, setExecutionProgress] = useState<number>(0);
+  const [executionStep, setExecutionStep] = useState<string>('');
   const { toast } = useToast();
+  
+  useEffect(() => {
+    // Reset execution progress when dialog opens or closes
+    if (!open || !executing) {
+      setExecutionProgress(0);
+      setExecutionStep('');
+      return;
+    }
+    
+    // Simulate execution progress steps for better UX
+    if (executing && transactionStatus === 'pending') {
+      const steps = [
+        { progress: 15, message: 'Connecting to wallet...' },
+        { progress: 30, message: 'Checking token allowance...' },
+        { progress: 45, message: 'Preparing transaction...' },
+        { progress: 60, message: `Sending to ${opportunity?.buyDex}...` },
+        { progress: 75, message: 'Transaction submitted...' },
+        { progress: 90, message: 'Confirming transaction...' }
+      ];
+      
+      let currentStep = 0;
+      const progressInterval = setInterval(() => {
+        if (currentStep < steps.length && transactionStatus === 'pending') {
+          setExecutionProgress(steps[currentStep].progress);
+          setExecutionStep(steps[currentStep].message);
+          currentStep++;
+        } else {
+          clearInterval(progressInterval);
+          if (transactionStatus === 'success') {
+            setExecutionProgress(100);
+            setExecutionStep('Transaction complete!');
+          }
+        }
+      }, 800);
+      
+      return () => clearInterval(progressInterval);
+    }
+  }, [executing, open, transactionStatus, opportunity]);
   
   if (!opportunity) {
     return null;
@@ -178,11 +220,17 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
           </div>
 
           {transactionStatus === 'pending' && (
-            <Alert>
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              <AlertTitle>Processing transaction</AlertTitle>
-              <AlertDescription>Please wait while the trade is being executed...</AlertDescription>
-            </Alert>
+            <div className="space-y-2">
+              <Alert>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                <AlertTitle>Processing transaction</AlertTitle>
+                <AlertDescription>Please wait while the trade is being executed...</AlertDescription>
+              </Alert>
+              <div className="space-y-1">
+                <Progress value={executionProgress} className="h-2" />
+                <p className="text-sm text-muted-foreground">{executionStep}</p>
+              </div>
+            </div>
           )}
 
           {transactionStatus === 'success' && (
@@ -195,10 +243,19 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
 
           {transactionStatus === 'error' && (
             <Alert className="bg-red-50 border-red-200 text-red-800">
+              <AlertTriangle className="h-4 w-4 mr-2" />
               <AlertTitle>Error</AlertTitle>
               <AlertDescription>Failed to execute the trade. Please try again.</AlertDescription>
             </Alert>
           )}
+          
+          <Alert variant="outline" className="bg-blue-50 border-blue-200">
+            <Info className="h-4 w-4 mr-2" />
+            <AlertDescription className="text-xs">
+              By executing this trade, you authorize Tradenly to initiate transactions on your behalf using your connected wallet.
+              A platform fee of 0.5% will be collected from successful arbitrage trades.
+            </AlertDescription>
+          </Alert>
         </div>
         
         <DialogFooter>
