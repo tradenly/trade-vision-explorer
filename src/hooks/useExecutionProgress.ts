@@ -12,6 +12,9 @@ export interface ExecutionProgressState {
   step: string;
 }
 
+// Re-export TransactionStatus for components that import from this file
+export { TransactionStatus };
+
 export function useExecutionProgress(
   executing: boolean,
   transactionStatus: TransactionStatus,

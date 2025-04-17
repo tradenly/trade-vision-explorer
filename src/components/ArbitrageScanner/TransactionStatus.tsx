@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { type TransactionStatus } from '@/hooks/useExecutionProgress';
+import { TransactionStatus } from '@/services/dex/types';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2, AlertTriangle, CheckCircle } from 'lucide-react';
