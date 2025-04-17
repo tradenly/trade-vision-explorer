@@ -117,6 +117,7 @@ serve(async (req) => {
   try {
     const { baseToken, quoteToken, investmentAmount = 1000, minProfitPercentage = 0.5 } = await req.json();
     console.log(`Scanning for arbitrage: ${baseToken.symbol}/${quoteToken.symbol} with $${investmentAmount}`);
+    console.log(`Selected chain ID: ${baseToken.chainId}`);
 
     // Get network name from chain ID
     const networkName = CHAIN_NETWORK_MAP[baseToken.chainId] || 'ethereum';

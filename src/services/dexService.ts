@@ -34,6 +34,7 @@ export async function scanForArbitrageOpportunities(
 ): Promise<ArbitrageOpportunity[]> {
   try {
     console.log(`Scanning for arbitrage: ${baseToken.symbol}/${quoteToken.symbol} with $${investmentAmount}`);
+    console.log(`Chain ID: ${baseToken.chainId}, Network: ${getNetworkFromChainId(baseToken.chainId)}`);
     
     // Call the Supabase Edge Function to scan for arbitrage
     const { data, error } = await supabase.functions.invoke('scan-arbitrage', {

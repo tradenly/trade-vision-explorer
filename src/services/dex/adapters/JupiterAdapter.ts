@@ -17,16 +17,17 @@ export class JupiterAdapter extends BaseAdapter {
         // Convert amount to smallest unit based on decimals
         const amountInSmallestUnit = Math.floor(amount * Math.pow(10, baseToken.decimals || 9));
         
-        // Use Jupiter Quote API v6
+        // Use Jupiter Quote API v6 with slippageBps parameter
         const response = await fetch(
           `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amountInSmallestUnit}&slippageBps=50`
         );
         
         if (!response.ok) {
-          throw new Error(`Jupiter API error: ${response.status}`);
+          throw new Error(`Jupiter API error: ${response.status} ${await response.text()}`);
         }
         
         const data = await response.json();
+        console.log(`[JupiterAdapter] Jupiter API response:`, data);
         
         // Calculate price: outAmount / inAmount
         const inAmountFloat = Number(data.inAmount) / Math.pow(10, baseToken.decimals || 9);
@@ -41,16 +42,23 @@ export class JupiterAdapter extends BaseAdapter {
             liquidityUSD = data.marketInfos.reduce((acc, market) => 
               acc + (market.liquidityUSD || 0), 0);
           }
+          
+          // If no liquidity data, provide a reasonable estimate
+          if (liquidityUSD === 0) {
+            liquidityUSD = 100000; // Default $100k if no data available
+          }
         } catch (err) {
           console.warn('Error extracting liquidity info from Jupiter:', err);
+          liquidityUSD = 100000; // Default fallback
         }
         
-        console.log(`[JupiterAdapter] Fetched price for ${baseToken.symbol}/${quoteToken.symbol}: ${price}`);
+        console.log(`[JupiterAdapter] Fetched price for ${baseToken.symbol}/${quoteToken.symbol}: ${price}, liquidity: $${liquidityUSD}`);
         
         return {
           dexName: this.getName(),
           price: price,
           fees: this.getTradingFeePercentage(),
+          gasEstimate: 0.00025, // SOL fees in USD (Approximately 5000 lamports)
           liquidityUSD: liquidityUSD,
           liquidityInfo: {
             routeInfo: data.routePlan || [],
@@ -79,6 +87,7 @@ export class JupiterAdapter extends BaseAdapter {
             dexName: this.getName(),
             price: data[0].price * variation,
             fees: this.getTradingFeePercentage(),
+            gasEstimate: 0.00025, // SOL fees in USD
             liquidityUSD: 100000 // Fallback liquidity value
           };
         }
@@ -101,6 +110,7 @@ export class JupiterAdapter extends BaseAdapter {
         dexName: this.getName(),
         price: basePrice * variation,
         fees: this.getTradingFeePercentage(),
+        gasEstimate: 0.00025, // SOL fees in USD
         liquidityUSD: 100000 // Default fallback liquidity
       };
     }
