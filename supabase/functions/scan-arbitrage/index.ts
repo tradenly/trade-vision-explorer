@@ -16,39 +16,54 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const CHAIN_NETWORK_MAP: Record<number, string> = {
   1: 'ethereum',
   56: 'bnb',
-  101: 'solana'
+  101: 'solana',
+  137: 'polygon',
+  42161: 'arbitrum',
+  10: 'optimism',
+  8453: 'base'
 };
 
 // Function to get gas fees for a specific network
 async function getNetworkGasFees(network: string) {
-  const { data, error } = await supabase
-    .from('gas_fees')
-    .select('*')
-    .eq('network', network)
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('gas_fees')
+      .select('*')
+      .eq('network', network)
+      .single();
 
-  if (error) {
-    console.error(`Error fetching gas fees for ${network}:`, error);
-    return { base_fee: 0, priority_fee: 0, is_lamports: false };
+    if (error) {
+      console.error(`Error fetching gas fees for ${network}:`, error);
+      // Default values if not found
+      return { base_fee: network === 'solana' ? 0.000005 : 2.5, priority_fee: 0, is_lamports: network === 'solana' };
+    }
+
+    return data;
+  } catch (error) {
+    console.error(`Error in getNetworkGasFees for ${network}:`, error);
+    return { base_fee: network === 'solana' ? 0.000005 : 2.5, priority_fee: 0, is_lamports: network === 'solana' };
   }
-
-  return data;
 }
 
 // Function to get DEX settings for a specific chain
 async function getDexSettingsForChain(chainId: number) {
-  const { data, error } = await supabase
-    .from('dex_settings')
-    .select('*')
-    .contains('chain_ids', [chainId])
-    .eq('enabled', true);
+  try {
+    const { data, error } = await supabase
+      .from('dex_settings')
+      .select('*')
+      .contains('chain_ids', [chainId])
+      .eq('enabled', true);
 
-  if (error) {
-    console.error(`Error fetching DEX settings for chain ${chainId}:`, error);
+    if (error) {
+      console.error(`Error fetching DEX settings for chain ${chainId}:`, error);
+      return [];
+    }
+
+    return data;
+  } catch (error) {
+    console.error(`Error in getDexSettingsForChain(${chainId}):`, error);
     return [];
   }
-
-  return data;
 }
 
 serve(async (req) => {
@@ -63,12 +78,15 @@ serve(async (req) => {
 
     // Get network name from chain ID
     const networkName = CHAIN_NETWORK_MAP[baseToken.chainId] || 'ethereum';
+    console.log(`Network identified: ${networkName}`);
 
     // Get gas fees for the network
     const gasFees = await getNetworkGasFees(networkName);
+    console.log(`Gas fees for ${networkName}:`, gasFees);
 
     // Get enabled DEXs for this chain
     const dexSettings = await getDexSettingsForChain(baseToken.chainId);
+    console.log(`Found ${dexSettings.length} DEXs for chain ${baseToken.chainId}`);
 
     // Fetch scan settings
     const { data: scanSettings, error: scanSettingsError } = await supabase
@@ -83,56 +101,125 @@ serve(async (req) => {
 
     // Generate arbitrage opportunities (placeholder logic)
     // In a real implementation, this would fetch actual prices from DEX APIs
-    const opportunities = dexSettings.flatMap((buyDex, buyIndex) => 
-      dexSettings
-        .filter((_, sellIndex) => sellIndex !== buyIndex)
-        .map(sellDex => {
-          // Simulated price difference calculation
-          const buyPrice = 1900 + Math.random() * 10;
-          const sellPrice = buyPrice * (1 + Math.random() * 0.05);
-
-          // Basic profit calculation
-          const tradingFeeBuy = investmentAmount * (buyDex.trading_fee_percentage / 100);
-          const tradingFeeSell = investmentAmount * (sellDex.trading_fee_percentage / 100);
-          const tokenAmount = (investmentAmount - tradingFeeBuy) / buyPrice;
-          const saleAmount = tokenAmount * sellPrice;
-          const netProfit = saleAmount - investmentAmount - tradingFeeBuy - tradingFeeSell - gasFees.base_fee;
-          const profitPercentage = (netProfit / investmentAmount) * 100;
-
-          return profitPercentage > scanSettings.profit_threshold ? {
+    const opportunities = [];
+    for (let i = 0; i < dexSettings.length; i++) {
+      const buyDex = dexSettings[i];
+      
+      for (let j = 0; j < dexSettings.length; j++) {
+        if (i === j) continue; // Skip same DEX comparison
+        
+        const sellDex = dexSettings[j];
+        
+        // Simulated price difference calculation
+        // For each pair of DEXs, we'll create a random price spread
+        // In production, we'd use real API calls to DEXes
+        let buyPrice, sellPrice;
+        
+        if (networkName === 'solana') {
+          buyPrice = (baseToken.symbol === 'SOL') ? 150 + (Math.random() * 5 - 2.5) : 1 + (Math.random() * 0.2 - 0.1);
+          // Create a small price difference - sometimes positive, sometimes negative
+          const priceDiff = (Math.random() * 0.06) - 0.01; // Between -1% and +5%
+          sellPrice = buyPrice * (1 + priceDiff);
+        } else {
+          // EVM chains
+          buyPrice = (baseToken.symbol === 'ETH') ? 3500 + (Math.random() * 50 - 25) : 
+                     (baseToken.symbol === 'BNB') ? 550 + (Math.random() * 10 - 5) : 
+                     10 + (Math.random() * 1 - 0.5);
+          
+          const priceDiff = (Math.random() * 0.08) - 0.02; // Between -2% and +6%
+          sellPrice = buyPrice * (1 + priceDiff);
+        }
+        
+        // Basic profit calculation
+        const tradingFeeBuy = investmentAmount * (buyDex.trading_fee_percentage / 100);
+        const tradingFeeSell = investmentAmount * (sellDex.trading_fee_percentage / 100);
+        
+        const tokenAmount = (investmentAmount - tradingFeeBuy) / buyPrice;
+        const saleAmount = tokenAmount * sellPrice;
+        
+        // Calculate gas fee based on network
+        let gasFeeUSD;
+        if (networkName === 'solana') {
+          // Solana has very low gas fees, typically under $0.01
+          gasFeeUSD = 0.002 + (Math.random() * 0.003); // $0.002 to $0.005
+        } else {
+          // EVM chain gas fees vary significantly
+          const baseFee = networkName === 'ethereum' ? 
+                          3 + (Math.random() * 4) : // $3-7 for Ethereum
+                          0.5 + (Math.random() * 1); // $0.5-1.5 for other EVM chains
+          gasFeeUSD = baseFee;
+        }
+        
+        // Calculate net profit after all fees
+        const tradingFees = tradingFeeBuy + tradingFeeSell;
+        const platformFee = investmentAmount * 0.005; // 0.5% platform fee
+        const netProfit = saleAmount - investmentAmount - tradingFees - gasFeeUSD - platformFee;
+        const profitPercentage = (netProfit / investmentAmount) * 100;
+        
+        // Generate liquidity estimates (simulated)
+        const liquidityBuy = Math.floor(50000 + Math.random() * 950000);
+        const liquiditySell = Math.floor(50000 + Math.random() * 950000);
+        
+        // Calculate price difference for storing in database
+        const priceDifference = ((sellPrice - buyPrice) / buyPrice) * 100;
+        
+        // Only include profitable opportunities meeting the threshold
+        if (profitPercentage >= scanSettings.profit_threshold) {
+          const opportunityId = crypto.randomUUID();
+          
+          // Add opportunity to array
+          opportunities.push({
+            id: opportunityId,
             buyDex: buyDex.name,
             sellDex: sellDex.name,
-            buyPrice,
-            sellPrice,
-            profitPercentage,
-            netProfit,
-            token: baseToken.symbol
-          } : null;
-        })
-        .filter(Boolean)
-    );
+            buyPrice: parseFloat(buyPrice.toFixed(4)),
+            sellPrice: parseFloat(sellPrice.toFixed(4)),
+            profitPercentage: parseFloat(profitPercentage.toFixed(2)),
+            netProfit: parseFloat(netProfit.toFixed(2)),
+            tradingFeeBuy: parseFloat(tradingFeeBuy.toFixed(2)),
+            tradingFeeSell: parseFloat(tradingFeeSell.toFixed(2)),
+            gasFee: parseFloat(gasFeeUSD.toFixed(4)),
+            platformFee: parseFloat(platformFee.toFixed(2)),
+            liquidityBuy,
+            liquiditySell,
+            network: networkName,
+            token: baseToken.symbol,
+            priceDiff: parseFloat(priceDifference.toFixed(2))
+          });
+          
+          // Store in database
+          try {
+            const { error: storeError } = await supabase
+              .from('arbitrage_opportunities')
+              .insert({
+                id: opportunityId,
+                token_pair: `${baseToken.symbol}/${quoteToken.symbol}`,
+                buy_exchange: buyDex.name,
+                sell_exchange: sellDex.name,
+                estimated_profit: netProfit.toFixed(2),
+                network: networkName,
+                status: 'active',
+                price_diff: priceDifference,
+                risk: profitPercentage > 3 ? 'low' : profitPercentage > 1 ? 'medium' : 'high'
+              });
 
-    // Store arbitrage opportunities in the database
-    if (opportunities.length > 0) {
-      const opportunitiesToStore = opportunities.map(op => ({
-        token_pair: `${baseToken.symbol}/${quoteToken.symbol}`,
-        buy_exchange: op.buyDex,
-        sell_exchange: op.sellDex,
-        estimated_profit: op.netProfit.toFixed(2),
-        network: networkName,
-        status: 'active'
-      }));
-
-      const { error: storeError } = await supabase
-        .from('arbitrage_opportunities')
-        .insert(opportunitiesToStore);
-
-      if (storeError) {
-        console.error('Error storing arbitrage opportunities:', storeError);
+            if (storeError) {
+              console.error('Error storing arbitrage opportunity:', storeError);
+            }
+          } catch (storeError) {
+            console.error('Exception storing arbitrage opportunity:', storeError);
+          }
+        }
       }
     }
 
-    return new Response(JSON.stringify({ opportunities }), {
+    // Sort opportunities by profit percentage (highest first)
+    opportunities.sort((a, b) => b.profitPercentage - a.profitPercentage);
+
+    // Limit to top 10 opportunities
+    const topOpportunities = opportunities.slice(0, 10);
+
+    return new Response(JSON.stringify({ opportunities: topOpportunities }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
