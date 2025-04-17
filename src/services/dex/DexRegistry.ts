@@ -41,8 +41,8 @@ class DexRegistry {
           if (adapter) {
             adapter.setEnabled(dexConfig.enabled);
             const existingConfig = this.dexConfigs.find(c => c.slug === dexConfig.slug);
-            if (existingConfig && dexConfig.chain_ids) {
-              existingConfig.chainIds = dexConfig.chain_ids;
+            if (existingConfig && dexConfig.chainIds) {
+              existingConfig.chainIds = dexConfig.chainIds;
             }
           }
         }
