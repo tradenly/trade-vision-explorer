@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -13,13 +12,15 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
 
+type TransactionStatus = 'pending' | 'success' | 'error' | null;
+
 interface TradeConfirmDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   opportunity: ArbitrageOpportunity | null;
   onConfirm: () => void;
   executing: string | null;
-  transactionStatus: 'pending' | 'success' | 'error' | null;
+  transactionStatus: TransactionStatus;
   investmentAmount: number;
 }
 
@@ -40,14 +41,12 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
   const { toast } = useToast();
   
   useEffect(() => {
-    // Reset execution progress when dialog opens or closes
     if (!open || !executing) {
       setExecutionProgress(0);
       setExecutionStep('');
       return;
     }
     
-    // Simulate execution progress steps for better UX
     if (executing && transactionStatus === 'pending') {
       const steps = [
         { progress: 15, message: 'Connecting to wallet...' },
@@ -81,12 +80,10 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
     return null;
   }
   
-  // Calculate estimated token amount
   const tradeAmount = customAmount || investmentAmount;
   const tradingFee = opportunity.tradingFees / 100 * tradeAmount;
   const estimatedTokenAmount = (tradeAmount - tradingFee) / opportunity.buyPrice;
   
-  // Calculate price impact based on liquidity (simplified model)
   const buyPriceImpact = opportunity.liquidity 
     ? Math.min((tradeAmount / opportunity.liquidity) * 100, 5) 
     : 0.1;
@@ -104,7 +101,6 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
     }
   };
   
-  // Show warning if price impact is high
   const isPriceImpactHigh = buyPriceImpact > 2;
   
   return (
