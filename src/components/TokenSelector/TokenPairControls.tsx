@@ -42,7 +42,7 @@ const TokenPairControls: React.FC<TokenPairControlsProps> = ({
         />
       </div>
       
-      <div className="flex items-center justify-center">
+      <div className="md:flex items-center justify-center hidden">
         <Button 
           variant="ghost" 
           size="icon" 
@@ -64,6 +64,19 @@ const TokenPairControls: React.FC<TokenPairControlsProps> = ({
           disabled={loading}
           loading={loading}
         />
+      </div>
+
+      <div className="block md:hidden text-center">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="rounded-full"
+          onClick={onSwapTokens}
+          disabled={!baseToken || !quoteToken}
+        >
+          <ArrowRightLeft className="mr-2 h-4 w-4" />
+          Swap Tokens
+        </Button>
       </div>
     </div>
   );

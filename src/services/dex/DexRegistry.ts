@@ -42,7 +42,6 @@ class DexRegistry {
 
   private async loadConfigFromSupabase() {
     try {
-      // Try to load DEX configuration from Supabase
       const { data, error } = await supabase
         .from('dex_settings')
         .select('*');
@@ -50,12 +49,10 @@ class DexRegistry {
       if (error) throw error;
       
       if (data && data.length > 0) {
-        // Update local configs with those from Supabase
         for (const dexConfig of data) {
           const adapter = this.adapters.get(dexConfig.slug);
           if (adapter) {
             adapter.setEnabled(dexConfig.enabled);
-            // Update supporting chains if different
             const existingConfig = this.dexConfigs.find(c => c.slug === dexConfig.slug);
             if (existingConfig && dexConfig.chain_ids) {
               existingConfig.chainIds = dexConfig.chain_ids;
@@ -63,7 +60,6 @@ class DexRegistry {
           }
         }
       } else {
-        // If no settings exist, create them in Supabase
         await this.saveConfigToSupabase();
       }
     } catch (error) {
@@ -84,7 +80,6 @@ class DexRegistry {
         };
       });
 
-      // Upsert the configs to Supabase
       const { error } = await supabase
         .from('dex_settings')
         .upsert(configsToSave, { onConflict: 'slug' });
@@ -96,7 +91,6 @@ class DexRegistry {
   }
 
   private initializeAdapters() {
-    // Initialize all adapters
     this.adapters.set('uniswap', new UniswapAdapter(this.getConfigBySlug('uniswap')));
     this.adapters.set('sushiswap', new SushiswapAdapter(this.getConfigBySlug('sushiswap')));
     this.adapters.set('balancer', new BalancerAdapter(this.getConfigBySlug('balancer')));
@@ -118,21 +112,17 @@ class DexRegistry {
   public getAdaptersForChain(chainId: number): DexAdapter[] {
     let adapters: DexAdapter[] = [];
     
-    // Filter adapters that support the given chain
     this.adapters.forEach(adapter => {
       if (adapter.getSupportedChains().includes(chainId) && adapter.isEnabled()) {
         adapters.push(adapter);
       }
     });
     
-    // Special case for Solana (chainId 101) - make sure only Solana DEXes are returned
     if (chainId === 101) {
       adapters = adapters.filter(adapter => 
         ['Jupiter', 'Orca', 'Raydium'].includes(adapter.getName())
       );
-    }
-    // For EVM chains, filter out Solana-only DEXes
-    else {
+    } else {
       adapters = adapters.filter(adapter => 
         !['Jupiter', 'Orca', 'Raydium'].includes(adapter.getName())
       );
@@ -159,9 +149,7 @@ class DexRegistry {
     }
   }
   
-  // Get all DEXs for a specific network by name
   public getDexesForNetwork(networkName: string): DexAdapter[] {
-    // Map network name to chainId
     const networkToChainId: Record<string, number> = {
       'ethereum': 1,
       'bnb': 56,
@@ -175,19 +163,17 @@ class DexRegistry {
     const chainId = networkToChainId[networkName.toLowerCase()];
     if (!chainId) {
       console.warn(`Unknown network: ${networkName}, defaulting to Ethereum`);
-      return this.getAdaptersForChain(1); // Default to Ethereum
+      return this.getAdaptersForChain(1);
     }
     
     return this.getAdaptersForChain(chainId);
   }
 
-  // Fetch the most recent price data for a token pair from all DEXes
   public async fetchLatestPricesForPair(baseToken: TokenInfo, quoteToken: TokenInfo): Promise<Record<string, PriceQuote>> {
     try {
       const adapters = this.getAdaptersForChain(baseToken.chainId);
       const results: Record<string, PriceQuote> = {};
       
-      // Execute price fetches in parallel
       const promises = adapters.map(async (adapter) => {
         try {
           const quote = await adapter.fetchQuote(baseToken, quoteToken);
@@ -201,7 +187,6 @@ class DexRegistry {
       
       await Promise.all(promises);
       
-      // Store the price data in Supabase for future reference
       await this.storePriceData(baseToken, quoteToken, results);
       
       return results;
@@ -211,40 +196,33 @@ class DexRegistry {
     }
   }
   
-  // Store price data in Supabase for analysis and arbitrage scanning
   private async storePriceData(baseToken: TokenInfo, quoteToken: TokenInfo, prices: Record<string, PriceQuote>): Promise<void> {
-    try {
-      const pricesToStore = Object.entries(prices).map(([dexName, quote]) => ({
-        dex_name: dexName,
-        token_pair: `${baseToken.symbol}/${quoteToken.symbol}`,
-        chain_id: baseToken.chainId,
-        price: quote.price,
-        timestamp: new Date().toISOString()
-      }));
+    const pricesToStore = Object.entries(prices).map(([dexName, quote]) => ({
+      dex_name: dexName,
+      token_pair: `${baseToken.symbol}/${quoteToken.symbol}`,
+      chain_id: baseToken.chainId,
+      price: quote.price,
+      timestamp: new Date().toISOString()
+    }));
+    
+    if (pricesToStore.length > 0) {
+      const { error } = await supabase
+        .from('dex_price_history')
+        .insert(pricesToStore);
       
-      if (pricesToStore.length > 0) {
-        const { error } = await supabase
-          .from('dex_price_history')
-          .insert(pricesToStore);
-        
-        if (error) {
-          console.error('Failed to store price data:', error);
-        }
+      if (error) {
+        console.error('Failed to store price data:', error);
       }
-    } catch (error) {
-      console.error('Error storing price data:', error);
     }
   }
 
-  // Check all supported DEX APIs to ensure they're operational
   public async checkDexApiStatus(): Promise<Record<string, boolean>> {
     const status: Record<string, boolean> = {};
     
     for (const [name, adapter] of this.adapters.entries()) {
       try {
         if (adapter.isEnabled()) {
-          // Perform a simple health check (implementation will vary by DEX)
-          status[name] = true; // Default to true, actual check would be adapter-specific
+          status[name] = true;
         } else {
           status[name] = false;
         }

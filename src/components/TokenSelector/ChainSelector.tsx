@@ -1,7 +1,14 @@
 
 import React from 'react';
-import { ChainId, CHAIN_NAMES } from '@/services/tokenListService';
+import { ChainId } from '@/services/tokenListService';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+// Restrict to only Ethereum, BNB, and Solana
+const SUPPORTED_CHAINS: Record<number, string> = {
+  [ChainId.ETHEREUM]: 'Ethereum',
+  [ChainId.BNB]: 'BNB Chain',
+  [ChainId.SOLANA]: 'Solana'
+};
 
 interface ChainSelectorProps {
   selectedChain: ChainId;
@@ -25,9 +32,9 @@ const ChainSelector: React.FC<ChainSelectorProps> = ({ selectedChain, onChainCha
         <SelectTrigger>
           <SelectValue placeholder="Select Blockchain" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="bg-background z-50">
           <SelectGroup>
-            {Object.entries(CHAIN_NAMES).map(([id, name]) => (
+            {Object.entries(SUPPORTED_CHAINS).map(([id, name]) => (
               <SelectItem key={id} value={id}>
                 <div className="flex items-center gap-2">
                   <img 

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Search, AlertTriangle } from 'lucide-react';
 import TokenPairSelector from '@/components/TokenSelector/TokenPairSelector';
-import OpportunityList from './OpportunityList';
+import { OpportunityList } from './OpportunityList';
 import TradeConfirmDialog from './TradeConfirmDialog';
 import { ArbitrageOpportunity } from '@/services/dexService';
 import { useToast } from '@/hooks/use-toast';
