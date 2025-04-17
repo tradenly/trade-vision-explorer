@@ -59,8 +59,8 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
         // Use defaults as fallback
         const defaults = DEFAULT_TOKENS[selectedChain] || [];
         setAllChainTokens(defaults);
-        setQuoteTokens(defaults);
-        setPopularTokens(defaults);
+        setQuoteTokens(getQuoteTokensForChain(selectedChain, defaults));
+        setPopularTokens(getPopularTokensForChain(selectedChain, defaults));
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -74,7 +74,7 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
     return () => {
       isMounted = false;
     };
-  }, [selectedChain]);
+  }, [selectedChain, isLoadingChain]);
 
   const handleChainChange = useCallback((chainId: ChainId) => {
     console.log(`Chain changed to: ${chainId}`);

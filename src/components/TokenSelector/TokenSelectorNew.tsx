@@ -1,14 +1,13 @@
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { TokenInfo } from '@/services/tokenListService';
+import { Check, ChevronsUpDown, Search, Loader2 } from 'lucide-react';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { Check, ChevronsUpDown, Loader2 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { getSafeTokenValue } from '@/services/tokenDataService';
 
-interface TokenSelectorProps {
+interface TokenSelectorNewProps {
   tokens: TokenInfo[];
   selectedToken: TokenInfo | null;
   onSelectToken: (token: TokenInfo) => void;
@@ -17,29 +16,39 @@ interface TokenSelectorProps {
   loading?: boolean;
 }
 
-export const TokenSelectorNew: React.FC<TokenSelectorProps> = ({
+const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
   tokens,
   selectedToken,
   onSelectToken,
-  placeholder = "Select a token",
+  placeholder = 'Select a token',
   disabled = false,
   loading = false
 }) => {
   const [open, setOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  
-  // Filter tokens based on search input
-  const filteredTokens = searchQuery
-    ? tokens.filter(token => 
-        token.symbol?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        token.name?.toLowerCase().includes(searchQuery.toLowerCase()))
-    : tokens;
-  
-  const handleTokenSelect = (token: TokenInfo) => {
-    onSelectToken(token);
-    setOpen(false);
+  const [search, setSearch] = useState('');
+
+  const filteredTokens = useCallback(() => {
+    if (!search) {
+      return tokens.slice(0, 50); // Limit to first 50 tokens if no search
+    }
+
+    const searchLower = search.toLowerCase();
+    return tokens
+      .filter(token => 
+        (token.symbol && token.symbol.toLowerCase().includes(searchLower)) ||
+        (token.name && token.name.toLowerCase().includes(searchLower))
+      )
+      .slice(0, 50); // Limit search results
+  }, [tokens, search]);
+
+  const handleSelect = (tokenAddress: string) => {
+    const token = tokens.find(t => t.address === tokenAddress);
+    if (token) {
+      onSelectToken(token);
+      setOpen(false);
+    }
   };
-  
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -50,7 +59,12 @@ export const TokenSelectorNew: React.FC<TokenSelectorProps> = ({
           className="w-full justify-between bg-background"
           disabled={disabled || loading}
         >
-          {selectedToken ? (
+          {loading ? (
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Loading...</span>
+            </div>
+          ) : selectedToken ? (
             <div className="flex items-center">
               {selectedToken.logoURI && (
                 <img
@@ -65,74 +79,61 @@ export const TokenSelectorNew: React.FC<TokenSelectorProps> = ({
               <span>{selectedToken.symbol}</span>
             </div>
           ) : (
-            placeholder
+            <span>{placeholder}</span>
           )}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="p-0 w-[300px] max-h-[500px] bg-background" align="start">
-        <Command>
-          <CommandInput 
+      <PopoverContent className="w-[300px] p-0 z-50 bg-background" align="start">
+        <Command shouldFilter={false}>
+          <CommandInput
             placeholder="Search tokens..."
-            onValueChange={setSearchQuery}
-            className="border-none focus:ring-0"
+            value={search}
+            onValueChange={setSearch}
+            className="h-9"
+            startIcon={<Search className="h-4 w-4" />}
           />
           <CommandList>
             <CommandEmpty>
               {loading ? (
-                <div className="flex items-center justify-center p-4">
-                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                  <span>Loading tokens...</span>
+                <div className="flex flex-col items-center justify-center p-4">
+                  <Loader2 className="h-5 w-5 animate-spin mb-2" />
+                  <p>Loading tokens...</p>
                 </div>
               ) : (
-                "No tokens found"
+                <p className="text-center p-4 text-sm">No tokens found.</p>
               )}
             </CommandEmpty>
-            <CommandGroup heading={searchQuery ? "Search Results" : "Available Tokens"}>
+            <CommandGroup>
               <ScrollArea className="h-[300px]">
-                {loading ? (
-                  <div className="flex items-center justify-center p-4">
-                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                    <span>Loading tokens...</span>
-                  </div>
-                ) : (
-                  filteredTokens.map((token, index) => {
-                    // Ensure we have a valid token with a symbol
-                    if (!token || !token.symbol) return null;
-                    
-                    // Generate a unique key
-                    const key = `token-${token.symbol}-${index}-${token.address || ''}`;
-                    
-                    return (
-                      <CommandItem
-                        key={key}
-                        value={key}
-                        onSelect={() => handleTokenSelect(token)}
-                        className="flex items-center"
-                      >
-                        <div className="flex items-center flex-1">
-                          {token.logoURI && (
-                            <img
-                              src={token.logoURI}
-                              alt={token.name}
-                              className="w-5 h-5 mr-2 rounded-full"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).style.display = 'none';
-                              }}
-                            />
-                          )}
-                          <span className="font-medium">{token.symbol}</span>
-                          <span className="ml-2 text-sm text-muted-foreground truncate">
-                            {token.name}
-                          </span>
-                        </div>
-                        {selectedToken?.symbol === token.symbol && (
-                          <Check className="h-4 w-4 ml-auto" />
-                        )}
-                      </CommandItem>
-                    );
-                  })
-                )}
+                {filteredTokens().map((token) => (
+                  <CommandItem
+                    key={token.address || `${token.symbol}-${Math.random().toString(36).slice(2)}`}
+                    value={token.address}
+                    onSelect={handleSelect}
+                    className="flex items-center gap-2"
+                  >
+                    {token.logoURI && (
+                      <img
+                        src={token.logoURI}
+                        alt={token.name}
+                        className="w-5 h-5 rounded-full"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    )}
+                    <div className="flex-1 flex items-center justify-between">
+                      <div className="flex flex-col">
+                        <span className="font-medium">{token.symbol}</span>
+                        <span className="text-xs text-muted-foreground">{token.name}</span>
+                      </div>
+                      {selectedToken?.address === token.address && (
+                        <Check className="h-4 w-4" />
+                      )}
+                    </div>
+                  </CommandItem>
+                ))}
               </ScrollArea>
             </CommandGroup>
           </CommandList>
