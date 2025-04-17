@@ -34,8 +34,11 @@ const TokenPairControls: React.FC<TokenPairControlsProps> = ({
   console.log('TokenPairControls - allChainTokens:', allChainTokens.length);
   
   // Determine which tokens to display for base and quote selectors
-  const baseTokensToDisplay = popularTokens.length > 0 ? popularTokens : allChainTokens;
-  const quoteTokensToDisplay = quoteTokens.length > 0 ? quoteTokens : popularTokens;
+  // Make sure we always have something to display even if arrays are empty
+  const baseTokensToDisplay = popularTokens.length > 0 ? popularTokens : 
+                            allChainTokens.length > 0 ? allChainTokens : [];
+  const quoteTokensToDisplay = quoteTokens.length > 0 ? quoteTokens : 
+                             popularTokens.length > 0 ? popularTokens : [];
   
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">

@@ -1,18 +1,13 @@
 
-# This is your Supabase project's configuration file
-project_id = "fkagpyfzgczcaxsqwsoi"
+project_id="fkagpyfzgczcaxsqwsoi"
 
 [api]
 enabled = true
 port = 54321
-schemas = ["public", "storage"]
-extra_search_path = ["public", "extensions"]
-max_rows = 1000
+schemas = ["public", "storage", "graphql_public"]
 
 [db]
 port = 54322
-shadow_port = 54320
-major_version = 15
 
 [studio]
 enabled = true
@@ -31,4 +26,10 @@ enabled = true
 site_url = "http://localhost:3000"
 
 [analytics]
-enabled = false
+enabled = true
+
+[experimental.functions.update-price-data]
+verify_jwt = false
+
+[functions.scan-arbitrage]
+verify_jwt = false
