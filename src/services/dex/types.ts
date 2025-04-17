@@ -40,6 +40,7 @@ export interface DexAdapter {
  * Status of a transaction
  */
 export enum TransactionStatus {
+  IDLE = 'idle',
   PENDING = 'pending',
   SUCCESS = 'success',
   ERROR = 'error',

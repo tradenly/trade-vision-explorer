@@ -1,7 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react';
-
-export type TransactionStatus = 'pending' | 'success' | 'error' | null;
+import { TransactionStatus } from '@/services/dex/types';
 
 interface ExecutionStep {
   progress: number;
@@ -59,7 +58,7 @@ export function useExecutionProgress(
       clearInterval(progressIntervalRef.current);
     }
     
-    if (transactionStatus === 'pending') {
+    if (transactionStatus === TransactionStatus.PENDING) {
       // Start a new interval for pending status
       const intervalId = setInterval(() => {
         if (currentStepRef.current < steps.length) {
@@ -85,7 +84,7 @@ export function useExecutionProgress(
     }
     
     // Handle success status
-    if (transactionStatus === 'success') {
+    if (transactionStatus === TransactionStatus.SUCCESS) {
       setState({
         progress: 100,
         step: 'Transaction complete!',

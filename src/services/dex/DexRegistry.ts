@@ -1,4 +1,4 @@
-import { DexAdapter, DexConfig } from './types';
+import { DexAdapter, DexConfig, PriceQuote } from './types';
 import { supabase } from '@/lib/supabaseClient';
 import { UniswapAdapter } from './adapters/UniswapAdapter';
 import { SushiswapAdapter } from './adapters/SushiswapAdapter';
@@ -8,6 +8,7 @@ import { BalancerAdapter } from './adapters/BalancerAdapter';
 import { JupiterAdapter } from './adapters/JupiterAdapter';
 import { OrcaAdapter } from './adapters/OrcaAdapter';
 import { RaydiumAdapter } from './adapters/RaydiumAdapter';
+import { TokenInfo } from '@/services/tokenListService';
 
 /**
  * Registry for all supported DEXs

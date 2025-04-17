@@ -81,16 +81,8 @@ const ArbitrageAnalysis = () => {
       {/* Wallet Connection Section */}
       <WalletSection />
       
-      {/* ArbitrageScanner with TokenPairSelector integrated */}
-      <ArbitrageScanner 
-        initialBaseToken={baseToken}
-        initialQuoteToken={quoteToken}
-        investmentAmount={investmentAmount}
-        onTokenPairSelect={handleTokenPairSelect}
-        onInvestmentAmountChange={handleInvestmentAmountChange}
-        onChainSelect={handleChainChange}
-        selectedChain={selectedChain}
-      />
+      {/* ArbitrageScanner */}
+      <ArbitrageScanner />
       
       {baseToken && quoteToken && (
         <>
