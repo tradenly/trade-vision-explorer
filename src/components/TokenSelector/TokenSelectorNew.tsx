@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { TokenInfo } from '@/services/tokenListService';
-import { Check, ChevronsUpDown, Search, Loader2 } from 'lucide-react';
+import { Check, ChevronsUpDown, Loader2 } from 'lucide-react';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
@@ -41,8 +41,8 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
       );
   }, [tokens, search]);
 
-  // Show placeholder content during initial load
-  const showPlaceholder = loading || !tokens || tokens.length === 0;
+  const effectiveTokens = tokens || [];
+  const isActuallyLoading = loading && effectiveTokens.length === 0;
 
   const handleSelect = (tokenAddress: string) => {
     if (!tokens) return;
@@ -64,9 +64,9 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
             "w-full justify-between bg-background border-input",
             disabled && "opacity-50 cursor-not-allowed"
           )}
-          disabled={disabled}
+          disabled={disabled || isActuallyLoading}
         >
-          {showPlaceholder ? (
+          {isActuallyLoading ? (
             <div className="flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
               <span>Loading tokens...</span>
@@ -91,7 +91,7 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-0 z-50" align="start">
+      <PopoverContent className="w-[300px] p-0 z-[100]" align="start">
         <Command shouldFilter={false}>
           <CommandInput
             placeholder="Search tokens..."
@@ -101,13 +101,15 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
           />
           <CommandList>
             <CommandEmpty>
-              {showPlaceholder ? (
-                <div className="flex flex-col items-center justify-center p-4">
-                  <Loader2 className="h-5 w-5 animate-spin mb-2" />
+              {isActuallyLoading ? (
+                <div className="flex flex-col items-center justify-center p-6">
+                  <Loader2 className="h-6 w-6 animate-spin mb-2" />
                   <p>Loading tokens...</p>
                 </div>
+              ) : effectiveTokens.length === 0 ? (
+                <p className="text-center p-6 text-muted-foreground">No tokens available.</p>
               ) : (
-                <p className="text-center p-4 text-sm">No tokens found.</p>
+                <p className="text-center p-6 text-muted-foreground">No tokens match your search.</p>
               )}
             </CommandEmpty>
             <CommandGroup>

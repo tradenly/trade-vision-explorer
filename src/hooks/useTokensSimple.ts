@@ -18,6 +18,7 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
   const [quoteTokens, setQuoteTokens] = useState<TokenInfo[]>([]);
   const [popularTokens, setPopularTokens] = useState<TokenInfo[]>([]);
   const [isLoadingChain, setIsLoadingChain] = useState<boolean>(false);
+  const [fetchInitiated, setFetchInitiated] = useState<boolean>(false);
 
   // Add the ensureValidAddress function
   const ensureValidAddress = useCallback((token: TokenInfo): TokenInfo => {
@@ -36,9 +37,10 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
     let isMounted = true;
     
     async function loadTokensForChain() {
-      if (isLoadingChain) return;
+      if (isLoadingChain || fetchInitiated) return;
       
       setIsLoadingChain(true);
+      setFetchInitiated(true);
       setLoading(true);
       setError(null);
       
@@ -54,10 +56,12 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
         const defaultTokens = DEFAULT_TOKENS[selectedChain] || [];
         
         // Set defaults immediately while loading to prevent empty state
-        if (defaultTokens.length > 0) {
+        if (defaultTokens.length > 0 && isMounted) {
           setAllChainTokens(defaultTokens);
           setQuoteTokens(getQuoteTokensForChain(selectedChain, defaultTokens));
           setPopularTokens(getPopularTokensForChain(selectedChain, defaultTokens));
+          // Set loading to false immediately so UI can show something
+          setLoading(false);
         }
 
         // Then try to load from API
@@ -70,6 +74,9 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
           setQuoteTokens(getQuoteTokensForChain(selectedChain, tokens));
           setPopularTokens(getPopularTokensForChain(selectedChain, tokens));
           console.log(`Successfully loaded ${tokens.length} tokens for chain ${selectedChain}`);
+        } else if (defaultTokens.length === 0) {
+          // If no default tokens and API failed, show an error
+          throw new Error('No tokens available for this chain');
         }
       } catch (err) {
         console.error('Error loading tokens:', err);
@@ -84,13 +91,13 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
           setAllChainTokens(defaultTokens);
           setQuoteTokens(getQuoteTokensForChain(selectedChain, defaultTokens));
           setPopularTokens(getPopularTokensForChain(selectedChain, defaultTokens));
+          
+          toast({
+            title: "Using default token list",
+            description: "Could not load latest token data",
+            variant: "default"
+          });
         }
-        
-        toast({
-          title: "Using default token list",
-          description: "Could not load latest token data",
-          variant: "default"
-        });
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -104,7 +111,7 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
     return () => {
       isMounted = false;
     };
-  }, [selectedChain, isLoadingChain]);
+  }, [selectedChain, isLoadingChain, fetchInitiated]);
 
   const handleChainChange = useCallback((chainId: ChainId) => {
     if (![ChainId.ETHEREUM, ChainId.BNB, ChainId.SOLANA].includes(chainId)) {
@@ -118,6 +125,7 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
     }
     console.log(`Chain changed to: ${chainId}`);
     setSelectedChain(chainId);
+    setFetchInitiated(false); // Reset fetch flag when chain changes
   }, []);
 
   return {

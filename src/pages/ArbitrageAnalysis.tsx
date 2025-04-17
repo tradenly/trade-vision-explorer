@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/tooltip";
 import TokenPairSelectorNew from '@/components/TokenSelector/TokenPairSelectorNew';
 import { useTokensSimple } from '@/hooks/useTokensSimple';
+import { DEFAULT_TOKENS } from '@/services/tokenDataService';
 
 const ArbitrageAnalysis = () => {
   const [selectedChain, setSelectedChain] = useState<ChainId>(ChainId.ETHEREUM);
@@ -26,7 +27,19 @@ const ArbitrageAnalysis = () => {
   const [investmentAmount, setInvestmentAmount] = useState<number>(1000);
   
   // Initial token data load to ensure we have tokens ready for the selector
-  const { loading: tokensLoading } = useTokensSimple(selectedChain);
+  const { loading: tokensLoading, allChainTokens } = useTokensSimple(selectedChain);
+
+  // Set default tokens once data is loaded
+  useEffect(() => {
+    if (!tokensLoading && allChainTokens.length > 0 && !baseToken && !quoteToken) {
+      // Set some reasonable defaults
+      const defaults = DEFAULT_TOKENS[selectedChain];
+      if (defaults && defaults.length >= 2) {
+        setBaseToken(defaults[0]);
+        setQuoteToken(defaults[1]);
+      }
+    }
+  }, [tokensLoading, allChainTokens, baseToken, quoteToken, selectedChain]);
 
   // Handle token pair selection from child components
   const handleTokenPairSelect = (base: TokenInfo, quote: TokenInfo) => {

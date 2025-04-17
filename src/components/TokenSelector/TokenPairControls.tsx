@@ -2,7 +2,7 @@
 import React from 'react';
 import { TokenInfo } from '@/services/tokenListService';
 import { Button } from '@/components/ui/button';
-import { ArrowRightLeft } from 'lucide-react';
+import { ArrowRightLeft, Loader2 } from 'lucide-react';
 import TokenSelectorNew from './TokenSelectorNew';
 
 interface TokenPairControlsProps {
@@ -28,16 +28,21 @@ const TokenPairControls: React.FC<TokenPairControlsProps> = ({
   allChainTokens,
   loading
 }) => {
+  // Log token counts to debug
   console.log('TokenPairControls - popularTokens:', popularTokens.length);
   console.log('TokenPairControls - quoteTokens:', quoteTokens.length);
   console.log('TokenPairControls - allChainTokens:', allChainTokens.length);
+  
+  // Determine which tokens to display for base and quote selectors
+  const baseTokensToDisplay = popularTokens.length > 0 ? popularTokens : allChainTokens;
+  const quoteTokensToDisplay = quoteTokens.length > 0 ? quoteTokens : popularTokens;
   
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
       <div className="space-y-1">
         <label className="text-sm font-medium">Base Token (From)</label>
         <TokenSelectorNew
-          tokens={popularTokens.length ? popularTokens : allChainTokens}
+          tokens={baseTokensToDisplay}
           selectedToken={baseToken}
           onSelectToken={onBaseTokenSelect}
           placeholder="Select Base Token"
@@ -61,7 +66,7 @@ const TokenPairControls: React.FC<TokenPairControlsProps> = ({
       <div className="space-y-1 md:col-start-2 md:row-start-1">
         <label className="text-sm font-medium">Quote Token (To)</label>
         <TokenSelectorNew
-          tokens={quoteTokens.length ? quoteTokens : popularTokens}
+          tokens={quoteTokensToDisplay}
           selectedToken={quoteToken}
           onSelectToken={onQuoteTokenSelect}
           placeholder="Select Quote Token"
