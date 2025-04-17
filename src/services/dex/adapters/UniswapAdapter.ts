@@ -11,11 +11,17 @@ export class UniswapAdapter extends BaseAdapter {
       const toAddress = quoteToken.address;
       const chainId = baseToken.chainId;
       
+      // Convert amount to wei (smallest unit)
+      const amountInWei = (amount * Math.pow(10, baseToken.decimals || 18)).toString();
+      
+      console.log(`[UniswapAdapter] Fetching quote for ${baseToken.symbol}/${quoteToken.symbol} on chain ${chainId}`);
+      console.log(`[UniswapAdapter] Token addresses: ${fromAddress} -> ${toAddress}`);
+      
       // Use 1inch API for getting quotes
       // This is a free API that provides price data across multiple DEXs
       const response = await fetch(
         `https://api.1inch.io/v5.0/${chainId}/quote?` +
-        `fromTokenAddress=${fromAddress}&toTokenAddress=${toAddress}&amount=1000000000000000000`, // 1 token in wei
+        `fromTokenAddress=${fromAddress}&toTokenAddress=${toAddress}&amount=${amountInWei}`, 
         {
           headers: {
             'Accept': 'application/json',
@@ -24,22 +30,38 @@ export class UniswapAdapter extends BaseAdapter {
       );
 
       if (!response.ok) {
-        throw new Error(`1inch API error: ${response.status}`);
+        throw new Error(`1inch API error: ${response.status} ${await response.text()}`);
       }
 
       const data = await response.json();
+      console.log(`[UniswapAdapter] 1inch API response:`, data);
       
       // Calculate price from the response
       const fromAmount = parseInt(data.fromTokenAmount) / Math.pow(10, baseToken.decimals || 18);
       const toAmount = parseInt(data.toTokenAmount) / Math.pow(10, quoteToken.decimals || 18);
       const price = toAmount / fromAmount;
       
-      console.log(`[UniswapAdapter] Fetched price for ${baseToken.symbol}/${quoteToken.symbol}: ${price}`);
+      // Extract liquidity information
+      let liquidityUSD = 1000000; // Default value
+      
+      // Extract gas fees from 1inch response if available
+      const gasEstimateGwei = data.estimatedGas || 150000;
+      const gasPriceGwei = 50; // Using a reasonable default gas price in Gwei
+      const ethPrice = 3500; // Estimated ETH price in USD
+      const gasEstimateUSD = (gasEstimateGwei * gasPriceGwei * 1e-18) * ethPrice;
+      
+      console.log(`[UniswapAdapter] Fetched price for ${baseToken.symbol}/${quoteToken.symbol}: ${price}, gas: $${gasEstimateUSD}`);
       
       return {
         dexName: this.getName(),
         price: price,
-        fees: this.getTradingFeePercentage()
+        fees: this.getTradingFeePercentage(),
+        gasEstimate: gasEstimateUSD,
+        liquidityUSD: liquidityUSD,
+        liquidityInfo: {
+          protocols: data.protocols || [],
+          estimatedGas: data.estimatedGas
+        }
       };
     } catch (error) {
       console.error(`Error fetching ${this.getName()} quote:`, error);
@@ -59,7 +81,9 @@ export class UniswapAdapter extends BaseAdapter {
           return {
             dexName: this.getName(),
             price: data[0].price * variation,
-            fees: this.getTradingFeePercentage()
+            fees: this.getTradingFeePercentage(),
+            gasEstimate: 0.005, // Default estimated gas in USD for EVM chains
+            liquidityUSD: 1000000 // Default liquidity estimate
           };
         }
       } catch (fallbackError) {
@@ -80,7 +104,9 @@ export class UniswapAdapter extends BaseAdapter {
       return {
         dexName: this.getName(),
         price: basePrice * variation,
-        fees: this.getTradingFeePercentage()
+        fees: this.getTradingFeePercentage(),
+        gasEstimate: 0.005, // Default estimated gas in USD for EVM chains
+        liquidityUSD: 1000000 // Default liquidity estimate
       };
     }
   }

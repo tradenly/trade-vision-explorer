@@ -100,11 +100,33 @@ function calculateGasFeeUSD(network: string, gasData: any): number {
     // Assuming SOL price around $150
     const solPrice = 150;
     return totalFeeInSOL * solPrice;
+  } else if (network === 'ethereum') {
+    // ETH gas calculation - higher than other EVM chains
+    const gasUnits = 150000; // Typical DEX swap gas usage
+    const gasPriceGwei = gasData.base_fee || 50; // Gwei
+    const ethPriceUSD = 3500; // Estimated ETH price
+    return (gasUnits * gasPriceGwei * 1e-9) * ethPriceUSD;
+  } else if (network === 'bnb') {
+    // BNB gas calculation - typically cheaper than Ethereum
+    const gasUnits = 150000; 
+    const gasPriceGwei = gasData.base_fee || 5; // BNB gas is much cheaper
+    const bnbPriceUSD = 550;
+    return (gasUnits * gasPriceGwei * 1e-9) * bnbPriceUSD;
+  } else if (network === 'polygon') {
+    // Polygon gas calculation
+    const gasUnits = 150000;
+    const gasPriceGwei = gasData.base_fee || 30;
+    const maticPriceUSD = 1;
+    return (gasUnits * gasPriceGwei * 1e-9) * maticPriceUSD;
+  } else if (network === 'arbitrum' || network === 'optimism' || network === 'base') {
+    // L2 gas calculation - typically cheaper than Ethereum
+    const gasUnits = 150000;
+    const gasPriceGwei = gasData.base_fee || 0.1;
+    const ethPriceUSD = 3500;
+    return (gasUnits * gasPriceGwei * 1e-9) * ethPriceUSD;
   } else {
-    // EVM chain gas calculation
-    // For simplicity, we'll use the base_fee from the database
-    // In reality, this would depend on gas price and gas limit
-    return gasData.base_fee || 0;
+    // Default EVM chain calculation
+    return gasData.base_fee || 2.5;
   }
 }
 
@@ -141,6 +163,10 @@ serve(async (req) => {
       console.error('Error fetching scan settings:', scanSettingsError);
       throw scanSettingsError;
     }
+    
+    // Use the appropriate scan settings
+    const profitThreshold = scanSettings?.profit_threshold || minProfitPercentage;
+    const gasThreshold = scanSettings?.gas_fee_threshold || 5.0;
 
     // Generate arbitrage opportunities (placeholder logic)
     // In a real implementation, this would fetch actual prices from DEX APIs
@@ -162,6 +188,11 @@ serve(async (req) => {
           buyPrice = (baseToken.symbol === 'SOL') ? 150 + (Math.random() * 5 - 2.5) : 1 + (Math.random() * 0.2 - 0.1);
           // Create a small price difference - sometimes positive, sometimes negative
           const priceDiff = (Math.random() * 0.06) - 0.01; // Between -1% and +5%
+          sellPrice = buyPrice * (1 + priceDiff);
+        } else if (networkName === 'ethereum') {
+          // ETH prices tend to have tighter spreads
+          buyPrice = (baseToken.symbol === 'ETH') ? 3500 + (Math.random() * 35 - 17.5) : 10 + (Math.random() * 0.5 - 0.25);
+          const priceDiff = (Math.random() * 0.04) - 0.01; // Tighter spread
           sellPrice = buyPrice * (1 + priceDiff);
         } else {
           // EVM chains
@@ -197,7 +228,7 @@ serve(async (req) => {
         const priceDifference = ((sellPrice - buyPrice) / buyPrice) * 100;
         
         // Only include profitable opportunities meeting the threshold
-        if (profitPercentage >= scanSettings.profit_threshold) {
+        if (profitPercentage >= profitThreshold && gasFeeUSD <= gasThreshold) {
           const opportunityId = crypto.randomUUID();
           
           // Add opportunity to array
