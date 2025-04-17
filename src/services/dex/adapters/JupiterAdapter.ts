@@ -1,8 +1,7 @@
-
 import { BaseAdapter } from './BaseAdapter';
 import { PriceQuote } from '../types';
 import { TokenInfo } from '../../tokenListService';
-import { rateLimit } from '../utils/rateLimiter';
+import { jupiterRateLimiter } from '../utils/rateLimiter';
 
 export class JupiterAdapter extends BaseAdapter {
   private static REQUEST_COUNTER = 0;
@@ -12,20 +11,12 @@ export class JupiterAdapter extends BaseAdapter {
 
   public async fetchQuote(baseToken: TokenInfo, quoteToken: TokenInfo, amount: number = 1): Promise<PriceQuote> {
     try {
-      // Enforce rate limiting
-      const now = Date.now();
-      if (JupiterAdapter.REQUEST_COUNTER >= JupiterAdapter.RATE_LIMIT &&
-          now - JupiterAdapter.LAST_REQUEST_TIME < JupiterAdapter.RATE_WINDOW) {
-        throw new Error('Rate limit exceeded for Jupiter API');
-      }
+      // Use the jupiterRateLimiter to wait for an available slot
+      await jupiterRateLimiter.waitForSlot();
 
       // For Solana tokens
       if (baseToken.chainId === 101) {
         console.log(`[JupiterAdapter] Fetching quote for ${baseToken.symbol}/${quoteToken.symbol} on Solana`);
-        
-        // Update rate limiting counters
-        JupiterAdapter.REQUEST_COUNTER++;
-        JupiterAdapter.LAST_REQUEST_TIME = now;
         
         const inputMint = baseToken.address;
         const outputMint = quoteToken.address;
@@ -53,11 +44,6 @@ export class JupiterAdapter extends BaseAdapter {
         
         // Extract liquidity information
         const liquidityUSD = data.marketInfos?.[0]?.liquidityUSD || 100000;
-        
-        // Reset rate limit counter if window has passed
-        if (now - JupiterAdapter.LAST_REQUEST_TIME >= JupiterAdapter.RATE_WINDOW) {
-          JupiterAdapter.REQUEST_COUNTER = 0;
-        }
         
         return {
           dexName: this.getName(),

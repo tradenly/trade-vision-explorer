@@ -2,6 +2,7 @@
 import { BaseAdapter } from './BaseAdapter';
 import { PriceQuote } from '../types';
 import { TokenInfo } from '../../tokenListService';
+import { orcaRateLimiter } from '../utils/rateLimiter'; // Added rate limiter import
 
 export class OrcaAdapter extends BaseAdapter {
   public async fetchQuote(baseToken: TokenInfo, quoteToken: TokenInfo, amount: number = 1): Promise<PriceQuote> {
@@ -10,6 +11,9 @@ export class OrcaAdapter extends BaseAdapter {
       if (baseToken.chainId !== 101) {
         throw new Error('Orca is only available on Solana blockchain');
       }
+
+      // Apply rate limiting
+      await orcaRateLimiter.waitForSlot();
 
       console.log(`[OrcaAdapter] Fetching quote for ${baseToken.symbol}/${quoteToken.symbol} on Solana`);
       

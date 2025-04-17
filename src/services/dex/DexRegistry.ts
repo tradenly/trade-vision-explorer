@@ -182,4 +182,4 @@ class DexRegistry {
   }
 }
 
-export default DexRegistry;
+export default DexRegistry; // Changed from export { DexRegistry }

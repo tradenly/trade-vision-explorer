@@ -2,6 +2,7 @@
 import { BaseAdapter } from './BaseAdapter';
 import { PriceQuote } from '../types';
 import { TokenInfo } from '../../tokenListService';
+import { raydiumRateLimiter } from '../utils/rateLimiter'; // Added rate limiter import
 
 export class RaydiumAdapter extends BaseAdapter {
   public async fetchQuote(baseToken: TokenInfo, quoteToken: TokenInfo, amount: number = 1): Promise<PriceQuote> {
@@ -10,6 +11,9 @@ export class RaydiumAdapter extends BaseAdapter {
       if (baseToken.chainId !== 101) {
         throw new Error('Raydium is only available on Solana blockchain');
       }
+
+      // Apply rate limiting
+      await raydiumRateLimiter.waitForSlot();
 
       console.log(`[RaydiumAdapter] Fetching quote for ${baseToken.symbol}/${quoteToken.symbol} on Solana`);
       
