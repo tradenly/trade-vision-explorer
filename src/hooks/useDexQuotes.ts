@@ -24,7 +24,7 @@ export function useDexQuotes(baseToken: TokenInfo | null, quoteToken: TokenInfo 
         const adapters = dexRegistry.getAdaptersForChain(baseToken.chainId);
         
         const quotePromises = adapters.map(adapter => 
-          adapter.fetchQuote(baseToken, quoteToken)
+          adapter.fetchQuote(baseToken, quoteToken, amount)
             .catch(error => {
               console.error(`Error fetching quote from ${adapter.getName()}:`, error);
               return null;

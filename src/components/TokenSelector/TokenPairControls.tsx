@@ -28,6 +28,10 @@ const TokenPairControls: React.FC<TokenPairControlsProps> = ({
   allChainTokens,
   loading
 }) => {
+  console.log('TokenPairControls - popularTokens:', popularTokens.length);
+  console.log('TokenPairControls - quoteTokens:', quoteTokens.length);
+  console.log('TokenPairControls - allChainTokens:', allChainTokens.length);
+  
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
       <div className="space-y-1">

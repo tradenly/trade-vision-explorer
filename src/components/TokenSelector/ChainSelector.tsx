@@ -29,7 +29,7 @@ const ChainSelector: React.FC<ChainSelectorProps> = ({ selectedChain, onChainCha
         value={selectedChain.toString()} 
         onValueChange={(value) => onChainChange(parseInt(value) as ChainId)}
       >
-        <SelectTrigger>
+        <SelectTrigger className="w-full bg-background">
           <SelectValue placeholder="Select Blockchain" />
         </SelectTrigger>
         <SelectContent className="bg-background z-50">
@@ -38,7 +38,7 @@ const ChainSelector: React.FC<ChainSelectorProps> = ({ selectedChain, onChainCha
               <SelectItem key={id} value={id}>
                 <div className="flex items-center gap-2">
                   <img 
-                    src={chainLogos[Number(id)] || `https://fkagpyfzgczcaxsqwsoi.supabase.co/storage/v1/object/public/chains//${name.toLowerCase().replace(' ', '-')}-icon.png`}
+                    src={chainLogos[Number(id)]} 
                     alt={name} 
                     className="w-5 h-5 rounded-full"
                     onError={(e) => {

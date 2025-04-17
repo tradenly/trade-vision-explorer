@@ -22,7 +22,7 @@ export interface PriceQuote {
   timestamp?: number;
   liquidity?: number;
   source?: string;
-  dexName?: string; // Added this property
+  dexName?: string;
   fees?: number;
   gasEstimate?: number;
   liquidityUSD?: number;
