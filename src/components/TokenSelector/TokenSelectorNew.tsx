@@ -91,7 +91,6 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
             value={search}
             onValueChange={setSearch}
             className="h-9"
-            startIcon={<Search className="h-4 w-4" />}
           />
           <CommandList>
             <CommandEmpty>
