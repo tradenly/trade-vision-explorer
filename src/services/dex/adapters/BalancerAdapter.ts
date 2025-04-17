@@ -6,6 +6,12 @@ import { TokenInfo } from '../../tokenListService';
 export class BalancerAdapter extends BaseAdapter {
   public async fetchQuote(baseToken: TokenInfo, quoteToken: TokenInfo, amount: number = 1): Promise<PriceQuote> {
     try {
+      // Balancer is only available on Ethereum and other select EVM chains
+      const supportedChains = [1, 137, 42161, 10]; // Ethereum, Polygon, Arbitrum, Optimism
+      if (!supportedChains.includes(baseToken.chainId)) {
+        throw new Error(`Balancer is not available on chain ID ${baseToken.chainId}`);
+      }
+
       // Prepare API parameters
       const fromAddress = baseToken.address;
       const toAddress = quoteToken.address;

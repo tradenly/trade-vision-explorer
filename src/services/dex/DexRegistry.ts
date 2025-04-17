@@ -18,11 +18,11 @@ class DexRegistry {
   private static instance: DexRegistry;
   private adapters: Map<string, DexAdapter> = new Map();
   private dexConfigs: DexConfig[] = [
-    { name: 'Uniswap', slug: 'uniswap', chainIds: [1], tradingFeePercentage: 0.3, enabled: true },
-    { name: 'SushiSwap', slug: 'sushiswap', chainIds: [1], tradingFeePercentage: 0.3, enabled: true },
-    { name: 'Balancer', slug: 'balancer', chainIds: [1], tradingFeePercentage: 0.2, enabled: true },
-    { name: 'Curve', slug: 'curve', chainIds: [1], tradingFeePercentage: 0.04, enabled: true },
-    { name: 'PancakeSwap', slug: 'pancakeswap', chainIds: [56], tradingFeePercentage: 0.25, enabled: true },
+    { name: 'Uniswap', slug: 'uniswap', chainIds: [1, 42161, 8453, 10], tradingFeePercentage: 0.3, enabled: true },
+    { name: 'SushiSwap', slug: 'sushiswap', chainIds: [1, 137, 42161, 8453], tradingFeePercentage: 0.3, enabled: true },
+    { name: 'Balancer', slug: 'balancer', chainIds: [1, 137, 42161, 10], tradingFeePercentage: 0.2, enabled: true },
+    { name: 'Curve', slug: 'curve', chainIds: [1, 137, 42161, 10], tradingFeePercentage: 0.04, enabled: true },
+    { name: 'PancakeSwap', slug: 'pancakeswap', chainIds: [56, 1, 8453], tradingFeePercentage: 0.25, enabled: true },
     { name: 'Jupiter', slug: 'jupiter', chainIds: [101], tradingFeePercentage: 0.2, enabled: true },
     { name: 'Orca', slug: 'orca', chainIds: [101], tradingFeePercentage: 0.25, enabled: true },
     { name: 'Raydium', slug: 'raydium', chainIds: [101], tradingFeePercentage: 0.25, enabled: true }
@@ -55,6 +55,11 @@ class DexRegistry {
           const adapter = this.adapters.get(dexConfig.slug);
           if (adapter) {
             adapter.setEnabled(dexConfig.enabled);
+            // Update supporting chains if different
+            const existingConfig = this.dexConfigs.find(c => c.slug === dexConfig.slug);
+            if (existingConfig && dexConfig.chain_ids) {
+              existingConfig.chainIds = dexConfig.chain_ids;
+            }
           }
         }
       } else {
@@ -111,12 +116,28 @@ class DexRegistry {
   }
 
   public getAdaptersForChain(chainId: number): DexAdapter[] {
-    const adapters: DexAdapter[] = [];
+    let adapters: DexAdapter[] = [];
+    
+    // Filter adapters that support the given chain
     this.adapters.forEach(adapter => {
       if (adapter.getSupportedChains().includes(chainId) && adapter.isEnabled()) {
         adapters.push(adapter);
       }
     });
+    
+    // Special case for Solana (chainId 101) - make sure only Solana DEXes are returned
+    if (chainId === 101) {
+      adapters = adapters.filter(adapter => 
+        ['Jupiter', 'Orca', 'Raydium'].includes(adapter.getName())
+      );
+    }
+    // For EVM chains, filter out Solana-only DEXes
+    else {
+      adapters = adapters.filter(adapter => 
+        !['Jupiter', 'Orca', 'Raydium'].includes(adapter.getName())
+      );
+    }
+    
     return adapters;
   }
 
@@ -136,6 +157,28 @@ class DexRegistry {
       adapter.setEnabled(enabled);
       this.saveConfigToSupabase();
     }
+  }
+  
+  // Get all DEXs for a specific network by name
+  public getDexesForNetwork(networkName: string): DexAdapter[] {
+    // Map network name to chainId
+    const networkToChainId: Record<string, number> = {
+      'ethereum': 1,
+      'bnb': 56,
+      'solana': 101,
+      'polygon': 137,
+      'arbitrum': 42161,
+      'optimism': 10,
+      'base': 8453
+    };
+    
+    const chainId = networkToChainId[networkName.toLowerCase()];
+    if (!chainId) {
+      console.warn(`Unknown network: ${networkName}, defaulting to Ethereum`);
+      return this.getAdaptersForChain(1); // Default to Ethereum
+    }
+    
+    return this.getAdaptersForChain(chainId);
   }
 }
 

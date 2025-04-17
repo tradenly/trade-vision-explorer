@@ -37,7 +37,7 @@ async function getNetworkGasFees(network: string) {
       // Default values if not found
       return { 
         base_fee: network === 'solana' ? 0.000005 : 2.5, 
-        priority_fee: 0, 
+        priority_fee: network === 'solana' ? 0.000001 : 0, 
         is_lamports: network === 'solana',
         compute_units: network === 'solana' ? 200000 : undefined 
       };
@@ -48,7 +48,7 @@ async function getNetworkGasFees(network: string) {
     console.error(`Error in getNetworkGasFees for ${network}:`, error);
     return { 
       base_fee: network === 'solana' ? 0.000005 : 2.5, 
-      priority_fee: 0, 
+      priority_fee: network === 'solana' ? 0.000001 : 0, 
       is_lamports: network === 'solana',
       compute_units: network === 'solana' ? 200000 : undefined
     };
@@ -79,10 +79,9 @@ async function getDexSettingsForChain(chainId: number) {
 // Calculate gas fee for a specific network
 function calculateGasFeeUSD(network: string, gasData: any): number {
   if (network === 'solana') {
-    // Solana gas fee calculation
-    // Base fee of 5000 lamports per signature (typically 1-2 signatures)
+    // Solana gas fee calculation using lamports
+    // Base fee of 5,000 lamports per signature (typically 1-2 signatures)
     // 1 SOL = 1,000,000,000 lamports
-    // Compute units also factor in
     const signatures = 2; // Buy and sell transactions
     const baseFeeInLamports = 5000 * signatures;
     
@@ -97,8 +96,8 @@ function calculateGasFeeUSD(network: string, gasData: any): number {
     // Convert lamports to SOL
     const totalFeeInSOL = totalFeeInLamports / 1000000000;
     
-    // Assuming SOL price around $150
-    const solPrice = 150;
+    // Approximate SOL price in USD
+    const solPrice = 150; // Estimated SOL price
     return totalFeeInSOL * solPrice;
   } else if (network === 'ethereum') {
     // ETH gas calculation - higher than other EVM chains
@@ -153,6 +152,13 @@ serve(async (req) => {
     const dexSettings = await getDexSettingsForChain(baseToken.chainId);
     console.log(`Found ${dexSettings.length} DEXs for chain ${baseToken.chainId}`);
 
+    // For Solana, ensure we only use Solana-specific DEXs
+    const filteredDexSettings = networkName === 'solana' 
+      ? dexSettings.filter(dex => ['jupiter', 'orca', 'raydium'].includes(dex.slug.toLowerCase()))
+      : dexSettings.filter(dex => !['jupiter', 'orca', 'raydium'].includes(dex.slug.toLowerCase()));
+
+    console.log(`Using ${filteredDexSettings.length} filtered DEXs for ${networkName}`);
+
     // Fetch scan settings
     const { data: scanSettings, error: scanSettingsError } = await supabase
       .from('scan_settings')
@@ -171,13 +177,13 @@ serve(async (req) => {
     // Generate arbitrage opportunities (placeholder logic)
     // In a real implementation, this would fetch actual prices from DEX APIs
     const opportunities = [];
-    for (let i = 0; i < dexSettings.length; i++) {
-      const buyDex = dexSettings[i];
+    for (let i = 0; i < filteredDexSettings.length; i++) {
+      const buyDex = filteredDexSettings[i];
       
-      for (let j = 0; j < dexSettings.length; j++) {
+      for (let j = 0; j < filteredDexSettings.length; j++) {
         if (i === j) continue; // Skip same DEX comparison
         
-        const sellDex = dexSettings[j];
+        const sellDex = filteredDexSettings[j];
         
         // Simulated price difference calculation
         // For each pair of DEXs, we'll create a random price spread
