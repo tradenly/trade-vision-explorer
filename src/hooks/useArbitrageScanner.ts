@@ -1,7 +1,8 @@
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { TokenInfo } from '@/services/tokenListService';
-import { ArbitrageOpportunity, scanForArbitrageOpportunities } from '@/services/dexService';
+import { ArbitrageOpportunity } from '@/services/dexService';
+import { fetchAndStorePriceData } from '@/services/priceDataCollection';
+import { findArbitrageOpportunities } from '@/services/arbitrageDetection';
 
 export function useArbitrageScanner(
   baseToken: TokenInfo | null,
@@ -15,8 +16,7 @@ export function useArbitrageScanner(
   const [error, setError] = useState<string | null>(null);
   const [lastScanTime, setLastScanTime] = useState<Date | null>(null);
 
-  // Function to scan for arbitrage opportunities
-  const scanForOpportunities = async () => {
+  const scanForOpportunities = useCallback(async () => {
     if (!baseToken || !quoteToken) {
       setError('Please select both base and quote tokens');
       return;
@@ -26,10 +26,13 @@ export function useArbitrageScanner(
     setError(null);
 
     try {
-      const results = await scanForArbitrageOpportunities(
+      // First update price data
+      await fetchAndStorePriceData(baseToken, quoteToken);
+      
+      // Then find opportunities
+      const results = await findArbitrageOpportunities(
         baseToken,
         quoteToken,
-        investmentAmount,
         minProfitPercentage
       );
 
@@ -42,20 +45,17 @@ export function useArbitrageScanner(
     } finally {
       setLoading(false);
     }
-  };
+  }, [baseToken, quoteToken, minProfitPercentage]);
 
   // Set up auto-scan if enabled
   useEffect(() => {
     if (!autoScan || !baseToken || !quoteToken) return;
 
-    // Initial scan
     scanForOpportunities();
-
-    // Set up interval for periodic scanning
     const interval = setInterval(scanForOpportunities, 30000); // Scan every 30 seconds
 
     return () => clearInterval(interval);
-  }, [baseToken, quoteToken, investmentAmount, minProfitPercentage, autoScan]);
+  }, [autoScan, baseToken, quoteToken, scanForOpportunities]);
 
   return {
     opportunities,
