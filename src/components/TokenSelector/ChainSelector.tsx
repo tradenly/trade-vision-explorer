@@ -23,9 +23,7 @@ const ChainSelector: React.FC<ChainSelectorProps> = ({ selectedChain, onChainCha
         onValueChange={(value) => onChainChange(parseInt(value) as ChainId)}
       >
         <SelectTrigger>
-          <SelectValue placeholder="Select Blockchain">
-            {CHAIN_NAMES[selectedChain]}
-          </SelectValue>
+          <SelectValue placeholder="Select Blockchain" />
         </SelectTrigger>
         <SelectContent>
           <SelectGroup>
@@ -40,7 +38,7 @@ const ChainSelector: React.FC<ChainSelectorProps> = ({ selectedChain, onChainCha
                       (e.target as HTMLImageElement).style.display = 'none';
                     }}
                   />
-                  {name}
+                  <span>{name}</span>
                 </div>
               </SelectItem>
             ))}

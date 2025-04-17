@@ -166,7 +166,6 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
             <Switch
               checked={advancedMode}
               onCheckedChange={setAdvancedMode}
-              disabled={executing !== null}
             />
           </div>
           
@@ -183,7 +182,6 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
                     max={3.0}
                     step={0.1}
                     onValueChange={handleSlippageChange}
-                    disabled={executing !== null}
                   />
                   <div className="w-12 text-right">{slippageTolerance}%</div>
                 </div>
@@ -231,7 +229,7 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
           )}
 
           {transactionStatus === 'success' && (
-            <Alert className="bg-green-50 border-green-200 text-green-800">
+            <Alert>
               <CheckCircle className="h-4 w-4 mr-2" />
               <AlertTitle>Success!</AlertTitle>
               <AlertDescription>The trade has been successfully executed.</AlertDescription>
@@ -239,14 +237,14 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
           )}
 
           {transactionStatus === 'error' && (
-            <Alert className="bg-red-50 border-red-200 text-red-800">
+            <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4 mr-2" />
               <AlertTitle>Error</AlertTitle>
               <AlertDescription>Failed to execute the trade. Please try again.</AlertDescription>
             </Alert>
           )}
           
-          <Alert variant="default" className="bg-blue-50 border-blue-200">
+          <Alert>
             <Info className="h-4 w-4 mr-2" />
             <AlertDescription className="text-xs">
               By executing this trade, you authorize Tradenly to initiate transactions on your behalf using your connected wallet.
