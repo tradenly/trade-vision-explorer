@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -11,8 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
-
-type TransactionStatus = 'pending' | 'success' | 'error' | null;
+import { TransactionStatus, useExecutionProgress } from '@/hooks/useExecutionProgress';
 
 interface TradeConfirmDialogProps {
   open: boolean;
@@ -36,46 +36,14 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
   const [slippageTolerance, setSlippageTolerance] = useState<number>(0.5);
   const [advancedMode, setAdvancedMode] = useState<boolean>(false);
   const [customAmount, setCustomAmount] = useState<number>(investmentAmount);
-  const [executionProgress, setExecutionProgress] = useState<number>(0);
-  const [executionStep, setExecutionStep] = useState<string>('');
   const { toast } = useToast();
   
-  useEffect(() => {
-    if (!open || !executing) {
-      setExecutionProgress(0);
-      setExecutionStep('');
-      return;
-    }
-    
-    if (executing && transactionStatus === 'pending') {
-      const steps = [
-        { progress: 15, message: 'Connecting to wallet...' },
-        { progress: 30, message: 'Checking token allowance...' },
-        { progress: 45, message: 'Preparing transaction...' },
-        { progress: 60, message: `Sending to ${opportunity?.buyDex}...` },
-        { progress: 75, message: 'Transaction submitted...' },
-        { progress: 90, message: 'Confirming transaction...' }
-      ];
-      
-      let currentStep = 0;
-      const progressInterval = setInterval(() => {
-        if (currentStep < steps.length) {
-          setExecutionProgress(steps[currentStep].progress);
-          setExecutionStep(steps[currentStep].message);
-          currentStep++;
-        } else {
-          clearInterval(progressInterval);
-          
-          if (transactionStatus === 'success') {
-            setExecutionProgress(100);
-            setExecutionStep('Transaction complete!');
-          }
-        }
-      }, 800);
-      
-      return () => clearInterval(progressInterval);
-    }
-  }, [executing, open, transactionStatus, opportunity]);
+  // Use our custom hook to manage execution progress
+  const { progress, step } = useExecutionProgress(
+    executing !== null,
+    transactionStatus,
+    opportunity
+  );
   
   if (!opportunity) {
     return null;
@@ -219,8 +187,8 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
                 <AlertDescription>Please wait while the trade is being executed...</AlertDescription>
               </Alert>
               <div className="space-y-1">
-                <Progress value={executionProgress} />
-                <p className="text-sm text-muted-foreground">{executionStep}</p>
+                <Progress value={progress} />
+                <p className="text-sm text-muted-foreground">{step}</p>
               </div>
             </div>
           )}
