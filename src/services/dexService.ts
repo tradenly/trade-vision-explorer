@@ -83,10 +83,15 @@ export async function executeTrade(
   walletAddress: string
 ): Promise<TradeResult> {
   try {
+    // Add logging to track execution process
+    console.log(`Executing trade for ${opportunity.tokenPair} on ${opportunity.network}`);
+    console.log(`Buy on ${opportunity.buyDex} at ${opportunity.buyPrice}, sell on ${opportunity.sellDex} at ${opportunity.sellPrice}`);
+    console.log(`Using wallet: ${walletAddress}`);
+    
     // Call the execute-trade Edge Function
     const { data, error } = await supabase.functions.invoke('execute-trade', {
       body: {
-        opportunityId: opportunity.id,
+        opportunity,
         walletAddress
       },
     });
@@ -99,9 +104,13 @@ export async function executeTrade(
       };
     }
 
+    console.log('Trade executed successfully:', data);
+    
     return {
       success: true,
-      txHash: data?.txHash
+      txHash: data?.txHash,
+      // Add additional data returned from the function
+      ...(data || {})
     };
   } catch (error) {
     console.error('Error executing trade:', error);

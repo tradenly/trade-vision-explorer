@@ -8,6 +8,7 @@ export interface PriceQuote {
   fees?: number;          // Trading fees as a percentage
   gasEstimate?: number;   // Estimated gas cost in USD
   liquidityInfo?: any;    // Optional liquidity information
+  liquidityUSD?: number;  // Estimated liquidity in USD
 }
 
 /**

@@ -8,6 +8,8 @@ export class JupiterAdapter extends BaseAdapter {
     try {
       // For Solana tokens
       if (baseToken.chainId === 101) {
+        console.log(`[JupiterAdapter] Fetching quote for ${baseToken.symbol}/${quoteToken.symbol} on Solana`);
+        
         // Jupiter API expects mint addresses
         const inputMint = baseToken.address;
         const outputMint = quoteToken.address;
@@ -31,12 +33,17 @@ export class JupiterAdapter extends BaseAdapter {
         const outAmountFloat = Number(data.outAmount) / Math.pow(10, quoteToken.decimals || 9);
         const price = outAmountFloat / inAmountFloat;
         
-        // Add liquidity information for UI display
-        const liquidityInfo = {
-          routeInfo: data.routePlan || [],
-          outAmount: outAmountFloat,
-          marketInfos: data.marketInfos || []
-        };
+        // Extract liquidity information
+        let liquidityUSD = 0;
+        try {
+          // Jupiter doesn't directly provide liquidity, but we can estimate from market infos
+          if (data.marketInfos && data.marketInfos.length > 0) {
+            liquidityUSD = data.marketInfos.reduce((acc, market) => 
+              acc + (market.liquidityUSD || 0), 0);
+          }
+        } catch (err) {
+          console.warn('Error extracting liquidity info from Jupiter:', err);
+        }
         
         console.log(`[JupiterAdapter] Fetched price for ${baseToken.symbol}/${quoteToken.symbol}: ${price}`);
         
@@ -44,7 +51,12 @@ export class JupiterAdapter extends BaseAdapter {
           dexName: this.getName(),
           price: price,
           fees: this.getTradingFeePercentage(),
-          liquidityInfo: liquidityInfo
+          liquidityUSD: liquidityUSD,
+          liquidityInfo: {
+            routeInfo: data.routePlan || [],
+            outAmount: outAmountFloat,
+            marketInfos: data.marketInfos || []
+          }
         };
       } else {
         throw new Error("Jupiter only supports Solana tokens");
@@ -66,7 +78,8 @@ export class JupiterAdapter extends BaseAdapter {
           return {
             dexName: this.getName(),
             price: data[0].price * variation,
-            fees: this.getTradingFeePercentage()
+            fees: this.getTradingFeePercentage(),
+            liquidityUSD: 100000 // Fallback liquidity value
           };
         }
       } catch (fallbackError) {
@@ -87,7 +100,8 @@ export class JupiterAdapter extends BaseAdapter {
       return {
         dexName: this.getName(),
         price: basePrice * variation,
-        fees: this.getTradingFeePercentage()
+        fees: this.getTradingFeePercentage(),
+        liquidityUSD: 100000 // Default fallback liquidity
       };
     }
   }

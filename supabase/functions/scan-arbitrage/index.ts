@@ -35,13 +35,23 @@ async function getNetworkGasFees(network: string) {
     if (error) {
       console.error(`Error fetching gas fees for ${network}:`, error);
       // Default values if not found
-      return { base_fee: network === 'solana' ? 0.000005 : 2.5, priority_fee: 0, is_lamports: network === 'solana' };
+      return { 
+        base_fee: network === 'solana' ? 0.000005 : 2.5, 
+        priority_fee: 0, 
+        is_lamports: network === 'solana',
+        compute_units: network === 'solana' ? 200000 : undefined 
+      };
     }
 
     return data;
   } catch (error) {
     console.error(`Error in getNetworkGasFees for ${network}:`, error);
-    return { base_fee: network === 'solana' ? 0.000005 : 2.5, priority_fee: 0, is_lamports: network === 'solana' };
+    return { 
+      base_fee: network === 'solana' ? 0.000005 : 2.5, 
+      priority_fee: 0, 
+      is_lamports: network === 'solana',
+      compute_units: network === 'solana' ? 200000 : undefined
+    };
   }
 }
 
@@ -63,6 +73,38 @@ async function getDexSettingsForChain(chainId: number) {
   } catch (error) {
     console.error(`Error in getDexSettingsForChain(${chainId}):`, error);
     return [];
+  }
+}
+
+// Calculate gas fee for a specific network
+function calculateGasFeeUSD(network: string, gasData: any): number {
+  if (network === 'solana') {
+    // Solana gas fee calculation
+    // Base fee of 5000 lamports per signature (typically 1-2 signatures)
+    // 1 SOL = 1,000,000,000 lamports
+    // Compute units also factor in
+    const signatures = 2; // Buy and sell transactions
+    const baseFeeInLamports = 5000 * signatures;
+    
+    // Priority fee is optional and based on network congestion
+    // computeUnits * priorityFeeInMicroLamports
+    const computeUnits = gasData.compute_units || 200000;
+    const priorityFeeInMicroLamports = (gasData.priority_fee || 0) * 1000000;
+    
+    const priorityFeeInLamports = (computeUnits * priorityFeeInMicroLamports) / 1000000;
+    const totalFeeInLamports = baseFeeInLamports + priorityFeeInLamports;
+    
+    // Convert lamports to SOL
+    const totalFeeInSOL = totalFeeInLamports / 1000000000;
+    
+    // Assuming SOL price around $150
+    const solPrice = 150;
+    return totalFeeInSOL * solPrice;
+  } else {
+    // EVM chain gas calculation
+    // For simplicity, we'll use the base_fee from the database
+    // In reality, this would depend on gas price and gas limit
+    return gasData.base_fee || 0;
   }
 }
 
@@ -138,17 +180,7 @@ serve(async (req) => {
         const saleAmount = tokenAmount * sellPrice;
         
         // Calculate gas fee based on network
-        let gasFeeUSD;
-        if (networkName === 'solana') {
-          // Solana has very low gas fees, typically under $0.01
-          gasFeeUSD = 0.002 + (Math.random() * 0.003); // $0.002 to $0.005
-        } else {
-          // EVM chain gas fees vary significantly
-          const baseFee = networkName === 'ethereum' ? 
-                          3 + (Math.random() * 4) : // $3-7 for Ethereum
-                          0.5 + (Math.random() * 1); // $0.5-1.5 for other EVM chains
-          gasFeeUSD = baseFee;
-        }
+        const gasFeeUSD = calculateGasFeeUSD(networkName, gasFees);
         
         // Calculate net profit after all fees
         const tradingFees = tradingFeeBuy + tradingFeeSell;
