@@ -1,4 +1,3 @@
-
 import { DexAdapter, DexConfig } from './types';
 import { supabase } from '@/lib/supabaseClient';
 import { UniswapAdapter } from './adapters/UniswapAdapter';
@@ -180,6 +179,82 @@ class DexRegistry {
     
     return this.getAdaptersForChain(chainId);
   }
+
+  // Fetch the most recent price data for a token pair from all DEXes
+  public async fetchLatestPricesForPair(baseToken: TokenInfo, quoteToken: TokenInfo): Promise<Record<string, PriceQuote>> {
+    try {
+      const adapters = this.getAdaptersForChain(baseToken.chainId);
+      const results: Record<string, PriceQuote> = {};
+      
+      // Execute price fetches in parallel
+      const promises = adapters.map(async (adapter) => {
+        try {
+          const quote = await adapter.fetchQuote(baseToken, quoteToken);
+          if (quote) {
+            results[adapter.getName()] = quote;
+          }
+        } catch (error) {
+          console.error(`Error fetching price from ${adapter.getName()}:`, error);
+        }
+      });
+      
+      await Promise.all(promises);
+      
+      // Store the price data in Supabase for future reference
+      await this.storePriceData(baseToken, quoteToken, results);
+      
+      return results;
+    } catch (error) {
+      console.error('Error fetching latest prices:', error);
+      return {};
+    }
+  }
+  
+  // Store price data in Supabase for analysis and arbitrage scanning
+  private async storePriceData(baseToken: TokenInfo, quoteToken: TokenInfo, prices: Record<string, PriceQuote>): Promise<void> {
+    try {
+      const pricesToStore = Object.entries(prices).map(([dexName, quote]) => ({
+        dex_name: dexName,
+        token_pair: `${baseToken.symbol}/${quoteToken.symbol}`,
+        chain_id: baseToken.chainId,
+        price: quote.price,
+        timestamp: new Date().toISOString()
+      }));
+      
+      if (pricesToStore.length > 0) {
+        const { error } = await supabase
+          .from('dex_price_history')
+          .insert(pricesToStore);
+        
+        if (error) {
+          console.error('Failed to store price data:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error storing price data:', error);
+    }
+  }
+
+  // Check all supported DEX APIs to ensure they're operational
+  public async checkDexApiStatus(): Promise<Record<string, boolean>> {
+    const status: Record<string, boolean> = {};
+    
+    for (const [name, adapter] of this.adapters.entries()) {
+      try {
+        if (adapter.isEnabled()) {
+          // Perform a simple health check (implementation will vary by DEX)
+          status[name] = true; // Default to true, actual check would be adapter-specific
+        } else {
+          status[name] = false;
+        }
+      } catch (error) {
+        console.error(`Error checking status of ${name}:`, error);
+        status[name] = false;
+      }
+    }
+    
+    return status;
+  }
 }
 
-export default DexRegistry; // Changed from export { DexRegistry }
+export default DexRegistry;

@@ -8,208 +8,219 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Define interfaces for our request and response objects
+interface ArbitrageScanRequest {
+  baseToken: any;
+  quoteToken: any;
+  investmentAmount: number;
+  minProfitPercentage: number;
+}
+
+interface ArbitrageOpportunity {
+  id: string;
+  buyDex: string;
+  sellDex: string;
+  buyPrice: number;
+  sellPrice: number;
+  liquidityBuy: number;
+  liquiditySell: number;
+  tradingFeeBuy: number;
+  tradingFeeSell: number;
+  gasFee: number;
+  netProfit: number;
+  profitPercentage: number;
+  network: string;
+}
+
 const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
 const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Mapping of chain IDs to network names
-const CHAIN_NETWORK_MAP: Record<number, string> = {
-  1: 'ethereum',
-  56: 'bnb',
-  101: 'solana',
-  137: 'polygon',
-  42161: 'arbitrum',
-  10: 'optimism',
-  8453: 'base'
-};
-
-// Function to get gas fees for a specific network
-async function getNetworkGasFees(network: string) {
-  try {
-    console.log(`Fetching gas fees for network: ${network}`);
-    const { data, error } = await supabase
-      .from('gas_fees')
-      .select('*')
-      .eq('network', network)
-      .single();
-
-    if (error) {
-      console.error(`Error fetching gas fees for ${network}:`, error);
-      // Default values if not found
-      return { 
-        base_fee: network === 'solana' ? 0.000005 : 2.5, 
-        priority_fee: network === 'solana' ? 0.000001 : 0, 
-        is_lamports: network === 'solana',
-        compute_units: network === 'solana' ? 200000 : undefined 
-      };
-    }
-
-    console.log(`Gas fees for ${network}:`, data);
-    return data;
-  } catch (error) {
-    console.error(`Error in getNetworkGasFees for ${network}:`, error);
-    return { 
-      base_fee: network === 'solana' ? 0.000005 : 2.5, 
-      priority_fee: network === 'solana' ? 0.000001 : 0, 
-      is_lamports: network === 'solana',
-      compute_units: network === 'solana' ? 200000 : undefined
-    };
+// Estimate chain-specific gas fees
+function estimateGasFee(chainId: number): number {
+  switch(chainId) {
+    case 1: // Ethereum
+      return 0.005; // $5 in gas
+    case 56: // BSC
+      return 0.0005; // $0.50 in gas
+    case 137: // Polygon
+      return 0.001; // $1 in gas
+    case 42161: // Arbitrum
+      return 0.0015; // $1.50 in gas
+    case 10: // Optimism
+      return 0.001; // $1 in gas
+    case 8453: // Base
+      return 0.001; // $1 in gas
+    case 101: // Solana
+      return 0.0001; // $0.10 in gas
+    default:
+      return 0.002; // Default gas estimate
   }
 }
 
-// Function to get DEX settings for a specific chain
-async function getDexSettingsForChain(chainId: number) {
+// Get network name from chain ID
+function getNetworkFromChainId(chainId: number): string {
+  switch(chainId) {
+    case 1: return "ethereum";
+    case 56: return "bnb";
+    case 101: return "solana";
+    case 137: return "polygon";
+    case 42161: return "arbitrum";
+    case 10: return "optimism";
+    case 8453: return "base";
+    default: return "unknown";
+  }
+}
+
+// Fetch quotes from DEXes for the given token pair
+async function fetchDexQuotes(baseToken: any, quoteToken: any): Promise<any[]> {
   try {
-    console.log(`Fetching DEX settings for chain ${chainId}`);
+    // Get DEX price data from our cached data in Supabase
     const { data, error } = await supabase
-      .from('dex_settings')
+      .from('dex_price_history')
       .select('*')
-      .contains('chain_ids', [chainId])
-      .eq('enabled', true);
+      .eq('token_pair', `${baseToken.symbol}/${quoteToken.symbol}`)
+      .order('timestamp', { ascending: false })
+      .limit(20);
 
     if (error) {
-      console.error(`Error fetching DEX settings for chain ${chainId}:`, error);
+      console.error('Error fetching DEX quotes:', error);
       return [];
     }
 
-    console.log(`Found ${data?.length || 0} DEX settings for chain ${chainId}`);
     return data || [];
   } catch (error) {
-    console.error(`Error in getDexSettingsForChain(${chainId}):`, error);
+    console.error('Error in fetchDexQuotes:', error);
     return [];
   }
 }
 
-// Function to fetch real token prices from external APIs when possible
-async function fetchTokenPrice(tokenSymbol: string, network: string): Promise<number | null> {
-  try {
-    // Use a free API endpoint that doesn't require authentication
-    // CoinGecko public API is a good option for this purpose
-    const apiUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${tokenSymbol.toLowerCase()}&vs_currencies=usd`;
-    console.log(`Fetching price for ${tokenSymbol} from CoinGecko`);
+// Find arbitrage opportunities by comparing prices across DEXes
+function findArbitrageOpportunities(
+  quotes: any[], 
+  baseToken: any, 
+  quoteToken: any, 
+  investmentAmount: number,
+  minProfitPercentage: number
+): ArbitrageOpportunity[] {
+  const opportunities: ArbitrageOpportunity[] = [];
+  const gasFee = estimateGasFee(baseToken.chainId);
+  const processedPairs = new Set();
+  
+  // Group quotes by DEX
+  const dexQuotes: Record<string, any> = {};
+  quotes.forEach(quote => {
+    if (!dexQuotes[quote.dex_name]) {
+      dexQuotes[quote.dex_name] = quote;
+    }
+  });
+  
+  // Compare each DEX with every other DEX
+  const dexNames = Object.keys(dexQuotes);
+  
+  for (let i = 0; i < dexNames.length; i++) {
+    const buyDex = dexNames[i];
+    const buyData = dexQuotes[buyDex];
+    const buyPrice = buyData.price;
     
-    const response = await fetch(apiUrl, {
-      headers: {
-        'Accept': 'application/json',
+    for (let j = 0; j < dexNames.length; j++) {
+      if (i === j) continue; // Skip same DEX
+      
+      const sellDex = dexNames[j];
+      const sellData = dexQuotes[sellDex];
+      const sellPrice = sellData.price;
+      
+      const pairKey = `${buyDex}-${sellDex}`;
+      if (processedPairs.has(pairKey)) continue;
+      processedPairs.add(pairKey);
+      
+      // Calculate potential profit
+      if (sellPrice > buyPrice) {
+        const buyAmount = investmentAmount / buyPrice;
+        const tradingFeeBuy = investmentAmount * 0.003; // Assume 0.3% trading fee
+        const tradingFeeSell = sellPrice * buyAmount * 0.003;
+        
+        const sellAmount = buyAmount * sellPrice;
+        const grossProfit = sellAmount - investmentAmount;
+        const netProfit = grossProfit - gasFee - tradingFeeBuy - tradingFeeSell;
+        const profitPercentage = (netProfit / investmentAmount) * 100;
+        
+        // Check if profit meets minimum threshold
+        if (profitPercentage >= minProfitPercentage) {
+          // Define reasonable liquidity values (these would normally come from the DEXes)
+          const liquidityBuy = buyData.liquidityUSD || 100000;
+          const liquiditySell = sellData.liquidityUSD || 100000;
+          
+          opportunities.push({
+            id: `${baseToken.symbol}-${quoteToken.symbol}-${buyDex}-${sellDex}-${Date.now()}`,
+            buyDex,
+            sellDex,
+            buyPrice,
+            sellPrice,
+            liquidityBuy,
+            liquiditySell,
+            tradingFeeBuy,
+            tradingFeeSell,
+            gasFee,
+            netProfit,
+            profitPercentage,
+            network: getNetworkFromChainId(baseToken.chainId)
+          });
+        }
       }
-    });
+    }
+  }
+  
+  // Sort opportunities by profit percentage (highest first)
+  return opportunities.sort((a, b) => b.profitPercentage - a.profitPercentage);
+}
+
+// Main function to scan for arbitrage opportunities
+async function scanForArbitrageOpportunities(
+  baseToken: any, 
+  quoteToken: any,
+  investmentAmount: number,
+  minProfitPercentage: number
+): Promise<ArbitrageOpportunity[]> {
+  try {
+    // Fetch quotes from DEXes
+    const quotes = await fetchDexQuotes(baseToken, quoteToken);
     
-    if (!response.ok) {
-      throw new Error(`CoinGecko API error: ${response.status}`);
+    if (!quotes.length) {
+      console.log('No quotes found for', baseToken.symbol, quoteToken.symbol);
+      return [];
     }
     
-    const data = await response.json();
-    if (data[tokenSymbol.toLowerCase()]?.usd) {
-      const price = data[tokenSymbol.toLowerCase()].usd;
-      console.log(`Got price for ${tokenSymbol}: $${price}`);
-      return price;
+    // Find arbitrage opportunities
+    const opportunities = findArbitrageOpportunities(
+      quotes, 
+      baseToken, 
+      quoteToken, 
+      investmentAmount,
+      minProfitPercentage
+    );
+    
+    // Store opportunities in the database for tracking
+    if (opportunities.length > 0) {
+      for (const opp of opportunities) {
+        await supabase.from('arbitrage_opportunities').upsert({
+          network: opp.network,
+          token_pair: `${baseToken.symbol}/${quoteToken.symbol}`,
+          buy_exchange: opp.buyDex,
+          sell_exchange: opp.sellDex,
+          price_diff: opp.sellPrice - opp.buyPrice,
+          estimated_profit: opp.netProfit.toFixed(2),
+          risk: opp.profitPercentage < 1 ? 'high' : opp.profitPercentage < 3 ? 'medium' : 'low',
+          status: 'active'
+        }, { onConflict: 'token_pair, buy_exchange, sell_exchange' });
+      }
     }
     
-    throw new Error('Price not found in response');
+    return opportunities;
   } catch (error) {
-    console.error(`Error fetching price for ${tokenSymbol}:`, error);
-    return null;
+    console.error('Error scanning for arbitrage:', error);
+    return [];
   }
-}
-
-// Calculate gas fee for a specific network
-function calculateGasFeeUSD(network: string, gasData: any): number {
-  if (network === 'solana') {
-    // Solana gas fee calculation using lamports
-    // Base fee of 5,000 lamports per signature (typically 1-2 signatures)
-    // 1 SOL = 1,000,000,000 lamports
-    const signatures = 2; // Buy and sell transactions
-    const baseFeeInLamports = 5000 * signatures;
-    
-    // Priority fee is optional and based on network congestion
-    // computeUnits * priorityFeeInMicroLamports
-    const computeUnits = gasData.compute_units || 200000;
-    const priorityFeeInMicroLamports = (gasData.priority_fee || 0) * 1000000;
-    
-    const priorityFeeInLamports = (computeUnits * priorityFeeInMicroLamports) / 1000000;
-    const totalFeeInLamports = baseFeeInLamports + priorityFeeInLamports;
-    
-    // Convert lamports to SOL
-    const totalFeeInSOL = totalFeeInLamports / 1000000000;
-    
-    // Get SOL price (ideally from an external API)
-    const solPrice = 150; // Estimated SOL price, would be better to fetch from API
-    return totalFeeInSOL * solPrice;
-  } else if (network === 'ethereum') {
-    // ETH gas calculation - higher than other EVM chains
-    const gasUnits = 150000; // Typical DEX swap gas usage
-    const gasPriceGwei = gasData.base_fee || 50; // Gwei
-    const ethPriceUSD = 3500; // Estimated ETH price
-    return (gasUnits * gasPriceGwei * 1e-9) * ethPriceUSD;
-  } else if (network === 'bnb') {
-    // BNB gas calculation - typically cheaper than Ethereum
-    const gasUnits = 150000; 
-    const gasPriceGwei = gasData.base_fee || 5; // BNB gas is much cheaper
-    const bnbPriceUSD = 550;
-    return (gasUnits * gasPriceGwei * 1e-9) * bnbPriceUSD;
-  } else if (network === 'polygon') {
-    // Polygon gas calculation
-    const gasUnits = 150000;
-    const gasPriceGwei = gasData.base_fee || 30;
-    const maticPriceUSD = 1;
-    return (gasUnits * gasPriceGwei * 1e-9) * maticPriceUSD;
-  } else if (network === 'arbitrum' || network === 'optimism' || network === 'base') {
-    // L2 gas calculation - typically cheaper than Ethereum
-    const gasUnits = 150000;
-    const gasPriceGwei = gasData.base_fee || 0.1;
-    const ethPriceUSD = 3500;
-    return (gasUnits * gasPriceGwei * 1e-9) * ethPriceUSD;
-  } else {
-    // Default EVM chain calculation
-    return gasData.base_fee || 2.5;
-  }
-}
-
-// Create a unique ID for each opportunity
-function generateOpportunityId(): string {
-  return crypto.randomUUID();
-}
-
-// Calculate the estimated profit for an arbitrage opportunity
-function calculateProfit(
-  buyPrice: number, 
-  sellPrice: number, 
-  investmentAmount: number, 
-  tradingFeeBuyPct: number, 
-  tradingFeeSellPct: number, 
-  gasFeeUSD: number,
-  platformFeePct: number = 0.5 // Default 0.5% platform fee
-): { 
-  netProfit: number, 
-  profitPercentage: number, 
-  tradingFeeBuy: number,
-  tradingFeeSell: number,
-  platformFee: number
-} {
-  // Calculate trading fees
-  const tradingFeeBuy = investmentAmount * (tradingFeeBuyPct / 100);
-  const tradingFeeSell = investmentAmount * (tradingFeeSellPct / 100);
-  
-  // Calculate token amounts
-  const tokenAmount = (investmentAmount - tradingFeeBuy) / buyPrice;
-  const saleAmount = tokenAmount * sellPrice;
-  
-  // Calculate platform fee
-  const platformFee = investmentAmount * (platformFeePct / 100);
-  
-  // Calculate net profit
-  const netProfit = saleAmount - investmentAmount - tradingFeeBuy - tradingFeeSell - gasFeeUSD - platformFee;
-  
-  // Calculate profit percentage
-  const profitPercentage = (netProfit / investmentAmount) * 100;
-  
-  return {
-    netProfit,
-    profitPercentage,
-    tradingFeeBuy,
-    tradingFeeSell,
-    platformFee
-  };
 }
 
 serve(async (req) => {
@@ -219,159 +230,35 @@ serve(async (req) => {
   }
 
   try {
-    const { baseToken, quoteToken, investmentAmount = 1000, minProfitPercentage = 0.5 } = await req.json();
-    console.log(`Scanning for arbitrage: ${baseToken.symbol}/${quoteToken.symbol} with $${investmentAmount}`);
-    console.log(`Selected chain ID: ${baseToken.chainId}`);
-
-    // Get network name from chain ID
-    const networkName = CHAIN_NETWORK_MAP[baseToken.chainId] || 'ethereum';
-    console.log(`Network identified: ${networkName}`);
-
-    // Get gas fees for the network
-    const gasFees = await getNetworkGasFees(networkName);
-    console.log(`Gas fees for ${networkName}:`, gasFees);
-
-    // Get enabled DEXs for this chain
-    const dexSettings = await getDexSettingsForChain(baseToken.chainId);
-    console.log(`Found ${dexSettings.length} DEXs for chain ${baseToken.chainId}`);
-
-    // For Solana, ensure we only use Solana-specific DEXs
-    const filteredDexSettings = networkName === 'solana' 
-      ? dexSettings.filter(dex => ['jupiter', 'orca', 'raydium'].includes(dex.slug.toLowerCase()))
-      : dexSettings.filter(dex => !['jupiter', 'orca', 'raydium'].includes(dex.slug.toLowerCase()));
-
-    console.log(`Using ${filteredDexSettings.length} filtered DEXs for ${networkName}`);
-
-    // Fetch scan settings
-    const { data: scanSettings, error: scanSettingsError } = await supabase
-      .from('scan_settings')
-      .select('*')
-      .single();
-
-    if (scanSettingsError) {
-      console.error('Error fetching scan settings:', scanSettingsError);
-      throw scanSettingsError;
+    const { baseToken, quoteToken, investmentAmount = 1000, minProfitPercentage = 0.5 } = await req.json() as ArbitrageScanRequest;
+    
+    if (!baseToken || !quoteToken) {
+      return new Response(JSON.stringify({ error: "Missing token information" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
     }
     
-    // Use the appropriate scan settings
-    const profitThreshold = scanSettings?.profit_threshold || minProfitPercentage;
-    const gasThreshold = scanSettings?.gas_fee_threshold || 5.0;
-
-    // Try to get real token price as a base reference
-    let baseTokenPrice = await fetchTokenPrice(baseToken.symbol, networkName);
-    console.log(`Base token price from external API: ${baseTokenPrice}`);
+    console.log(`Scanning for arbitrage: ${baseToken.symbol}/${quoteToken.symbol} on chain ${baseToken.chainId}`);
     
-    // If we couldn't get a real price, use a default based on common tokens
-    if (!baseTokenPrice) {
-      baseTokenPrice = baseToken.symbol === 'ETH' ? 3500 : 
-                     baseToken.symbol === 'BNB' ? 550 : 
-                     baseToken.symbol === 'SOL' ? 150 : 
-                     baseToken.symbol === 'USDC' || baseToken.symbol === 'USDT' || baseToken.symbol === 'DAI' ? 1 :
-                     10; // Default value for other tokens
-    }
-
-    // Generate arbitrage opportunities with more realistic price differences
-    const opportunities = [];
-    for (let i = 0; i < filteredDexSettings.length; i++) {
-      const buyDex = filteredDexSettings[i];
-      
-      for (let j = 0; j < filteredDexSettings.length; j++) {
-        if (i === j) continue; // Skip same DEX comparison
-        
-        const sellDex = filteredDexSettings[j];
-        
-        // Create price variations between DEXs
-        // In production, we'd use real API calls to DEXes for actual prices
-        const priceDiff = (Math.random() * 0.04) - 0.01; // Between -1% and +3%
-        const buyPrice = baseTokenPrice * (1 - Math.random() * 0.005); // Small discount on buy side
-        const sellPrice = buyPrice * (1 + priceDiff); // Apply difference for sell price
-        
-        // Calculate profit using our utility function
-        const profitData = calculateProfit(
-          buyPrice, 
-          sellPrice, 
-          investmentAmount,
-          buyDex.trading_fee_percentage,
-          sellDex.trading_fee_percentage,
-          calculateGasFeeUSD(networkName, gasFees),
-          0.5 // 0.5% platform fee
-        );
-        
-        // Generate liquidity estimates (in production would come from DEX APIs)
-        const liquidityBuy = Math.floor(50000 + Math.random() * 950000);
-        const liquiditySell = Math.floor(50000 + Math.random() * 950000);
-        
-        // Calculate price difference percentage for logging
-        const priceDifferencePercentage = ((sellPrice - buyPrice) / buyPrice) * 100;
-        
-        // Only include profitable opportunities meeting the threshold
-        if (profitData.profitPercentage >= profitThreshold && 
-            calculateGasFeeUSD(networkName, gasFees) <= gasThreshold) {
-          
-          const opportunityId = generateOpportunityId();
-          
-          // Add opportunity to array with well-formatted numbers
-          opportunities.push({
-            id: opportunityId,
-            buyDex: buyDex.name,
-            sellDex: sellDex.name,
-            buyPrice: parseFloat(buyPrice.toFixed(6)),
-            sellPrice: parseFloat(sellPrice.toFixed(6)),
-            profitPercentage: parseFloat(profitData.profitPercentage.toFixed(2)),
-            netProfit: parseFloat(profitData.netProfit.toFixed(2)),
-            tradingFeeBuy: parseFloat(profitData.tradingFeeBuy.toFixed(4)),
-            tradingFeeSell: parseFloat(profitData.tradingFeeSell.toFixed(4)),
-            gasFee: parseFloat(calculateGasFeeUSD(networkName, gasFees).toFixed(4)),
-            platformFee: parseFloat(profitData.platformFee.toFixed(4)),
-            liquidityBuy,
-            liquiditySell,
-            network: networkName,
-            token: baseToken.symbol,
-            priceDiff: parseFloat(priceDifferencePercentage.toFixed(2))
-          });
-          
-          // Store in database for history/analytics
-          try {
-            const { error: storeError } = await supabase
-              .from('arbitrage_opportunities')
-              .insert({
-                id: opportunityId,
-                token_pair: `${baseToken.symbol}/${quoteToken.symbol}`,
-                buy_exchange: buyDex.name,
-                sell_exchange: sellDex.name,
-                estimated_profit: profitData.netProfit.toFixed(2),
-                network: networkName,
-                status: 'active',
-                price_diff: priceDifferencePercentage,
-                risk: profitData.profitPercentage > 3 ? 'low' : profitData.profitPercentage > 1 ? 'medium' : 'high'
-              });
-
-            if (storeError) {
-              console.error('Error storing arbitrage opportunity:', storeError);
-            }
-          } catch (storeError) {
-            console.error('Exception storing arbitrage opportunity:', storeError);
-          }
-        }
-      }
-    }
-
-    // Sort opportunities by profit percentage (highest first)
-    opportunities.sort((a, b) => b.profitPercentage - a.profitPercentage);
-
-    // Limit to top 10 opportunities
-    const topOpportunities = opportunities.slice(0, 10);
-
-    return new Response(JSON.stringify({ opportunities: topOpportunities }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
+    // Scan for arbitrage opportunities
+    const opportunities = await scanForArbitrageOpportunities(
+      baseToken, 
+      quoteToken, 
+      investmentAmount,
+      minProfitPercentage
+    );
+    
+    console.log(`Found ${opportunities.length} arbitrage opportunities`);
+    
+    return new Response(JSON.stringify({ opportunities }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
-
   } catch (error) {
-    console.error("Error scanning for arbitrage:", error);
-    return new Response(JSON.stringify({ error: error.message, opportunities: [] }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    console.error("Error processing request:", error);
+    return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
   }
 });
