@@ -77,6 +77,11 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
   }, [selectedChain, isLoadingChain]);
 
   const handleChainChange = useCallback((chainId: ChainId) => {
+    // Only allow ETH, BNB, and Solana
+    if (![ChainId.ETHEREUM, ChainId.BNB, ChainId.SOLANA].includes(chainId)) {
+      console.warn('Unsupported chain selected');
+      return;
+    }
     console.log(`Chain changed to: ${chainId}`);
     setSelectedChain(chainId);
   }, []);
