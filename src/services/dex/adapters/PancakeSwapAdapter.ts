@@ -1,4 +1,3 @@
-
 import { BaseAdapter } from './BaseAdapter';
 import { PriceQuote } from '../types';
 import { TokenInfo } from '../../tokenListService';
@@ -6,7 +5,101 @@ import { TokenInfo } from '../../tokenListService';
 export class PancakeSwapAdapter extends BaseAdapter {
   public async fetchQuote(baseToken: TokenInfo, quoteToken: TokenInfo, amount: number = 1): Promise<PriceQuote> {
     try {
-      // For BNB Chain tokens
+      if (baseToken.chainId === 56) {
+        // Use PancakeSwap's public API for BSC chain
+        const response = await fetch(
+          `https://api.pancakeswap.info/api/v2/pairs/${baseToken.address}_${quoteToken.address}`
+        );
+
+        if (!response.ok) {
+          throw new Error('PancakeSwap API error');
+        }
+
+        const data = await response.json();
+        
+        if (!data.data) {
+          throw new Error('Invalid PancakeSwap response');
+        }
+
+        const { price, liquidity } = data.data;
+
+        // Calculate gas for BSC (typically much lower than Ethereum)
+        const gasEstimateGwei = 90000;
+        const gasPriceGwei = 5;
+        const bnbPrice = 300;
+        const gasEstimateUSD = (gasEstimateGwei * gasPriceGwei * 1e-18) * bnbPrice;
+
+        return {
+          dexName: this.getName(),
+          price: Number(price),
+          fees: this.getTradingFeePercentage(),
+          gasEstimate: gasEstimateUSD,
+          liquidityUSD: Number(liquidity),
+          liquidityInfo: {
+            data: data.data
+          }
+        };
+      } else if (baseToken.chainId === 1 || baseToken.chainId === 8453) {
+        // For Ethereum and Base chains, use PancakeSwap v3 subgraph
+        const SUBGRAPH_URLS = {
+          1: 'https://api.thegraph.com/subgraphs/name/pancakeswap/exchange-v3-eth',
+          8453: 'https://api.studio.thegraph.com/query/45376/exchange-v3-base/version/latest'
+        };
+
+        const query = `
+          {
+            pool(id: "${baseToken.address.toLowerCase()}-${quoteToken.address.toLowerCase()}") {
+              token0Price
+              token1Price
+              totalValueLockedUSD
+            }
+          }
+        `;
+
+        const response = await fetch(SUBGRAPH_URLS[baseToken.chainId as 1 | 8453], {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query })
+        });
+
+        const data = await response.json();
+        
+        if (!data.data?.pool) {
+          throw new Error('Pool not found');
+        }
+
+        const pool = data.data.pool;
+        const price = baseToken.address.toLowerCase() < quoteToken.address.toLowerCase() 
+          ? Number(pool.token0Price) 
+          : Number(pool.token1Price);
+
+        // Calculate gas based on chain
+        const gasEstimateGwei = baseToken.chainId === 1 ? 150000 : 100000;
+        const gasPriceGwei = baseToken.chainId === 1 ? 50 : 10;
+        const nativeTokenPrice = baseToken.chainId === 1 ? 3500 : 300;
+        const gasEstimateUSD = (gasEstimateGwei * gasPriceGwei * 1e-18) * nativeTokenPrice;
+
+        return {
+          dexName: this.getName(),
+          price: price,
+          fees: this.getTradingFeePercentage(),
+          gasEstimate: gasEstimateUSD,
+          liquidityUSD: Number(pool.totalValueLockedUSD),
+          liquidityInfo: {
+            pool: pool
+          }
+        };
+      }
+
+      throw new Error('Chain not supported by PancakeSwap');
+    } catch (error) {
+      console.error(`[PancakeSwapAdapter] Primary API error:`, error);
+      return this.getFallbackQuote(baseToken, quoteToken, amount);
+    }
+  }
+
+  private async getFallbackQuote(baseToken: TokenInfo, quoteToken: TokenInfo, amount: number): Promise<PriceQuote> {
+    try {
       if (baseToken.chainId === 56) {
         const fromAddress = baseToken.address;
         const toAddress = quoteToken.address;
