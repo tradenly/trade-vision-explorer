@@ -7,6 +7,7 @@ import {
   getPopularTokensForChain,
   DEFAULT_TOKENS,
 } from '@/services/tokenDataService';
+import { toast } from '@/hooks/use-toast';
 
 export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
   const [loading, setLoading] = useState<boolean>(true);
@@ -17,6 +18,7 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
   const [popularTokens, setPopularTokens] = useState<TokenInfo[]>([]);
   const [isLoadingChain, setIsLoadingChain] = useState<boolean>(false);
 
+  // Load tokens when chain changes
   useEffect(() => {
     let isMounted = true;
     
@@ -30,6 +32,11 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
       try {
         console.log(`Loading tokens for chain ${selectedChain}`);
         
+        // Only allow ETH, BNB, and Solana
+        if (![ChainId.ETHEREUM, ChainId.BNB, ChainId.SOLANA].includes(selectedChain)) {
+          throw new Error('Unsupported chain selected');
+        }
+
         const tokens = await getTokensForChain(selectedChain);
         
         if (!isMounted) return;
@@ -55,8 +62,12 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
         if (!isMounted) return;
         
         setError('Failed to load tokens');
+        toast({
+          title: "Error loading tokens",
+          description: "Using default token list",
+          variant: "destructive"
+        });
         
-        // Use defaults as fallback
         const defaults = DEFAULT_TOKENS[selectedChain] || [];
         setAllChainTokens(defaults);
         setQuoteTokens(getQuoteTokensForChain(selectedChain, defaults));
@@ -80,6 +91,11 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
     // Only allow ETH, BNB, and Solana
     if (![ChainId.ETHEREUM, ChainId.BNB, ChainId.SOLANA].includes(chainId)) {
       console.warn('Unsupported chain selected');
+      toast({
+        title: "Unsupported Chain",
+        description: "Only Ethereum, BNB Chain, and Solana are supported",
+        variant: "destructive"
+      });
       return;
     }
     console.log(`Chain changed to: ${chainId}`);

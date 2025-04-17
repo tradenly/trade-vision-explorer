@@ -6,6 +6,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 
 interface TokenSelectorNewProps {
   tokens: TokenInfo[];
@@ -29,16 +30,16 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
 
   const filteredTokens = useCallback(() => {
     if (!search) {
-      return tokens.slice(0, 50); // Limit to first 50 tokens if no search
+      return tokens.slice(0, 50);
     }
 
     const searchLower = search.toLowerCase();
     return tokens
       .filter(token => 
-        (token.symbol && token.symbol.toLowerCase().includes(searchLower)) ||
-        (token.name && token.name.toLowerCase().includes(searchLower))
+        token && ((token.symbol && token.symbol.toLowerCase().includes(searchLower)) ||
+        (token.name && token.name.toLowerCase().includes(searchLower)))
       )
-      .slice(0, 50); // Limit search results
+      .slice(0, 50);
   }, [tokens, search]);
 
   const handleSelect = (tokenAddress: string) => {
@@ -56,7 +57,11 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between bg-background"
+          className={cn(
+            "w-full justify-between",
+            "bg-background hover:bg-accent hover:text-accent-foreground",
+            disabled && "opacity-50 cursor-not-allowed"
+          )}
           disabled={disabled || loading}
         >
           {loading ? (
@@ -84,7 +89,7 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-0 z-50 bg-background" align="start">
+      <PopoverContent className="w-[300px] p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput
             placeholder="Search tokens..."
@@ -107,7 +112,7 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
               <ScrollArea className="h-[300px]">
                 {filteredTokens().map((token) => (
                   <CommandItem
-                    key={token.address || `${token.symbol}-${Math.random().toString(36).slice(2)}`}
+                    key={token.address}
                     value={token.address}
                     onSelect={handleSelect}
                     className="flex items-center gap-2"
