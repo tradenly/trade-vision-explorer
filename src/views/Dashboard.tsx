@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { fetchArbitrageOpportunities } from '@/services/supabaseService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -255,15 +256,15 @@ const Dashboard: React.FC = () => {
               <div>
                 <label className="text-sm font-medium mb-2 block">Base Token</label>
                 <TokenSelector
-                  value={selectedBaseToken}
-                  onChange={setSelectedBaseToken}
+                  selectedToken={selectedBaseToken}
+                  onSelectToken={setSelectedBaseToken}
                 />
               </div>
               <div>
                 <label className="text-sm font-medium mb-2 block">Quote Token</label>
                 <TokenSelector
-                  value={selectedQuoteToken}
-                  onChange={setSelectedQuoteToken}
+                  selectedToken={selectedQuoteToken}
+                  onSelectToken={setSelectedQuoteToken}
                 />
               </div>
             </div>
