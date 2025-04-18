@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { fetchArbitrageOpportunities } from '@/services/supabaseService';
 import { toast } from '@/hooks/use-toast';
 
@@ -18,6 +18,7 @@ interface ArbitrageOpportunity {
   platform_fee?: number;
   gas_fee?: number;
   net_profit?: number;
+  net_profit_percentage?: number;
   liquidity_buy?: number;
   liquidity_sell?: number;
 }
@@ -34,24 +35,50 @@ export const useArbitrageOpportunities = (investmentAmount: number): UseArbitrag
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const enhanceOpportunityData = (opportunity: any): ArbitrageOpportunity => ({
-    ...opportunity,
-    buy_price: opportunity.buy_price || parseFloat((Math.random() * 1000 + 1000).toFixed(2)),
-    sell_price: opportunity.sell_price || parseFloat((Math.random() * 1000 + 1050).toFixed(2)),
-    trading_fees: opportunity.trading_fees || parseFloat((Math.random() * 5 + 1).toFixed(2)),
-    platform_fee: opportunity.platform_fee || 0.5,
-    gas_fee: opportunity.gas_fee || parseFloat((Math.random() * 10 + 5).toFixed(2)),
-    net_profit: opportunity.net_profit || parseFloat((Math.random() * 20 + 10).toFixed(2)),
-    liquidity_buy: opportunity.liquidity_buy || parseFloat((Math.random() * 1000000 + 500000).toFixed(2)),
-    liquidity_sell: opportunity.liquidity_sell || parseFloat((Math.random() * 1000000 + 500000).toFixed(2)),
-  });
+  const enhanceOpportunityData = (opportunity: any): ArbitrageOpportunity => {
+    // Use real data if available, otherwise generate reasonable mock data
+    const buyPrice = opportunity.buy_price || parseFloat((Math.random() * 1000 + 1000).toFixed(2));
+    const sellPrice = opportunity.sell_price || parseFloat((Math.random() * 1000 + 1050).toFixed(2));
+    const tradingFees = opportunity.trading_fees || parseFloat((Math.random() * 5 + 1).toFixed(2));
+    const platformFee = opportunity.platform_fee || 0.5;
+    const gasFee = opportunity.gas_fee || parseFloat((Math.random() * 10 + 5).toFixed(2));
+    const netProfit = opportunity.net_profit || 
+      parseFloat((investmentAmount * (sellPrice / buyPrice - 1) - tradingFees - platformFee - gasFee).toFixed(2));
+    const netProfitPercentage = opportunity.net_profit_percentage || 
+      parseFloat(((netProfit / investmentAmount) * 100).toFixed(2));
 
-  const fetchData = async () => {
+    return {
+      ...opportunity,
+      buy_price: buyPrice,
+      sell_price: sellPrice,
+      trading_fees: tradingFees,
+      platform_fee: platformFee,
+      gas_fee: gasFee,
+      net_profit: netProfit,
+      net_profit_percentage: netProfitPercentage,
+      liquidity_buy: opportunity.liquidity_buy || parseFloat((Math.random() * 1000000 + 500000).toFixed(2)),
+      liquidity_sell: opportunity.liquidity_sell || parseFloat((Math.random() * 1000000 + 500000).toFixed(2)),
+      tokenPair: opportunity.token_pair,
+      buyDex: opportunity.buy_exchange,
+      sellDex: opportunity.sell_exchange,
+      priceDifferencePercentage: opportunity.price_diff,
+      estimatedProfit: parseFloat(opportunity.estimated_profit),
+      netProfitPercentage: netProfitPercentage
+    };
+  };
+
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const data = await fetchArbitrageOpportunities();
       const enhancedData = data.map(enhanceOpportunityData);
-      setOpportunities(enhancedData);
+      
+      // Sort opportunities by profit percentage
+      const sortedData = enhancedData.sort((a, b) => 
+        (b.net_profit_percentage || 0) - (a.net_profit_percentage || 0)
+      );
+      
+      setOpportunities(sortedData);
       setError(null);
     } catch (err) {
       console.error('Failed to load opportunities:', err);
@@ -64,11 +91,18 @@ export const useArbitrageOpportunities = (investmentAmount: number): UseArbitrag
     } finally {
       setLoading(false);
     }
-  };
+  }, [investmentAmount]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+    
+    // Set up refresh interval
+    const intervalId = setInterval(() => {
+      fetchData();
+    }, 60000); // Refresh every minute
+    
+    return () => clearInterval(intervalId);
+  }, [fetchData]);
 
   return {
     opportunities,

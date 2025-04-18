@@ -1,157 +1,316 @@
 
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Link } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
-
-interface ArbitrageOpportunity {
-  id: string;
-  token_pair: string;
-  buy_exchange: string;
-  sell_exchange: string;
-  price_diff: number;
-  estimated_profit: string;
-  network: string;
-  status: string;
-  buy_price?: number;
-  sell_price?: number;
-  trading_fees?: number;
-  platform_fee?: number;
-  gas_fee?: number;
-  net_profit?: number;
-  liquidity_buy?: number;
-  liquidity_sell?: number;
-}
+import { Input } from '@/components/ui/input';
+import { Loader2, RefreshCcw, ExternalLink } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { executeArbitrageTrade, useWalletForArbitrage } from '@/services/arbitrageExecutionService';
+import { toast } from '@/hooks/use-toast';
+import { ArbitrageOpportunity } from '@/services/dexService';
+import { Progress } from '@/components/ui/progress';
+import { TransactionStatus } from '@/services/dex/types';
+import { formatNumber, formatTokenPrice } from '@/lib/utils';
 
 interface ArbitrageOpportunitiesProps {
   opportunities: ArbitrageOpportunity[];
   loading: boolean;
   error: string | null;
   investmentAmount: number;
+  onRefresh?: () => void;
+  onInvestmentAmountChange?: (amount: number) => void;
 }
 
-const ArbitrageOpportunities = ({
+const ArbitrageOpportunities: React.FC<ArbitrageOpportunitiesProps> = ({
   opportunities,
   loading,
   error,
-  investmentAmount
-}: ArbitrageOpportunitiesProps) => {
-  if (loading) {
-    return (
-      <div className="flex justify-center p-12">
-        <div className="flex flex-col items-center">
-          <Loader2 className="h-8 w-8 animate-spin mb-2 text-primary" />
-          <p className="text-muted-foreground">Loading arbitrage opportunities...</p>
-        </div>
-      </div>
-    );
-  }
+  investmentAmount,
+  onRefresh,
+  onInvestmentAmountChange
+}) => {
+  const [selectedOpportunity, setSelectedOpportunity] = useState<ArbitrageOpportunity | null>(null);
+  const [executeDialogOpen, setExecuteDialogOpen] = useState(false);
+  const [executing, setExecuting] = useState(false);
+  const [transactionStatus, setTransactionStatus] = useState<TransactionStatus>(TransactionStatus.IDLE);
+  const [executionProgress, setExecutionProgress] = useState(0);
+  
+  // Get wallet based on network 
+  const { address: walletAddress, isConnected } = useWalletForArbitrage(
+    selectedOpportunity?.network || 'ethereum'
+  );
 
-  if (error) {
-    return (
-      <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded dark:bg-red-900/20 dark:border-red-800 dark:text-red-300">
-        {error}
-      </div>
-    );
-  }
+  const handleExecuteTrade = async () => {
+    if (!selectedOpportunity || !isConnected || !walletAddress) {
+      toast({
+        title: "Cannot execute trade",
+        description: "Please connect your wallet first",
+        variant: "destructive"
+      });
+      return;
+    }
 
-  if (opportunities.length === 0) {
-    return (
-      <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded dark:bg-amber-900/20 dark:border-amber-900 dark:text-amber-300">
-        <p>No recent arbitrage opportunities found. Go to the Arbitrage Scanner to start scanning for new opportunities.</p>
-        <Link to="/arbitrage" className="mt-2 inline-block">
-          <Button variant="outline" size="sm" className="mt-2">
-            Go to Arbitrage Scanner
-          </Button>
-        </Link>
-      </div>
-    );
-  }
+    setExecuting(true);
+    setTransactionStatus(TransactionStatus.PENDING);
+    
+    // Simulate trade progress
+    const progressInterval = setInterval(() => {
+      setExecutionProgress(prev => {
+        if (prev >= 95) {
+          clearInterval(progressInterval);
+          return prev;
+        }
+        return prev + 5;
+      });
+    }, 500);
+
+    try {
+      const result = await executeArbitrageTrade(
+        selectedOpportunity,
+        walletAddress,
+        investmentAmount
+      );
+      
+      setTransactionStatus(result.status);
+      
+      if (result.status === TransactionStatus.SUCCESS) {
+        setExecutionProgress(100);
+        toast({
+          title: "Trade executed successfully",
+          description: `Profit: $${selectedOpportunity.netProfit.toFixed(2)}`,
+        });
+        
+        // Refresh opportunities after successful execution
+        if (onRefresh) {
+          setTimeout(onRefresh, 2000);
+        }
+      } else {
+        toast({
+          title: "Trade execution failed",
+          description: result.error || "An error occurred",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      setTransactionStatus(TransactionStatus.ERROR);
+      toast({
+        title: "Error executing trade",
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      clearInterval(progressInterval);
+      setTimeout(() => {
+        setExecuting(false);
+        if (transactionStatus === TransactionStatus.SUCCESS) {
+          setExecuteDialogOpen(false);
+        }
+      }, 2000);
+    }
+  };
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const amount = parseFloat(e.target.value);
+    if (!isNaN(amount) && amount > 0 && onInvestmentAmountChange) {
+      onInvestmentAmountChange(amount);
+    }
+  };
 
   return (
-    <div>
-      <h2 className="text-xl font-semibold mb-4">Recent Arbitrage Opportunities</h2>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {opportunities.map((opportunity) => (
-          <Card key={opportunity.id} className="overflow-hidden">
-            <CardHeader className="bg-muted/50">
-              <CardTitle className="text-lg flex items-center justify-between">
-                <span>{opportunity.token_pair}</span>
-                <span className={`px-2 py-1 rounded text-xs ${
-                  opportunity.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
-                }`}>
-                  {opportunity.status}
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Buy on:</span>
-                    <span className="font-medium">{opportunity.buy_exchange}</span>
+    <Card className="mb-6">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle>Arbitrage Opportunities</CardTitle>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">Investment: $</span>
+            <Input
+              type="number"
+              value={investmentAmount}
+              onChange={handleAmountChange}
+              className="w-24"
+            />
+          </div>
+          <Button 
+            variant="outline" 
+            size="icon" 
+            onClick={onRefresh}
+            disabled={loading}
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {error && (
+          <div className="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 p-3 rounded-md mb-4">
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="flex items-center justify-center p-8">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : opportunities.length > 0 ? (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Pair</TableHead>
+                <TableHead>Network</TableHead>
+                <TableHead>Buy DEX</TableHead>
+                <TableHead>Sell DEX</TableHead>
+                <TableHead>Price Diff</TableHead>
+                <TableHead>Est. Profit</TableHead>
+                <TableHead>Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {opportunities.map((opportunity) => (
+                <TableRow key={opportunity.id}>
+                  <TableCell>{opportunity.tokenPair}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{opportunity.network}</Badge>
+                  </TableCell>
+                  <TableCell>{opportunity.buyDex}</TableCell>
+                  <TableCell>{opportunity.sellDex}</TableCell>
+                  <TableCell className="text-green-600">
+                    +{opportunity.priceDifferencePercentage.toFixed(2)}%
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-medium text-green-600">
+                      ${formatNumber(opportunity.netProfit)}
+                    </span>
+                    <span className="text-xs text-muted-foreground block">
+                      ({opportunity.netProfitPercentage.toFixed(2)}%)
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setSelectedOpportunity(opportunity);
+                        setExecuteDialogOpen(true);
+                      }}
+                    >
+                      Execute
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            <p>No arbitrage opportunities found at the moment.</p>
+            <p className="text-sm">Try adjusting your investment amount or check back later.</p>
+          </div>
+        )}
+
+        <Dialog open={executeDialogOpen} onOpenChange={setExecuteDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Execute Arbitrage Trade</DialogTitle>
+              <DialogDescription>
+                Review and confirm this arbitrage opportunity
+              </DialogDescription>
+            </DialogHeader>
+
+            {selectedOpportunity && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4 py-2">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-muted-foreground">Token Pair</p>
+                    <p className="font-medium">{selectedOpportunity.tokenPair}</p>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Buy price:</span>
-                    <span className="font-medium">${opportunity.buy_price}</span>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-muted-foreground">Network</p>
+                    <p className="font-medium">{selectedOpportunity.network}</p>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Liquidity:</span>
-                    <span className="font-medium">${opportunity.liquidity_buy?.toLocaleString()}</span>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-muted-foreground">Buy on</p>
+                    <p className="font-medium">{selectedOpportunity.buyDex} @ ${formatTokenPrice(selectedOpportunity.buyPrice)}</p>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Trading fee:</span>
-                    <span className="font-medium">{opportunity.trading_fees}%</span>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-muted-foreground">Sell on</p>
+                    <p className="font-medium">{selectedOpportunity.sellDex} @ ${formatTokenPrice(selectedOpportunity.sellPrice)}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-muted-foreground">Investment</p>
+                    <p className="font-medium">${formatNumber(investmentAmount)}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-muted-foreground">Price Difference</p>
+                    <p className="font-medium text-green-600">+{selectedOpportunity.priceDifferencePercentage.toFixed(2)}%</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-muted-foreground">Total Fees</p>
+                    <p className="font-medium text-amber-600">${formatNumber(selectedOpportunity.tradingFees + selectedOpportunity.platformFee + selectedOpportunity.gasFee)}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-muted-foreground">Estimated Profit</p>
+                    <p className="font-medium text-green-600">${formatNumber(selectedOpportunity.netProfit)} ({selectedOpportunity.netProfitPercentage.toFixed(2)}%)</p>
                   </div>
                 </div>
-                
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Sell on:</span>
-                    <span className="font-medium">{opportunity.sell_exchange}</span>
+
+                {executing && (
+                  <div className="space-y-2">
+                    <Progress value={executionProgress} className="h-2" />
+                    <p className="text-sm text-center text-muted-foreground">
+                      {transactionStatus === TransactionStatus.PENDING && "Executing trade..."}
+                      {transactionStatus === TransactionStatus.SUCCESS && "Trade executed successfully!"}
+                      {transactionStatus === TransactionStatus.ERROR && "Trade failed. Please try again."}
+                    </p>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Sell price:</span>
-                    <span className="font-medium">${opportunity.sell_price}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Liquidity:</span>
-                    <span className="font-medium">${opportunity.liquidity_sell?.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Price difference:</span>
-                    <span className="font-medium text-green-600 dark:text-green-400">{opportunity.price_diff}%</span>
-                  </div>
+                )}
+
+                <div className="text-xs text-muted-foreground">
+                  <p>* All trades are executed on-chain and may be subject to slippage and changing market conditions.</p>
                 </div>
               </div>
-              
-              <div className="border-t pt-3 space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Gas fees:</span>
-                  <span className="font-medium">${opportunity.gas_fee}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Tradenly platform fee (0.5%):</span>
-                  <span className="font-medium">${(investmentAmount * 0.005).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between font-semibold">
-                  <span>Estimated net profit:</span>
-                  <span className="text-green-600 dark:text-green-400">${opportunity.net_profit}</span>
-                </div>
-                <div className="flex justify-between font-semibold">
-                  <span>Expected ROI:</span>
-                  <span className="text-green-600 dark:text-green-400">
-                    {((opportunity.net_profit! / investmentAmount) * 100).toFixed(2)}%
+            )}
+
+            <DialogFooter className="flex flex-col sm:flex-row sm:justify-between gap-4">
+              <div className="text-sm">
+                {!isConnected ? (
+                  <span className="text-red-500">
+                    Please connect your wallet first
                   </span>
-                </div>
+                ) : (
+                  <span className="text-muted-foreground">
+                    Connected: {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}
+                  </span>
+                )}
               </div>
               
-              <Button className="w-full">Execute Trade</Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
+              <div className="flex gap-2 justify-end">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setExecuteDialogOpen(false)}
+                  disabled={executing}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleExecuteTrade}
+                  disabled={executing || !isConnected}
+                >
+                  {executing ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Executing...
+                    </>
+                  ) : (
+                    'Execute Trade'
+                  )}
+                </Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CardContent>
+    </Card>
   );
 };
 

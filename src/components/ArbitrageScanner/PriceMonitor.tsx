@@ -23,6 +23,17 @@ const PriceMonitor: React.FC<PriceMonitorProps> = ({
     return null;
   }
 
+  // Format time since update
+  const getTimeSinceUpdate = (timestamp?: number) => {
+    if (!timestamp) return '';
+    const secondsAgo = Math.floor((Date.now() - timestamp) / 1000);
+    
+    if (secondsAgo < 10) return 'just now';
+    if (secondsAgo < 60) return `${secondsAgo} seconds ago`;
+    if (secondsAgo < 120) return '1 minute ago';
+    return `${Math.floor(secondsAgo / 60)} minutes ago`;
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -52,11 +63,17 @@ const PriceMonitor: React.FC<PriceMonitorProps> = ({
                     ${formatTokenPrice(quote.price, baseToken.symbol)}
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    Fee: {((quote.fees || 0) * 100).toFixed(2)}%
+                    Updated: {getTimeSinceUpdate(quote.timestamp)}
                   </div>
                 </div>
               </div>
             ))}
+
+            {Object.keys(priceData).length === 0 && (
+              <div className="text-center py-4 text-muted-foreground">
+                No price data available. Please check your connection or try again later.
+              </div>
+            )}
           </div>
         )}
       </CardContent>

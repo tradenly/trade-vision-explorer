@@ -8,8 +8,16 @@ import PriceMonitoringSection from '@/components/Dashboard/PriceMonitoringSectio
 import { useArbitrageOpportunities } from '@/hooks/useArbitrageOpportunities';
 
 const Dashboard: React.FC = () => {
-  const [investmentAmount] = useState<number>(1000);
-  const { opportunities, loading, error } = useArbitrageOpportunities(investmentAmount);
+  const [investmentAmount, setInvestmentAmount] = useState<number>(1000);
+  const { opportunities, loading, error, refetch } = useArbitrageOpportunities(investmentAmount);
+
+  const handleRefresh = () => {
+    refetch();
+  };
+
+  const handleInvestmentAmountChange = (amount: number) => {
+    setInvestmentAmount(amount);
+  };
 
   return (
     <div className="container mx-auto py-8">
@@ -22,6 +30,8 @@ const Dashboard: React.FC = () => {
         loading={loading}
         error={error}
         investmentAmount={investmentAmount}
+        onRefresh={handleRefresh}
+        onInvestmentAmountChange={handleInvestmentAmountChange}
       />
       
       <PriceMonitoringSection />
