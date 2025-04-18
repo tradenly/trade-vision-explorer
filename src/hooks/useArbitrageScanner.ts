@@ -1,8 +1,10 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { TokenInfo } from '@/services/tokenListService';
 import { ArbitrageOpportunity } from '@/services/dexService';
 import { fetchAndStorePriceData, findArbitrageOpportunities } from '@/services/priceDataCollection';
 import { useToast } from '@/hooks/use-toast';
+import { scanForArbitrageOpportunities } from '@/services/arbitrageScanner';
 
 export function useArbitrageScanner(
   baseToken: TokenInfo | null,
@@ -33,7 +35,7 @@ export function useArbitrageScanner(
     setError(null);
 
     try {
-      const result = await scanArbitrageOpportunities(
+      const result = await scanForArbitrageOpportunities(
         baseToken,
         quoteToken,
         minProfitPercentage,
