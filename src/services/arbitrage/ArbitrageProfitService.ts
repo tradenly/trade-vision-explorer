@@ -1,10 +1,13 @@
 
-import { calculateTradingFees, calculatePlatformFee } from './utils';
+import { FeeService } from '../dex/services/FeeService';
 
 export class ArbitrageProfitService {
   private static instance: ArbitrageProfitService;
+  private feeService: FeeService;
 
-  private constructor() {}
+  private constructor() {
+    this.feeService = FeeService.getInstance();
+  }
 
   public static getInstance(): ArbitrageProfitService {
     if (!ArbitrageProfitService.instance) {
@@ -14,12 +17,12 @@ export class ArbitrageProfitService {
   }
 
   /**
-   * Calculate the estimated profit for an arbitrage opportunity
+   * Calculate estimated profit from buying on one DEX and selling on another
    */
   public calculateEstimatedProfit(
     buyPrice: number,
     sellPrice: number,
-    tradeAmount: number,
+    investmentAmount: number,
     buyDex: string,
     sellDex: string,
     gasFee: number
@@ -29,17 +32,28 @@ export class ArbitrageProfitService {
     tradingFees: number;
     platformFee: number;
   } {
-    // Calculate potential gross revenue (not accounting for slippage)
-    const baseTokenAmount = tradeAmount / buyPrice;
-    const grossProceeds = baseTokenAmount * sellPrice;
-    const estimatedProfit = grossProceeds - tradeAmount;
+    const tradingFees = this.feeService.calculateTradingFees(
+      investmentAmount,
+      buyDex,
+      sellDex
+    );
+
+    const platformFee = this.feeService.calculatePlatformFee(investmentAmount);
     
-    // Calculate fees
-    const tradingFees = calculateTradingFees(tradeAmount, buyDex, sellDex);
-    const platformFee = calculatePlatformFee(tradeAmount);
+    // Amount of tokens purchased (accounting for buy price and buy fee)
+    const tokensAmount = investmentAmount / buyPrice;
     
-    // Calculate profit percentage
-    const estimatedProfitPercentage = (estimatedProfit / tradeAmount) * 100;
+    // Gross proceeds from selling tokens
+    const sellProceeds = tokensAmount * sellPrice;
+    
+    // Estimated profit before fees
+    const grossProfit = sellProceeds - investmentAmount;
+    
+    // Estimated profit after fees
+    const estimatedProfit = grossProfit - gasFee - tradingFees - platformFee;
+    
+    // Profit as a percentage of investment
+    const estimatedProfitPercentage = (estimatedProfit / investmentAmount) * 100;
     
     return {
       estimatedProfit,
@@ -50,29 +64,29 @@ export class ArbitrageProfitService {
   }
 
   /**
-   * Calculate the net profit after all fees and slippage
+   * Calculate net profit after slippage and all fees
    */
   public calculateNetProfit(
-    adjustedBuyPrice: number,
-    adjustedSellPrice: number,
+    buyPrice: number,
+    sellPrice: number,
     tradeAmount: number,
     tradingFees: number,
     platformFee: number,
-    gasFee: number
+    gasFees: number
   ): {
     netProfit: number;
     netProfitPercentage: number;
   } {
-    // Calculate tokens purchased with slippage
-    const tokensReceived = tradeAmount / adjustedBuyPrice;
+    // Calculate actual token amount bought
+    const tokenAmount = tradeAmount / buyPrice;
     
-    // Calculate proceeds with slippage
-    const proceeds = tokensReceived * adjustedSellPrice;
+    // Calculate sale proceeds
+    const sellProceeds = tokenAmount * sellPrice;
     
-    // Calculate net profit
-    const netProfit = proceeds - tradeAmount - tradingFees - platformFee - gasFee;
+    // Calculate net profit after all fees
+    const netProfit = sellProceeds - tradeAmount - tradingFees - platformFee - gasFees;
     
-    // Calculate net profit percentage
+    // Calculate profit percentage
     const netProfitPercentage = (netProfit / tradeAmount) * 100;
     
     return {
