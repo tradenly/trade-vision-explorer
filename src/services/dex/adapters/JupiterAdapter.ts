@@ -53,10 +53,10 @@ export class JupiterAdapter extends BaseAdapter {
         // Extract additional details from quote data
         const inAmount = parseInt(quoteData.inAmount) / Math.pow(10, baseToken.decimals || 9);
         const outAmount = parseInt(quoteData.outAmount) / Math.pow(10, quoteToken.decimals || 9);
-        const quotePrice = outAmount / inAmount;
+        const calculatedPrice = outAmount / inAmount;
         
         // Use the more accurate quote price if available
-        const finalPrice = isNaN(quotePrice) ? price : quotePrice;
+        const finalPrice = isNaN(calculatedPrice) ? price : calculatedPrice;
         
         // Calculate Solana gas (transaction fee)
         const signaturesRequired = quoteData.routePlan ? quoteData.routePlan.length + 1 : 2;
@@ -68,7 +68,7 @@ export class JupiterAdapter extends BaseAdapter {
         
         // Extract liquidity from quote data or use the marketInfos
         const liquidityUSD = quoteData.otherAmountThreshold ? 
-          parseFloat(quoteData.otherAmountThreshold) / Math.pow(10, quoteToken.decimals || 9) * quotePrice :
+          parseFloat(quoteData.otherAmountThreshold) / Math.pow(10, quoteToken.decimals || 9) * calculatedPrice :
           quoteData.marketInfos?.[0]?.liquidityUSD || 1000000;
 
         jupiterRateLimiter.recordSuccess();
