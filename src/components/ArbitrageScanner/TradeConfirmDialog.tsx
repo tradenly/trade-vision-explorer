@@ -97,12 +97,12 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
       } catch (error) {
         console.error("Error calculating fees and impacts:", error);
         // Use fallback values from opportunity if calculation fails
-        setBuyPriceImpact(opportunity.liquidityBuy 
-          ? priceImpactService.calculatePriceImpact(tradeAmount, opportunity.liquidityBuy)
+        setBuyPriceImpact(opportunity.liquidity 
+          ? priceImpactService.calculatePriceImpact(tradeAmount, opportunity.liquidity)
           : 0.3);
           
-        setSellPriceImpact(opportunity.liquiditySell
-          ? priceImpactService.calculatePriceImpact(tradeAmount, opportunity.liquiditySell)
+        setSellPriceImpact(opportunity.liquidity
+          ? priceImpactService.calculatePriceImpact(tradeAmount, opportunity.liquidity)
           : 0.3);
           
         setTradingFees(opportunity.tradingFees);
@@ -134,7 +134,7 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
         toast({
           title: "Trade Size Warning",
           description: `Your trade size may cause high price impact. Consider reducing to $${maxTradeSize.toFixed(2)} or less.`,
-          variant: "warning"
+          variant: "destructive" // Changed from "warning" to "destructive" to match available variants
         });
       }
     } else {
