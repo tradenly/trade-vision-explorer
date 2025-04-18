@@ -10,6 +10,16 @@ interface ExecutionStep {
 export interface ExecutionProgressState {
   progress: number;
   step: string;
+  isComplete: boolean;
+  isError: boolean;
+  details?: {
+    txHash?: string;
+    explorerUrl?: string;
+    gasFee?: number;
+    tradingFees?: number;
+    priceImpact?: number;
+    slippage?: number;
+  };
 }
 
 // Re-export TransactionStatus for components that import from this file
@@ -18,11 +28,14 @@ export { TransactionStatus };
 export function useExecutionProgress(
   executing: boolean,
   transactionStatus: TransactionStatus,
-  opportunity: { buyDex?: string } | null
+  opportunity: { buyDex?: string; network?: string } | null,
+  txDetails?: any
 ) {
   const [state, setState] = useState<ExecutionProgressState>({
     progress: 0,
     step: '',
+    isComplete: false,
+    isError: false
   });
   
   const progressIntervalRef = useRef<number | null>(null);
@@ -31,7 +44,12 @@ export function useExecutionProgress(
   // Reset progress when dialog closes or execution stops
   useEffect(() => {
     if (!executing) {
-      setState({ progress: 0, step: '' });
+      setState({ 
+        progress: 0, 
+        step: '', 
+        isComplete: false,
+        isError: false
+      });
       currentStepRef.current = 0;
       
       if (progressIntervalRef.current !== null) {
@@ -47,8 +65,11 @@ export function useExecutionProgress(
       return;
     }
     
+    const network = opportunity.network || 'ethereum';
+    const networkLabel = network === 'solana' ? 'Solana' : 'EVM';
+    
     const steps: ExecutionStep[] = [
-      { progress: 10, message: 'Connecting to wallet...' },
+      { progress: 10, message: `Connecting to ${networkLabel} wallet...` },
       { progress: 20, message: 'Checking token allowance...' },
       { progress: 30, message: 'Preparing transaction...' },
       { progress: 45, message: `Simulating trade on ${opportunity.buyDex || ''}...` },
@@ -71,6 +92,8 @@ export function useExecutionProgress(
           setState({
             progress: step.progress,
             step: step.message,
+            isComplete: false,
+            isError: false
           });
           currentStepRef.current += 1;
         } else {
@@ -93,6 +116,8 @@ export function useExecutionProgress(
       setState({
         progress: 25,
         step: 'Waiting for token approval...',
+        isComplete: false,
+        isError: false
       });
     }
     
@@ -101,6 +126,9 @@ export function useExecutionProgress(
       setState({
         progress: 100,
         step: 'Transaction complete!',
+        isComplete: true,
+        isError: false,
+        details: txDetails
       });
     }
     
@@ -109,10 +137,13 @@ export function useExecutionProgress(
       setState({
         progress: 100,
         step: 'Transaction failed',
+        isComplete: true,
+        isError: true,
+        details: txDetails
       });
     }
     
-  }, [executing, opportunity, transactionStatus]);
+  }, [executing, opportunity, transactionStatus, txDetails]);
   
   return state;
 }

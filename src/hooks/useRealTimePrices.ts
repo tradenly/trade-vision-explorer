@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { TokenInfo } from '@/services/tokenListService';
 import { PriceQuote } from '@/services/dex/types';
 import { RealTimePriceMonitor } from '@/services/dex/services/RealTimePriceMonitor';
@@ -7,11 +7,56 @@ import { PriceService } from '@/services/dex/services/PriceService';
 import DexRegistry from '@/services/dex/DexRegistry';
 import { supabase } from '@/lib/supabaseClient';
 
+export interface PriceImpactInfo {
+  priceImpact: number;
+  isHigh: boolean;
+  slippageAdjustedPrice: number;
+}
+
 export function useRealTimePrices(baseToken: TokenInfo | null, quoteToken: TokenInfo | null) {
   const [prices, setPrices] = useState<Record<string, PriceQuote>>({});
+  const [priceImpacts, setPriceImpacts] = useState<Record<string, PriceImpactInfo>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  // Calculate price impact based on investment amount and liquidity
+  const calculatePriceImpact = useCallback((dexName: string, investmentAmount: number = 1000) => {
+    if (!prices[dexName]) return null;
+    
+    const quote = prices[dexName];
+    const liquidity = quote.liquidityUSD || investmentAmount * 100; // Default to 100x investment if no liquidity info
+    
+    // Simple price impact model: (investment / liquidity) * 100
+    const impact = Math.min((investmentAmount / liquidity) * 100, 10); // Cap at 10%
+    
+    // Apply impact to price
+    const slippageAdjustedPrice = quote.isBuy 
+      ? quote.price * (1 + impact / 100)  // Buy price increases with impact
+      : quote.price * (1 - impact / 100); // Sell price decreases with impact
+    
+    return {
+      priceImpact: impact,
+      isHigh: impact > 3, // Consider anything over 3% as high impact
+      slippageAdjustedPrice
+    };
+  }, [prices]);
+
+  // Update price impacts when prices change
+  useEffect(() => {
+    if (Object.keys(prices).length > 0) {
+      const impacts: Record<string, PriceImpactInfo> = {};
+      
+      Object.keys(prices).forEach(dexName => {
+        const impact = calculatePriceImpact(dexName);
+        if (impact) {
+          impacts[dexName] = impact;
+        }
+      });
+      
+      setPriceImpacts(impacts);
+    }
+  }, [prices, calculatePriceImpact]);
 
   useEffect(() => {
     if (!baseToken || !quoteToken) return;
@@ -81,8 +126,10 @@ export function useRealTimePrices(baseToken: TokenInfo | null, quoteToken: Token
 
   return { 
     prices, 
+    priceImpacts,
     loading, 
     error, 
-    lastUpdated 
+    lastUpdated,
+    calculatePriceImpact
   };
 }

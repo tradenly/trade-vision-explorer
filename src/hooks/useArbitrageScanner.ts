@@ -6,11 +6,17 @@ import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
 import { scanArbitrageOpportunities } from '@/services/arbitrageScanner';
 
+export interface ScanOptions {
+  minProfitPercentage: number;
+  maxSlippageTolerance: number;
+  minLiquidity: number;
+}
+
 export function useArbitrageScanner(
   baseToken: TokenInfo | null,
   quoteToken: TokenInfo | null,
   investmentAmount: number = 1000,
-  minProfitPercentage: number = 0.5,
+  scanOptions: ScanOptions = { minProfitPercentage: 0.5, maxSlippageTolerance: 2, minLiquidity: 10000 },
   autoScan: boolean = false
 ) {
   const [opportunities, setOpportunities] = useState<ArbitrageOpportunity[]>([]);
@@ -32,7 +38,9 @@ export function useArbitrageScanner(
         body: {
           baseToken,
           quoteToken,
-          minProfitPercentage,
+          minProfitPercentage: scanOptions.minProfitPercentage,
+          maxSlippageTolerance: scanOptions.maxSlippageTolerance,
+          minLiquidity: scanOptions.minLiquidity,
           investmentAmount
         }
       });
@@ -68,7 +76,7 @@ export function useArbitrageScanner(
         result = await scanArbitrageOpportunities(
           baseToken,
           quoteToken,
-          minProfitPercentage,
+          scanOptions.minProfitPercentage,
           investmentAmount
         );
       }
@@ -77,14 +85,23 @@ export function useArbitrageScanner(
         setError(result.errors.join(', '));
       }
 
-      setOpportunities(result.opportunities);
+      // Filter and sort opportunities
+      const filteredOpportunities = result.opportunities
+        .filter(opp => 
+          // Apply additional filters here if needed
+          opp.netProfitPercentage >= scanOptions.minProfitPercentage && 
+          (opp.liquidity >= scanOptions.minLiquidity)
+        )
+        .sort((a, b) => b.netProfitPercentage - a.netProfitPercentage);
+
+      setOpportunities(filteredOpportunities);
       setLastScanTime(new Date());
       resetErrors();
 
-      if (result.opportunities.length > 0) {
+      if (filteredOpportunities.length > 0) {
         toast({
           title: "Arbitrage Opportunities Found",
-          description: `Found ${result.opportunities.length} potential trades.`,
+          description: `Found ${filteredOpportunities.length} potential trades.`,
         });
       }
     } catch (err) {
@@ -101,7 +118,7 @@ export function useArbitrageScanner(
     } finally {
       setLoading(false);
     }
-  }, [baseToken, quoteToken, minProfitPercentage, investmentAmount, toast, resetErrors]);
+  }, [baseToken, quoteToken, scanOptions, investmentAmount, toast, resetErrors]);
 
   useEffect(() => {
     if (!autoScan || !baseToken || !quoteToken) return;
