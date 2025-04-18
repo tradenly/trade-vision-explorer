@@ -29,17 +29,17 @@ const TokenPairControls: React.FC<TokenPairControlsProps> = ({
   loading
 }) => {
   // Log token counts to debug
-  console.log('TokenPairControls - popularTokens:', popularTokens.length);
-  console.log('TokenPairControls - quoteTokens:', quoteTokens.length);
-  console.log('TokenPairControls - allChainTokens:', allChainTokens.length);
+  console.log('TokenPairControls - popularTokens:', popularTokens?.length || 0);
+  console.log('TokenPairControls - quoteTokens:', quoteTokens?.length || 0);
+  console.log('TokenPairControls - allChainTokens:', allChainTokens?.length || 0);
   
-  // Ensure we always have tokens to display
-  const baseTokenList = popularTokens.length > 0 ? popularTokens : 
-                      (allChainTokens.length > 0 ? allChainTokens : []);
+  // Ensure we always have tokens to display - use arrays with guard against null/undefined
+  const baseTokenList = Array.isArray(popularTokens) && popularTokens.length > 0 ? popularTokens : 
+                      (Array.isArray(allChainTokens) && allChainTokens.length > 0 ? allChainTokens : []);
                       
-  const quoteTokenList = quoteTokens.length > 0 ? quoteTokens : 
-                       (popularTokens.length > 0 ? popularTokens : 
-                       (allChainTokens.length > 0 ? allChainTokens : []));
+  const quoteTokenList = Array.isArray(quoteTokens) && quoteTokens.length > 0 ? quoteTokens : 
+                       (Array.isArray(popularTokens) && popularTokens.length > 0 ? popularTokens : 
+                       (Array.isArray(allChainTokens) && allChainTokens.length > 0 ? allChainTokens : []));
   
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">

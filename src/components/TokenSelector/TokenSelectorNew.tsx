@@ -40,13 +40,13 @@ const TokenSelectorNew: React.FC<TokenSelectorProps> = ({
 
   // Filter tokens based on search query
   const filteredTokens = useMemo(() => {
-    if (!searchQuery) return tokens;
+    if (!searchQuery || !tokens || tokens.length === 0) return tokens || [];
     
     const lowerQuery = searchQuery.toLowerCase();
     return tokens.filter(token => 
-      token.name.toLowerCase().includes(lowerQuery) || 
-      token.symbol.toLowerCase().includes(lowerQuery) ||
-      token.address.toLowerCase().includes(lowerQuery)
+      token.name?.toLowerCase().includes(lowerQuery) || 
+      token.symbol?.toLowerCase().includes(lowerQuery) ||
+      token.address?.toLowerCase().includes(lowerQuery)
     );
   }, [tokens, searchQuery]);
 
@@ -56,19 +56,21 @@ const TokenSelectorNew: React.FC<TokenSelectorProps> = ({
   }, [open]);
 
   const handleTokenSelect = (token: TokenInfo) => {
-    onSelectToken(token);
-    setOpen(false);
+    if (token) {
+      onSelectToken(token);
+      setOpen(false);
+    }
   };
 
   // Format token display value
   const getTokenDisplayValue = (token: TokenInfo | null) => {
     if (!token) return placeholder;
-    return token.symbol;
+    return token.symbol || placeholder;
   };
 
   // Generate a unique value for each token
   const getTokenValue = (token: TokenInfo) => {
-    return `${token.symbol}-${token.address}-${token.chainId}`;
+    return `${token.symbol || ''}-${token.address || ''}-${token.chainId || ''}`;
   };
 
   // Render loading state
@@ -81,6 +83,9 @@ const TokenSelectorNew: React.FC<TokenSelectorProps> = ({
     );
   }
 
+  // Safeguard against empty token list
+  const safeTokens = filteredTokens || [];
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -88,7 +93,7 @@ const TokenSelectorNew: React.FC<TokenSelectorProps> = ({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          disabled={disabled || tokens.length === 0}
+          disabled={disabled || !safeTokens.length}
           className={cn(
             "justify-between w-full font-normal",
             !selectedToken && "text-muted-foreground"
@@ -107,7 +112,7 @@ const TokenSelectorNew: React.FC<TokenSelectorProps> = ({
                 />
               ) : (
                 <div className="w-5 h-5 rounded-full bg-secondary flex items-center justify-center">
-                  {selectedToken.symbol.charAt(0)}
+                  {selectedToken.symbol?.charAt(0)}
                 </div>
               )}
               <span>{getTokenDisplayValue(selectedToken)}</span>
@@ -118,50 +123,58 @@ const TokenSelectorNew: React.FC<TokenSelectorProps> = ({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="p-0 w-[300px]">
+      <PopoverContent className="p-0 w-[300px]" align="start">
         <Command>
           <CommandInput 
             placeholder="Search tokens..." 
             onValueChange={setSearchQuery}
             value={searchQuery}
           />
-          <CommandEmpty>No token found.</CommandEmpty>
           <CommandGroup className="max-h-[300px] overflow-auto">
-            {filteredTokens.map((token) => (
-              <CommandItem
-                key={getTokenValue(token)}
-                value={getTokenValue(token)}
-                onSelect={() => handleTokenSelect(token)}
-              >
-                <div className="flex items-center gap-2 w-full">
-                  {token.logoURI ? (
-                    <img 
-                      src={token.logoURI} 
-                      alt={token.symbol} 
-                      className="w-5 h-5 rounded-full"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                  ) : (
-                    <div className="w-5 h-5 rounded-full bg-secondary flex items-center justify-center">
-                      {token.symbol.charAt(0)}
+            {safeTokens.length === 0 ? (
+              <CommandEmpty>No tokens found</CommandEmpty>
+            ) : (
+              safeTokens.map((token, index) => {
+                // Skip any invalid tokens
+                if (!token || !token.symbol) {
+                  return null;
+                }
+                
+                // Generate a unique key
+                const key = `${token.symbol}-${index}-${token.address || ''}`;
+                
+                return (
+                  <CommandItem
+                    key={key}
+                    value={getTokenValue(token)}
+                    onSelect={() => handleTokenSelect(token)}
+                  >
+                    <div className="flex items-center gap-2 w-full">
+                      {token.logoURI ? (
+                        <img 
+                          src={token.logoURI} 
+                          alt={token.symbol} 
+                          className="w-5 h-5 rounded-full"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <div className="w-5 h-5 rounded-full bg-secondary flex items-center justify-center">
+                          {token.symbol.charAt(0)}
+                        </div>
+                      )}
+                      <span>{token.symbol}</span>
+                      <span className="text-muted-foreground text-xs ml-auto truncate">
+                        {token.name}
+                      </span>
                     </div>
-                  )}
-                  <span>{token.symbol}</span>
-                  <span className="text-muted-foreground text-xs ml-auto truncate">
-                    {token.name}
-                  </span>
-                </div>
-                {selectedToken?.address === token.address && (
-                  <Check className="ml-auto h-4 w-4" />
-                )}
-              </CommandItem>
-            ))}
-            {filteredTokens.length === 0 && searchQuery && (
-              <div className="px-2 py-3 text-sm text-muted-foreground">
-                No tokens match your search.
-              </div>
+                    {selectedToken?.address === token.address && (
+                      <Check className="ml-auto h-4 w-4" />
+                    )}
+                  </CommandItem>
+                );
+              })
             )}
           </CommandGroup>
         </Command>
