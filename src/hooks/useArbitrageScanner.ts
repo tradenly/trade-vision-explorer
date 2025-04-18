@@ -4,7 +4,7 @@ import { TokenInfo } from '@/services/tokenListService';
 import { ArbitrageOpportunity } from '@/services/dexService';
 import { fetchAndStorePriceData, findArbitrageOpportunities } from '@/services/priceDataCollection';
 import { useToast } from '@/hooks/use-toast';
-import { scanForArbitrageOpportunities } from '@/services/arbitrageScanner';
+import { scanArbitrageOpportunities } from '@/services/arbitrageScanner';
 
 export function useArbitrageScanner(
   baseToken: TokenInfo | null,
@@ -35,7 +35,7 @@ export function useArbitrageScanner(
     setError(null);
 
     try {
-      const result = await scanForArbitrageOpportunities(
+      const result = await scanArbitrageOpportunities(
         baseToken,
         quoteToken,
         minProfitPercentage,
