@@ -1,3 +1,4 @@
+
 import { BaseAdapter } from './BaseAdapter';
 import { PriceQuote } from '../types';
 import { TokenInfo } from '../../tokenListService';
@@ -79,11 +80,11 @@ export class SushiswapAdapter extends BaseAdapter {
 
     } catch (error) {
       console.error(`[SushiswapAdapter] Error:`, error);
-      return this.getFallbackQuote(baseToken, quoteToken);
+      return this.getFallbackQuote(baseToken, quoteToken, amount);
     }
   }
 
-  private async getFallbackQuote(baseToken: TokenInfo, quoteToken: TokenInfo): Promise<PriceQuote> {
+  private async getFallbackQuote(baseToken: TokenInfo, quoteToken: TokenInfo, amount: number = 1): Promise<PriceQuote> {
     try {
       // For SushiSwap, we'll use the 1inch API but add a sourcing parameter to prefer SushiSwap
       // This is a workaround until we have direct SushiSwap SDK integration
