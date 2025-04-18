@@ -28,6 +28,10 @@ export interface ArbitrageOpportunity {
   gasFee: number;
   liquidity: number;
   network: string;
+  buyPriceImpact: number;
+  sellPriceImpact: number;
+  adjustedBuyPrice: number;
+  adjustedSellPrice: number;
 }
 
 /**
@@ -118,7 +122,12 @@ export async function scanForArbitrageOpportunities(
               token: baseToken.symbol,
               gasFee: gasFee,
               liquidity: buyQuote.liquidity || sellQuote.liquidity || investmentAmount * 100, // Default to 100x investment amount if not specified
-              network: network
+              network: network,
+              // Add new required properties
+              buyPriceImpact: 0,
+              sellPriceImpact: 0,
+              adjustedBuyPrice: buyPrice,
+              adjustedSellPrice: sellPrice
             };
 
             opportunities.push(opportunity);
