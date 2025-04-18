@@ -2,7 +2,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// Define CORS headers
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -19,7 +18,6 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Extract request body
     const { tokenPairs = [], chainId } = await req.json();
 
     if (!tokenPairs.length) {
@@ -29,49 +27,104 @@ serve(async (req) => {
       );
     }
 
+    // Get DEX settings for supported DEXes on this chain
+    const { data: dexSettings } = await supabase
+      .from('dex_settings')
+      .select('*')
+      .contains('chain_ids', [chainId])
+      .eq('enabled', true);
+
+    if (!dexSettings || dexSettings.length === 0) {
+      return new Response(
+        JSON.stringify({ error: `No enabled DEXes found for chain ${chainId}` }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`Processing ${tokenPairs.length} pairs for chain ${chainId}`);
+
     // Process token pairs in batches to avoid rate limits
-    const batchSize = 5;
+    const batchSize = 3;
     const results = [];
 
     for (let i = 0; i < tokenPairs.length; i += batchSize) {
       const batch = tokenPairs.slice(i, i + batchSize);
-      const batchPromises = batch.map(async (pair: any) => {
+      
+      // For each DEX, fetch prices for the batch
+      for (const dex of dexSettings) {
+        console.log(`Fetching prices from ${dex.name} for batch ${i/batchSize + 1}`);
+        
         try {
-          let prices = await fetchPricesForPair(pair.baseToken, pair.quoteToken, chainId);
-          
-          // Store in Supabase
-          const entries = Object.entries(prices).map(([dexName, price]) => ({
-            dex_name: dexName.toLowerCase(),
-            token_pair: `${pair.baseToken.symbol}/${pair.quoteToken.symbol}`,
-            chain_id: chainId || 1,
-            price: price.price,
-            timestamp: new Date().toISOString(),
-            liquidity: price.liquidityUSD || 0
-          }));
+          // Use 1inch API for price discovery across DEXes
+          const pricePromises = batch.map(async (pair: any) => {
+            const amountIn = "1000000000000000000"; // 1 token in wei
+            const url = `https://api.1inch.io/v5.0/${chainId}/quote?` +
+              `fromTokenAddress=${pair.baseToken.address}&` +
+              `toTokenAddress=${pair.quoteToken.address}&` +
+              `amount=${amountIn}&` +
+              `protocols=${dex.name.toLowerCase()}`;
 
-          if (entries.length > 0) {
-            await supabase.from('dex_price_history').insert(entries);
+            const response = await fetch(url, {
+              headers: { 'Accept': 'application/json' }
+            });
+
+            if (!response.ok) {
+              throw new Error(`API error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            
+            // Calculate price from response
+            const fromDecimals = pair.baseToken.decimals || 18;
+            const toDecimals = pair.quoteToken.decimals || 18;
+            const fromAmount = parseInt(data.fromTokenAmount) / Math.pow(10, fromDecimals);
+            const toAmount = parseInt(data.toTokenAmount) / Math.pow(10, toDecimals);
+            const price = toAmount / fromAmount;
+
+            return {
+              token_pair: `${pair.baseToken.symbol}/${pair.quoteToken.symbol}`,
+              price,
+              chain_id: chainId,
+              dex_name: dex.name.toLowerCase(),
+              timestamp: new Date().toISOString(),
+              liquidity: data.protocols?.[0]?.[0]?.liquidityInUsd || 0
+            };
+          });
+
+          const prices = await Promise.all(pricePromises);
+
+          // Store prices in database
+          if (prices.length > 0) {
+            const { error: insertError } = await supabase
+              .from('dex_price_history')
+              .insert(prices);
+
+            if (insertError) {
+              console.error(`Error storing prices for ${dex.name}:`, insertError);
+              continue;
+            }
+
+            results.push({
+              dex: dex.name,
+              pairs: prices.length,
+              success: true
+            });
           }
-          
-          return {
-            tokenPair: `${pair.baseToken.symbol}/${pair.quoteToken.symbol}`,
-            success: true,
-            prices: entries.length
-          };
+
         } catch (error) {
-          console.error(`Error fetching prices for ${pair.baseToken.symbol}/${pair.quoteToken.symbol}:`, error);
-          return {
-            tokenPair: `${pair.baseToken.symbol}/${pair.quoteToken.symbol}`,
-            success: false,
-            error: error.message
-          };
+          console.error(`Error fetching prices from ${dex.name}:`, error);
+          results.push({
+            dex: dex.name,
+            error: error.message,
+            success: false
+          });
         }
-      });
 
-      const batchResults = await Promise.all(batchPromises);
-      results.push(...batchResults);
+        // Add delay between DEX requests to respect rate limits
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
 
-      // Add a delay between batches to respect rate limits
+      // Add delay between batches
       if (i + batchSize < tokenPairs.length) {
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
@@ -81,6 +134,7 @@ serve(async (req) => {
       JSON.stringify({ results }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+
   } catch (error) {
     console.error('Error in update-price-data function:', error);
     
@@ -90,72 +144,3 @@ serve(async (req) => {
     );
   }
 });
-
-async function fetchPricesForPair(baseToken: any, quoteToken: any, chainId: number) {
-  const adapters = getDexAdapters(chainId);
-  const prices: Record<string, any> = {};
-  
-  // Execute price fetches sequentially to avoid rate limits
-  for (const adapter of adapters) {
-    try {
-      const quote = await adapter.fetchQuote(baseToken, quoteToken);
-      prices[adapter.getName()] = quote;
-    } catch (error) {
-      console.error(`Error fetching ${adapter.getName()} price:`, error);
-    }
-    // Add a small delay between requests
-    await new Promise(resolve => setTimeout(resolve, 200));
-  }
-  
-  return prices;
-}
-
-function getDexAdapters(chainId: number): any[] {
-  // Simplified adapter creation for the Edge Function
-  // In production, you'd want to refactor this to share code with the frontend
-  const adapters: any[] = [];
-  
-  switch (chainId) {
-    case 1: // Ethereum
-      adapters.push(
-        createSimpleAdapter('Uniswap', 0.003),
-        createSimpleAdapter('Sushiswap', 0.003),
-        createSimpleAdapter('Curve', 0.0004),
-        createSimpleAdapter('Balancer', 0.002)
-      );
-      break;
-    case 56: // BSC
-      adapters.push(
-        createSimpleAdapter('PancakeSwap', 0.0025),
-        createSimpleAdapter('Sushiswap', 0.003)
-      );
-      break;
-    case 101: // Solana
-      adapters.push(
-        createSimpleAdapter('Jupiter', 0.0035),
-        createSimpleAdapter('Orca', 0.003),
-        createSimpleAdapter('Raydium', 0.003)
-      );
-      break;
-    // Add more chains as needed
-    default:
-      adapters.push(createSimpleAdapter('Uniswap', 0.003));
-  }
-  
-  return adapters;
-}
-
-function createSimpleAdapter(name: string, fee: number) {
-  return {
-    getName: () => name,
-    fetchQuote: async (baseToken: any, quoteToken: any) => {
-      // Simplified price fetching for the edge function
-      // In real use, this would call respective APIs
-      return {
-        price: Math.random() * 100, // Mock price
-        liquidityUSD: Math.random() * 1000000 + 100000,
-        fees: fee
-      };
-    }
-  };
-}
