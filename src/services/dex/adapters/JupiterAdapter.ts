@@ -1,4 +1,3 @@
-
 import { BaseAdapter } from './BaseAdapter';
 import { PriceQuote } from '../types';
 import { TokenInfo } from '../../tokenListService';
@@ -9,77 +8,57 @@ export class JupiterAdapter extends BaseAdapter {
     try {
       await jupiterRateLimiter.waitForSlot();
 
-      if (baseToken.chainId === 101) {
-        return await this.fetchSolanaQuote(baseToken, quoteToken, amount);
+      // Verify we're on Solana chain
+      if (baseToken.chainId !== 101) {
+        throw new Error('Jupiter only supports Solana tokens');
       }
+
+      console.log(`[JupiterAdapter] Fetching quote for ${baseToken.symbol}/${quoteToken.symbol}`);
       
-      throw new Error("Jupiter only supports Solana tokens");
+      // Convert amount to smallest unit based on decimals
+      const amountInSmallestUnit = Math.floor(amount * Math.pow(10, baseToken.decimals || 9));
+
+      // Real Jupiter Price API integration
+      const url = `https://price.jup.ag/v4/price?ids=${baseToken.address},${quoteToken.address}`;
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Jupiter API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (!data.data?.[baseToken.address] || !data.data?.[quoteToken.address]) {
+        throw new Error('Price data not found');
+      }
+
+      // Calculate price and extract market info
+      const basePrice = data.data[baseToken.address].price;
+      const quotePrice = data.data[quoteToken.address].price;
+      const price = basePrice / quotePrice;
+
+      // Get liquidity data from Jupiter's route API for more accuracy
+      const routeUrl = `https://quote-api.jup.ag/v6/quote?inputMint=${baseToken.address}&outputMint=${quoteToken.address}&amount=${amountInSmallestUnit}&slippageBps=50`;
+      const routeData = await fetch(routeUrl).then(res => res.json());
+
+      return {
+        dexName: this.getName(),
+        price: price,
+        fees: this.getTradingFeePercentage(),
+        gasEstimate: 0.00001, // Solana gas is very low
+        liquidityUSD: routeData.marketInfos?.[0]?.liquidityUSD || 100000,
+        liquidityInfo: {
+          routeInfo: routeData.routePlan || [],
+          marketInfos: routeData.marketInfos || []
+        }
+      };
+
     } catch (error) {
       console.error(`[JupiterAdapter] Error:`, error);
-      return await this.getFallbackQuote(baseToken, quoteToken, amount);
+      return this.getFallbackQuote(baseToken, quoteToken);
     }
   }
 
-  private async fetchSolanaQuote(baseToken: TokenInfo, quoteToken: TokenInfo, amount: number): Promise<PriceQuote> {
-    console.log(`[JupiterAdapter] Fetching quote for ${baseToken.symbol}/${quoteToken.symbol} on Solana`);
-    
-    const { inputMint, outputMint, amountInSmallestUnit } = this.prepareQuoteParams(baseToken, quoteToken, amount);
-    const data = await this.fetchJupiterQuote(inputMint, outputMint, amountInSmallestUnit);
-    return this.processQuoteResponse(data, baseToken, quoteToken);
-  }
-
-  private prepareQuoteParams(baseToken: TokenInfo, quoteToken: TokenInfo, amount: number) {
-    return {
-      inputMint: baseToken.address,
-      outputMint: quoteToken.address,
-      amountInSmallestUnit: Math.floor(amount * Math.pow(10, baseToken.decimals || 9))
-    };
-  }
-
-  private async fetchJupiterQuote(inputMint: string, outputMint: string, amount: number) {
-    const response = await fetch(
-      `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=50`,
-      {
-        headers: {
-          'Accept': 'application/json',
-        }
-      }
-    );
-    
-    if (!response.ok) {
-      throw new Error(`Jupiter API error: ${response.status} ${await response.text()}`);
-    }
-    
-    return await response.json();
-  }
-
-  private processQuoteResponse(data: any, baseToken: TokenInfo, quoteToken: TokenInfo): PriceQuote {
-    const { inAmount, outAmount } = this.calculateAmounts(data, baseToken, quoteToken);
-    const price = outAmount / inAmount;
-    const liquidityUSD = data.marketInfos?.[0]?.liquidityUSD || 100000;
-
-    return {
-      dexName: this.getName(),
-      price: price,
-      fees: this.getTradingFeePercentage(),
-      gasEstimate: 0.00025,
-      liquidityUSD: liquidityUSD,
-      liquidityInfo: {
-        routeInfo: data.routePlan || [],
-        outAmount: outAmount,
-        marketInfos: data.marketInfos || []
-      }
-    };
-  }
-
-  private calculateAmounts(data: any, baseToken: TokenInfo, quoteToken: TokenInfo) {
-    return {
-      inAmount: Number(data.inAmount) / Math.pow(10, baseToken.decimals || 9),
-      outAmount: Number(data.outAmount) / Math.pow(10, quoteToken.decimals || 9)
-    };
-  }
-
-  private async getFallbackQuote(baseToken: TokenInfo, quoteToken: TokenInfo, amount: number): Promise<PriceQuote> {
+  private async getFallbackQuote(baseToken: TokenInfo, quoteToken: TokenInfo): Promise<PriceQuote> {
     try {
       const { data } = await fetch(
         `https://fkagpyfzgczcaxsqwsoi.supabase.co/rest/v1/dex_price_history?dex_name=eq.jupiter&token_pair=eq.${baseToken.symbol}/${quoteToken.symbol}&order=timestamp.desc&limit=1`,

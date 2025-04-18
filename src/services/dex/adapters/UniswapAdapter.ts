@@ -1,4 +1,3 @@
-
 import { BaseAdapter } from './BaseAdapter';
 import { PriceQuote } from '../types';
 import { TokenInfo } from '../../tokenListService';
@@ -14,22 +13,25 @@ export class UniswapAdapter extends BaseAdapter {
 
   public async fetchQuote(baseToken: TokenInfo, quoteToken: TokenInfo, amount: number = 1): Promise<PriceQuote> {
     try {
-      // Apply rate limiting
       await uniswapRateLimiter.waitForSlot();
 
-      // Verify chain is supported
       const subgraphUrl = UniswapAdapter.SUBGRAPH_URLS[baseToken.chainId];
       if (!subgraphUrl) {
         throw new Error(`Uniswap not supported on chain ${baseToken.chainId}`);
       }
 
-      // Query Uniswap V3 subgraph for pool data
       const query = `{
-        pool(id: "${this.getPoolAddress(baseToken.address, quoteToken.address)}") {
+        pools(where: {
+          token0_in: ["${baseToken.address.toLowerCase()}", "${quoteToken.address.toLowerCase()}"],
+          token1_in: ["${baseToken.address.toLowerCase()}", "${quoteToken.address.toLowerCase()}"]
+        }, orderBy: totalValueLockedUSD, orderDirection: desc) {
+          id
           token0Price
           token1Price
-          liquidity
           feeTier
+          liquidity
+          token0 { id }
+          token1 { id }
           totalValueLockedUSD
         }
       }`;
@@ -44,81 +46,48 @@ export class UniswapAdapter extends BaseAdapter {
         throw new Error(`Subgraph error: ${response.status}`);
       }
 
-      const data = await response.json();
-      if (!data.data?.pool) {
-        throw new Error('Pool not found');
+      const { data } = await response.json();
+      const pool = data?.pools?.[0];
+
+      if (!pool) {
+        throw new Error('No liquidity pool found');
       }
 
-      const pool = data.data.pool;
-      const price = baseToken.address.toLowerCase() < quoteToken.address.toLowerCase() 
-        ? Number(pool.token0Price) 
-        : Number(pool.token1Price);
+      const isBaseToken0 = baseToken.address.toLowerCase() === pool.token0.id;
+      const price = isBaseToken0 ? Number(pool.token0Price) : Number(pool.token1Price);
 
-      // Calculate gas based on chain
-      const gasEstimateGwei = this.getGasEstimate(baseToken.chainId);
-      const gasPriceGwei = this.getGasPrice(baseToken.chainId);
-      const nativePriceUSD = this.getNativeTokenPrice(baseToken.chainId);
-      const gasEstimateUSD = (gasEstimateGwei * gasPriceGwei * 1e-18) * nativePriceUSD;
+      const gasEstimate = this.calculateGasEstimate(baseToken.chainId);
 
       return {
         dexName: this.getName(),
         price: price,
         fees: this.getTradingFeePercentage(),
-        gasEstimate: gasEstimateUSD,
+        gasEstimate,
         liquidityUSD: Number(pool.totalValueLockedUSD),
         liquidityInfo: {
           feeTier: pool.feeTier,
-          totalValueLockedUSD: pool.totalValueLockedUSD,
-          liquidity: pool.liquidity
+          liquidity: pool.liquidity,
+          poolId: pool.id
         }
       };
     } catch (error) {
-      console.error(`[UniswapAdapter] Primary API error:`, error);
+      console.error(`[UniswapAdapter] Error:`, error);
       return this.getFallbackQuote(baseToken, quoteToken);
     }
   }
 
-  private getPoolAddress(token0: string, token1: string): string {
-    // Sort tokens to match Uniswap's pool addressing
-    const [tokenA, tokenB] = [token0.toLowerCase(), token1.toLowerCase()].sort();
-    // This is a simplified version - in production you'd want to query all fee tiers
-    const feeTier = 3000; // 0.3% fee tier
-    return `${tokenA}-${tokenB}-${feeTier}`;
-  }
-
-  private getGasEstimate(chainId: number): number {
+  private calculateGasEstimate(chainId: number): number {
     const estimates: Record<number, number> = {
-      1: 180000,    // Ethereum
-      42161: 550000, // Arbitrum
-      10: 350000,    // Optimism
-      8453: 150000   // Base
+      1: 0.006,    // Ethereum (~$6 during normal conditions)
+      42161: 0.001, // Arbitrum (~$1)
+      10: 0.0005,   // Optimism (~$0.50)
+      8453: 0.0008  // Base (~$0.80)
     };
-    return estimates[chainId] || 180000;
-  }
-
-  private getGasPrice(chainId: number): number {
-    const prices: Record<number, number> = {
-      1: 50,     // Ethereum (~50 gwei)
-      42161: 0.1, // Arbitrum (~0.1 gwei)
-      10: 0.001,  // Optimism (~0.001 gwei)
-      8453: 0.1   // Base (~0.1 gwei)
-    };
-    return prices[chainId] || 50;
-  }
-
-  private getNativeTokenPrice(chainId: number): number {
-    const prices: Record<number, number> = {
-      1: 3500,    // ETH
-      42161: 3500, // ETH on Arbitrum
-      10: 3500,    // ETH on Optimism
-      8453: 3500   // ETH on Base
-    };
-    return prices[chainId] || 3500;
+    return estimates[chainId] || 0.006;
   }
 
   private async getFallbackQuote(baseToken: TokenInfo, quoteToken: TokenInfo): Promise<PriceQuote> {
     try {
-      // Try 1inch API as fallback
       const amountInWei = (1 * Math.pow(10, baseToken.decimals || 18)).toString();
       
       const response = await fetch(
@@ -149,7 +118,6 @@ export class UniswapAdapter extends BaseAdapter {
     } catch (error) {
       console.error('[UniswapAdapter] Fallback error:', error);
       
-      // Final fallback using cached data
       return {
         dexName: this.getName(),
         price: this.getEstimatedPrice(baseToken, quoteToken),
