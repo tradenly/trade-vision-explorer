@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Check, ChevronsUpDown, Search } from 'lucide-react';
+import { Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -123,18 +123,18 @@ const TokenSelectorNew: React.FC<TokenSelectorProps> = ({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="p-0 w-[300px]" align="start">
+      <PopoverContent className="p-0 w-[300px] bg-popover" align="start">
         <Command>
           <CommandInput 
             placeholder="Search tokens..." 
             onValueChange={setSearchQuery}
             value={searchQuery}
           />
-          <CommandGroup className="max-h-[300px] overflow-auto">
-            {safeTokens.length === 0 ? (
-              <CommandEmpty>No tokens found</CommandEmpty>
-            ) : (
-              safeTokens.map((token, index) => {
+          {safeTokens.length === 0 ? (
+            <CommandEmpty>No tokens found</CommandEmpty>
+          ) : (
+            <CommandGroup className="max-h-[300px] overflow-auto">
+              {safeTokens.map((token, index) => {
                 // Skip any invalid tokens
                 if (!token || !token.symbol) {
                   return null;
@@ -142,11 +142,12 @@ const TokenSelectorNew: React.FC<TokenSelectorProps> = ({
                 
                 // Generate a unique key
                 const key = `${token.symbol}-${index}-${token.address || ''}`;
+                const value = getTokenValue(token);
                 
                 return (
                   <CommandItem
                     key={key}
-                    value={getTokenValue(token)}
+                    value={value}
                     onSelect={() => handleTokenSelect(token)}
                   >
                     <div className="flex items-center gap-2 w-full">
@@ -174,9 +175,9 @@ const TokenSelectorNew: React.FC<TokenSelectorProps> = ({
                     )}
                   </CommandItem>
                 );
-              })
-            )}
-          </CommandGroup>
+              })}
+            </CommandGroup>
+          )}
         </Command>
       </PopoverContent>
     </Popover>
