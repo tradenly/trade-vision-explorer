@@ -2,24 +2,17 @@
 import React, { useState, useEffect } from 'react';
 import { fetchArbitrageOpportunities } from '@/services/supabaseService';
 import WalletSection from '@/components/WalletConnect/WalletSection';
-import { TokenInfo } from '@/services/tokenListService';
 import { toast } from '@/hooks/use-toast';
-import TokenSelector from '@/components/TokenSelector/TokenSelector';
-import PriceMonitor from '@/components/ArbitrageScanner/PriceMonitor';
 import DashboardHeader from '@/components/Dashboard/DashboardHeader';
 import WelcomeSection from '@/components/Dashboard/WelcomeSection';
 import ArbitrageOpportunities from '@/components/Dashboard/ArbitrageOpportunities';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import PriceMonitoringSection from '@/components/Dashboard/PriceMonitoringSection';
 
 const Dashboard: React.FC = () => {
   const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [investmentAmount] = useState<number>(1000);
-  const [selectedBaseToken, setSelectedBaseToken] = useState<TokenInfo | null>(null);
-  const [selectedQuoteToken, setSelectedQuoteToken] = useState<TokenInfo | null>(null);
-  const [monitoringActive, setMonitoringActive] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -71,47 +64,7 @@ const Dashboard: React.FC = () => {
         investmentAmount={investmentAmount}
       />
       
-      <div className="mb-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Price Monitor</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Base Token</label>
-                <TokenSelector
-                  selectedToken={selectedBaseToken}
-                  onSelectToken={setSelectedBaseToken}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-2 block">Quote Token</label>
-                <TokenSelector
-                  selectedToken={selectedQuoteToken}
-                  onSelectToken={setSelectedQuoteToken}
-                />
-              </div>
-            </div>
-            <Button 
-              onClick={() => setMonitoringActive(!monitoringActive)}
-              variant={monitoringActive ? "destructive" : "default"}
-            >
-              {monitoringActive ? "Stop Monitoring" : "Start Monitoring"}
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      {(selectedBaseToken && selectedQuoteToken) && (
-        <div className="mb-6">
-          <PriceMonitor
-            baseToken={selectedBaseToken}
-            quoteToken={selectedQuoteToken}
-            isActive={monitoringActive}
-          />
-        </div>
-      )}
+      <PriceMonitoringSection />
     </div>
   );
 };
