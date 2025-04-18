@@ -74,3 +74,24 @@ export function formatNumber(value: number, decimals: number = 2): string {
   }
   return value.toFixed(decimals);
 }
+
+export function formatTokenPrice(price: number, symbol?: string): string {
+  let decimals = 2;
+  
+  if (symbol) {
+    if (['USDT', 'USDC', 'DAI', 'BUSD'].includes(symbol)) {
+      decimals = 2;
+    } 
+    else if (['BTC', 'ETH', 'SOL', 'BNB'].includes(symbol)) {
+      decimals = 6;
+    }
+    else {
+      decimals = 4;
+    }
+  }
+  
+  return price.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  });
+}

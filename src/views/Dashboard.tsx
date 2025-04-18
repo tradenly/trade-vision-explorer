@@ -8,7 +8,7 @@ import { ArrowRight, Loader2, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import PriceMonitor from '@/components/ArbitrageScanner/PriceMonitor';
-import { TokenSelector } from '@/components/TokenSelector/TokenSelector';
+import TokenSelector from '@/components/TokenSelector/TokenSelector';
 
 interface ArbitrageOpportunity {
   id: string;
