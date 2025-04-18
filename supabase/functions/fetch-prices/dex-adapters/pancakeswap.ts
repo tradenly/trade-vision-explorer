@@ -3,11 +3,11 @@ import { BaseAdapter } from './base-adapter.ts';
 import { PriceResult } from '../types.ts';
 
 /**
- * Adapter for Uniswap DEX
+ * Adapter for PancakeSwap DEX
  */
-export class UniswapAdapter extends BaseAdapter {
+export class PancakeSwapAdapter extends BaseAdapter {
   constructor() {
-    super('Uniswap');
+    super('PancakeSwap');
   }
   
   async getPrice(
@@ -16,39 +16,37 @@ export class UniswapAdapter extends BaseAdapter {
     chainId: number
   ): Promise<PriceResult | null> {
     try {
-      // Uniswap supports these chains
-      const supportedChains = [1, 42161, 8453, 10]; // Ethereum, Arbitrum, Base, Optimism
+      // Check if chain is supported by PancakeSwap
+      const supportedChains = [56, 1, 8453]; // BSC, Ethereum, Base
       if (!supportedChains.includes(chainId)) {
         return null;
       }
       
-      // Use 1inch API filtering for Uniswap protocol
-      const amountInWei = "1000000000000000000"; // 1 token in wei
-      
+      const amountIn = "1000000000000000000"; // 1 token in wei
       const url = `https://api.1inch.io/v5.0/${chainId}/quote?` +
         `fromTokenAddress=${baseTokenAddress}&` +
         `toTokenAddress=${quoteTokenAddress}&` +
-        `amount=${amountInWei}&protocols=UNISWAP_V3`;
+        `amount=${amountIn}&protocols=PANCAKESWAP`;
       
       const response = await fetch(url, {
         headers: { 'Accept': 'application/json' }
       });
-
+      
       if (!response.ok) {
         throw new Error(`1inch API error: ${response.status}`);
       }
-
+      
       const data = await response.json();
       
       // Calculate price from the response
       const fromAmount = parseInt(data.fromTokenAmount) / 10 ** 18; // Assuming 18 decimals
-      const toAmount = parseInt(data.toTokenAmount) / 10 ** 18;     // Assuming 18 decimals
+      const toAmount = parseInt(data.toTokenAmount) / 10 ** 18;     // Assuming 18 decimals  
       const price = toAmount / fromAmount;
       
       return {
         source: this.getName().toLowerCase(),
         price,
-        liquidity: data.protocols?.[0]?.[0]?.liquidity || this.estimateLiquidity('ETH', this.getName()),
+        liquidity: data.protocols?.[0]?.[0]?.liquidity || this.estimateLiquidity('BNB', this.getName()),
         timestamp: Date.now(),
         tradingFee: this.getTradingFee(this.getName())
       };

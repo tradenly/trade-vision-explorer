@@ -1,16 +1,28 @@
 
-export interface PriceResult {
-  price: number;
-  liquidity: number;
-  volume: number;
-  source: string;
-  timestamp: number;
-}
-
+/**
+ * DEX adapter interface
+ */
 export interface DexAdapter {
-  getPrice(baseToken: string, quoteToken: string, chainId: number): Promise<PriceResult | null>;
+  getName(): string;
+  getPrice(
+    baseTokenAddress: string,
+    quoteTokenAddress: string,
+    chainId: number
+  ): Promise<PriceResult | null>;
 }
 
+/**
+ * Token type
+ */
+export interface Token {
+  address: string;
+  symbol: string;
+  decimals: number;
+}
+
+/**
+ * Token pair for price fetching
+ */
 export interface TokenPair {
   baseToken: {
     address: string;
@@ -23,4 +35,15 @@ export interface TokenPair {
     decimals: number;
   };
   chainId: number;
+}
+
+/**
+ * Price result from DEX
+ */
+export interface PriceResult {
+  source: string;
+  price: number;
+  liquidity: number;
+  timestamp: number;
+  tradingFee: number;
 }
