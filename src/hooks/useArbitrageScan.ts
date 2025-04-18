@@ -1,17 +1,19 @@
-
 import { useState, useCallback } from 'react';
 import { TokenInfo } from '@/services/tokenListService';
 import { ArbitrageOpportunity } from '@/services/arbitrage/types';
-import { OnChainPriceService } from '@/services/dex/services/OnChainPriceService';
-import { ArbitrageOpportunityService } from '@/services/arbitrage/ArbitrageOpportunityService';
-import { GasEstimationService } from '@/services/dex/services/GasEstimationService';
-import { getNetworkName } from '@/services/arbitrage/utils';
+
+export interface ScanOptions {
+  minProfitPercentage: number;
+  maxSlippageTolerance: number;
+  minLiquidity: number;
+}
 
 export function useArbitrageScan(
   baseToken: TokenInfo | null,
   quoteToken: TokenInfo | null,
-  minProfitPercentage: number = 0.5,
-  investmentAmount: number = 1000
+  investmentAmount: number = 1000,
+  options: ScanOptions,
+  autoScan: boolean = false
 ) {
   const [opportunities, setOpportunities] = useState<ArbitrageOpportunity[]>([]);
   const [prices, setPrices] = useState<Record<string, any>>({});
@@ -51,7 +53,7 @@ export function useArbitrageScan(
         priceQuotes,
         baseToken,
         quoteToken,
-        minProfitPercentage,
+        options.minProfitPercentage,
         investmentAmount,
         networkName,
         gasEstimate,
@@ -66,7 +68,7 @@ export function useArbitrageScan(
     } finally {
       setLoading(false);
     }
-  }, [baseToken, quoteToken, minProfitPercentage, investmentAmount]);
+  }, [baseToken, quoteToken, options.minProfitPercentage, investmentAmount]);
 
   return {
     opportunities,

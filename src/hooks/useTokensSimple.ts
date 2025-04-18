@@ -1,8 +1,7 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { ChainId, TokenInfo } from '@/services/tokenListService';
-import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabaseClient';
+import { toast } from '@/hooks/use-toast';
 
 export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
   const [loading, setLoading] = useState<boolean>(true);
@@ -66,16 +65,6 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
     async function loadTokensForChain() {
       if (isLoadingChain) return;
       
-      // Check if we need to reload tokens (if last fetch was more than 5 minutes ago)
-      const now = Date.now();
-      const lastFetchTime = lastFetch[selectedChain] || 0;
-      const needsRefresh = now - lastFetchTime > 5 * 60 * 1000; // 5 minutes
-      
-      if (!needsRefresh && allChainTokens.length > 0 && allChainTokens[0]?.chainId === selectedChain) {
-        console.log(`Using cached tokens for chain ${selectedChain}`);
-        return;
-      }
-      
       setIsLoadingChain(true);
       setLoading(true);
       setError(null);
@@ -83,85 +72,43 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
       try {
         console.log(`Loading tokens for chain ${selectedChain}`);
         
-        // Fetch tokens from our Supabase edge function
-        const { data, error } = await supabase.functions.invoke('fetch-tokens', {
+        const { data, error } = await supabase.functions.invoke('fetch-tokens-v2', {
           body: { chainId: selectedChain }
         });
         
-        if (error) {
-          throw new Error(`Error fetching tokens: ${error.message}`);
+        if (error) throw error;
+        
+        if (!data?.tokens || !Array.isArray(data.tokens)) {
+          throw new Error('Invalid token data received');
         }
         
-        if (!data || !data.tokens || !Array.isArray(data.tokens) || data.tokens.length === 0) {
-          throw new Error('No tokens returned from API');
-        }
-        
+        // Process tokens
         const tokens = data.tokens.map(ensureValidAddress);
         
         if (!isMounted) return;
         
-        if (tokens && tokens.length > 0) {
-          setAllChainTokens(tokens);
-          setQuoteTokens(getQuoteTokensForChain(tokens));
-          setPopularTokens(getPopularTokensForChain(tokens));
-          setLastFetch(prev => ({ ...prev, [selectedChain]: now }));
-          console.log(`Successfully loaded ${tokens.length} tokens for chain ${selectedChain}`);
-        } else {
-          throw new Error('No tokens available for this chain');
-        }
+        setAllChainTokens(tokens);
+        setQuoteTokens(getQuoteTokensForChain(tokens));
+        setPopularTokens(getPopularTokensForChain(tokens));
+        
+        console.log(`Successfully loaded ${tokens.length} tokens for chain ${selectedChain}`);
+        
       } catch (err) {
         console.error('Error loading tokens:', err);
-        
         if (!isMounted) return;
         
-        setError(`Failed to load tokens: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        setError(err instanceof Error ? err.message : 'Failed to load tokens');
+        toast({
+          title: "Error loading tokens",
+          description: "Using default token list",
+          variant: "default"
+        });
         
-        // Fetch fallback tokens from the database directly
-        try {
-          const { data: fallbackTokens } = await supabase
-            .from('tokens')
-            .select('*')
-            .eq('chain_id', selectedChain)
-            .order('is_popular', { ascending: false });
-            
-          if (fallbackTokens && fallbackTokens.length > 0) {
-            // Convert DB format to TokenInfo format
-            const tokens = fallbackTokens.map((token: any) => ({
-              chainId: token.chain_id,
-              address: token.address,
-              name: token.name,
-              symbol: token.symbol,
-              decimals: token.decimals,
-              logoURI: token.logo_uri
-            }));
-            
-            setAllChainTokens(tokens.map(ensureValidAddress));
-            setQuoteTokens(getQuoteTokensForChain(tokens));
-            setPopularTokens(getPopularTokensForChain(tokens));
-          } else {
-            // Use hardcoded defaults as last resort
-            const defaultTokens = getDefaultTokensForChain(selectedChain);
-            
-            setAllChainTokens(defaultTokens.map(ensureValidAddress));
-            setQuoteTokens(getQuoteTokensForChain(defaultTokens));
-            setPopularTokens(getPopularTokensForChain(defaultTokens));
-            
-            toast({
-              title: "Using default token list",
-              description: "Could not load latest token data",
-              variant: "default"
-            });
-          }
-        } catch (fallbackError) {
-          console.error('Error fetching fallback tokens:', fallbackError);
-          
-          // Use hardcoded defaults as last resort
-          const defaultTokens = getDefaultTokensForChain(selectedChain);
-          
-          setAllChainTokens(defaultTokens.map(ensureValidAddress));
-          setQuoteTokens(getQuoteTokensForChain(defaultTokens));
-          setPopularTokens(getPopularTokensForChain(defaultTokens));
-        }
+        // Use defaults
+        const defaultTokens = getDefaultTokensForChain(selectedChain);
+        setAllChainTokens(defaultTokens);
+        setQuoteTokens(getQuoteTokensForChain(defaultTokens));
+        setPopularTokens(getPopularTokensForChain(defaultTokens));
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -172,16 +119,10 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
 
     loadTokensForChain();
     
-    // Set up a refresh interval (every 10 minutes)
-    const intervalId = setInterval(() => {
-      loadTokensForChain();
-    }, 10 * 60 * 1000);
-    
     return () => {
       isMounted = false;
-      clearInterval(intervalId);
     };
-  }, [selectedChain, isLoadingChain, lastFetch, allChainTokens, ensureValidAddress, getQuoteTokensForChain, getPopularTokensForChain]);
+  }, [selectedChain, isLoadingChain, ensureValidAddress, getQuoteTokensForChain, getPopularTokensForChain]);
 
   const handleChainChange = useCallback((chainId: ChainId) => {
     console.log(`Chain changed to: ${chainId}`);
