@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { fetchArbitrageOpportunities } from '@/services/supabaseService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +7,8 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Loader2, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
+import PriceMonitor from '@/components/ArbitrageScanner/PriceMonitor';
+import { TokenSelector } from '@/components/TokenSelector/TokenSelector';
 
 interface ArbitrageOpportunity {
   id: string;
@@ -33,6 +34,9 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [investmentAmount] = useState<number>(1000);
+  const [selectedBaseToken, setSelectedBaseToken] = useState<TokenInfo | null>(null);
+  const [selectedQuoteToken, setSelectedQuoteToken] = useState<TokenInfo | null>(null);
+  const [monitoringActive, setMonitoringActive] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -40,13 +44,12 @@ const Dashboard: React.FC = () => {
         setLoading(true);
         const data = await fetchArbitrageOpportunities();
         
-        // Enhance the data with additional arbitrage details
         const enhancedData = data.map((opp: ArbitrageOpportunity) => ({
           ...opp,
           buy_price: opp.buy_price || parseFloat((Math.random() * 1000 + 1000).toFixed(2)),
           sell_price: opp.sell_price || parseFloat((Math.random() * 1000 + 1050).toFixed(2)),
           trading_fees: opp.trading_fees || parseFloat((Math.random() * 5 + 1).toFixed(2)),
-          platform_fee: opp.platform_fee || 0.5, // Tradenly's 0.5% fee
+          platform_fee: opp.platform_fee || 0.5,
           gas_fee: opp.gas_fee || parseFloat((Math.random() * 10 + 5).toFixed(2)),
           net_profit: opp.net_profit || parseFloat((Math.random() * 20 + 10).toFixed(2)),
           liquidity_buy: opp.liquidity_buy || parseFloat((Math.random() * 1000000 + 500000).toFixed(2)),
@@ -91,10 +94,8 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
       
-      {/* Wallet Connection Section */}
       <WalletSection />
       
-      {/* Introduction Card */}
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Welcome to Tradenly Trading Bot</CardTitle>
@@ -241,6 +242,48 @@ const Dashboard: React.FC = () => {
               </Link>
             </div>
           )}
+        </div>
+      )}
+      
+      <div className="mb-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Price Monitor</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Base Token</label>
+                <TokenSelector
+                  value={selectedBaseToken}
+                  onChange={setSelectedBaseToken}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-2 block">Quote Token</label>
+                <TokenSelector
+                  value={selectedQuoteToken}
+                  onChange={setSelectedQuoteToken}
+                />
+              </div>
+            </div>
+            <Button 
+              onClick={() => setMonitoringActive(!monitoringActive)}
+              variant={monitoringActive ? "destructive" : "default"}
+            >
+              {monitoringActive ? "Stop Monitoring" : "Start Monitoring"}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      {(selectedBaseToken && selectedQuoteToken) && (
+        <div className="mb-6">
+          <PriceMonitor
+            baseToken={selectedBaseToken}
+            quoteToken={selectedQuoteToken}
+            isActive={monitoringActive}
+          />
         </div>
       )}
     </div>
