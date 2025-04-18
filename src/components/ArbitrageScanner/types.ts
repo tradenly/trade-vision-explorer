@@ -24,4 +24,12 @@ export interface TransactionStatusProps {
   transactionStatus: string;
   progress: number;
   step: string;
+  details?: {
+    txHash?: string;
+    explorerUrl?: string;
+    gasFee?: number;
+    tradingFees?: number;
+    priceImpact?: number;
+    slippage?: number;
+  };
 }

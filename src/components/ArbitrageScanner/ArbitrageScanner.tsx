@@ -6,7 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { TransactionStatus } from '@/services/dex/types';
 import { TokenInfo } from '@/services/tokenListService';
 import { ChainId } from '@/services/tokenListService';
-import { useArbitrageScanner } from '@/hooks/useArbitrageScanner';
+import { useArbitrageScanner, ScanOptions } from '@/hooks/useArbitrageScanner';
 import { ScannerHeader } from './ScannerHeader';
 import { ScannerContent } from './ScannerContent';
 import TradeConfirmDialog from './TradeConfirmDialog';
@@ -26,13 +26,20 @@ const ArbitrageScanner: React.FC = () => {
   const [minProfitPercentage, setMinProfitPercentage] = useState(0.5);
   const [autoScan, setAutoScan] = useState(false);
 
+  // Create a proper ScanOptions object
+  const scanOptions: ScanOptions = {
+    minProfitPercentage: minProfitPercentage,
+    maxSlippageTolerance: 2,
+    minLiquidity: 10000
+  };
+
   const { 
     opportunities, 
     loading, 
     error, 
     scanForOpportunities, 
     lastScanTime 
-  } = useArbitrageScanner(baseToken, quoteToken, investmentAmount, minProfitPercentage, autoScan);
+  } = useArbitrageScanner(baseToken, quoteToken, investmentAmount, scanOptions, autoScan);
 
   const { prices: realTimePrices, loading: pricesLoading } = useRealTimePrices(baseToken, quoteToken);
   

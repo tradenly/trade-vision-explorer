@@ -30,8 +30,8 @@ export function useRealTimePrices(baseToken: TokenInfo | null, quoteToken: Token
     // Simple price impact model: (investment / liquidity) * 100
     const impact = Math.min((investmentAmount / liquidity) * 100, 10); // Cap at 10%
     
-    // Apply impact to price
-    const slippageAdjustedPrice = quote.isBuy 
+    // Apply impact to price - default to true if isBuy is undefined
+    const slippageAdjustedPrice = quote.isBuy !== false
       ? quote.price * (1 + impact / 100)  // Buy price increases with impact
       : quote.price * (1 - impact / 100); // Sell price decreases with impact
     
