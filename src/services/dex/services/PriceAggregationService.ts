@@ -2,6 +2,7 @@
 import { TokenInfo } from '@/services/tokenListService';
 import { PriceQuote } from '../types';
 import DexRegistry from '../DexRegistry';
+import { getLatestPriceData } from '@/services/priceHistoryService';
 
 /**
  * Service to aggregate prices from multiple DEXes
@@ -86,6 +87,39 @@ export class PriceAggregationService {
     } catch (error) {
       console.error('Error aggregating prices:', error);
       return {};
+    }
+  }
+
+  /**
+   * Get historical price data for a token pair
+   * @param baseToken Base token (e.g. ETH)
+   * @param quoteToken Quote token (e.g. USDC)
+   * @param dexName Optional DEX name to filter by
+   * @param limit Maximum number of data points to return
+   * @returns Array of price history data points
+   */
+  public async getHistoricalPrices(
+    baseToken: TokenInfo,
+    quoteToken: TokenInfo,
+    dexName?: string,
+    limit: number = 100
+  ) {
+    try {
+      // Create token pair string (e.g. "ETH/USDC")
+      const tokenPair = `${baseToken.symbol}/${quoteToken?.symbol || 'USD'}`;
+      
+      // Use the priceHistoryService to get the data
+      const priceHistory = await getLatestPriceData(tokenPair, limit);
+      
+      // Filter by DEX name if provided
+      if (dexName) {
+        return priceHistory.filter(item => item.dexName.toLowerCase() === dexName.toLowerCase());
+      }
+      
+      return priceHistory;
+    } catch (error) {
+      console.error('Error fetching historical prices:', error);
+      return [];
     }
   }
 
