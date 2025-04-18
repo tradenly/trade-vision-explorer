@@ -41,8 +41,8 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
       );
   }, [tokens, search]);
 
-  const effectiveTokens = tokens || [];
-  const isActuallyLoading = loading && effectiveTokens.length === 0;
+  const effectiveTokens = tokens && tokens.length > 0 ? tokens : [];
+  const isActuallyLoading = loading || effectiveTokens.length === 0;
 
   const handleSelect = (tokenAddress: string) => {
     if (!tokens) return;

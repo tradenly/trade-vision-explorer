@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { ChainId, TokenInfo } from '@/services/tokenListService';
 import { supabase } from '@/lib/supabaseClient';
@@ -10,7 +11,6 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
   const [allChainTokens, setAllChainTokens] = useState<TokenInfo[]>([]);
   const [quoteTokens, setQuoteTokens] = useState<TokenInfo[]>([]);
   const [popularTokens, setPopularTokens] = useState<TokenInfo[]>([]);
-  const [isLoadingChain, setIsLoadingChain] = useState<boolean>(false);
   const [lastFetch, setLastFetch] = useState<Record<number, number>>({});
 
   const ensureValidAddress = useCallback((token: TokenInfo): TokenInfo => {
@@ -59,60 +59,81 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
       });
   }, [selectedChain]);
 
+  // Load tokens from API or use default tokens
   useEffect(() => {
     let isMounted = true;
     
     async function loadTokensForChain() {
-      if (isLoadingChain) return;
-      
-      setIsLoadingChain(true);
       setLoading(true);
       setError(null);
       
       try {
         console.log(`Loading tokens for chain ${selectedChain}`);
         
-        const { data, error } = await supabase.functions.invoke('fetch-tokens-v2', {
-          body: { chainId: selectedChain }
-        });
+        // Try to fetch token list from API
+        let tokens: TokenInfo[] = [];
         
-        if (error) throw error;
-        
-        if (!data?.tokens || !Array.isArray(data.tokens)) {
-          throw new Error('Invalid token data received');
+        try {
+          // First try the database function
+          const { data, error } = await supabase.functions.invoke('fetch-tokens', {
+            body: { chainId: selectedChain }
+          });
+          
+          if (error) throw error;
+          
+          if (data?.tokens && Array.isArray(data.tokens)) {
+            tokens = data.tokens;
+            console.log(`Successfully fetched ${tokens.length} tokens for chain ${selectedChain}`);
+          } else {
+            throw new Error('Invalid token data format');
+          }
+        } catch (apiError) {
+          console.error('Error fetching tokens from API:', apiError);
+          
+          // Fallback to default tokens by chain
+          tokens = getDefaultTokensForChain(selectedChain);
+          console.log(`Using ${tokens.length} default tokens for chain ${selectedChain}`);
         }
-        
-        // Process tokens
-        const tokens = data.tokens.map(ensureValidAddress);
         
         if (!isMounted) return;
         
-        setAllChainTokens(tokens);
-        setQuoteTokens(getQuoteTokensForChain(tokens));
-        setPopularTokens(getPopularTokensForChain(tokens));
+        // Process and validate tokens
+        const validTokens = tokens
+          .filter(token => token && token.symbol)
+          .map(ensureValidAddress);
         
-        console.log(`Successfully loaded ${tokens.length} tokens for chain ${selectedChain}`);
+        // Update state with the tokens
+        setAllChainTokens(validTokens);
         
+        // Extract quote and popular tokens
+        const extractedQuoteTokens = getQuoteTokensForChain(validTokens);
+        const extractedPopularTokens = getPopularTokensForChain(validTokens);
+        
+        setQuoteTokens(extractedQuoteTokens);
+        setPopularTokens(extractedPopularTokens);
+        
+        console.log(`Set ${extractedQuoteTokens.length} quote tokens and ${extractedPopularTokens.length} popular tokens`);
       } catch (err) {
-        console.error('Error loading tokens:', err);
+        console.error('Error in loadTokensForChain:', err);
+        
         if (!isMounted) return;
         
         setError(err instanceof Error ? err.message : 'Failed to load tokens');
-        toast({
-          title: "Error loading tokens",
-          description: "Using default token list",
-          variant: "default"
-        });
         
-        // Use defaults
+        // Use default tokens as fallback
         const defaultTokens = getDefaultTokensForChain(selectedChain);
         setAllChainTokens(defaultTokens);
         setQuoteTokens(getQuoteTokensForChain(defaultTokens));
         setPopularTokens(getPopularTokensForChain(defaultTokens));
+        
+        toast({
+          title: "Error loading tokens",
+          description: "Using default token list",
+          variant: "destructive"
+        });
       } finally {
         if (isMounted) {
           setLoading(false);
-          setIsLoadingChain(false);
         }
       }
     }
@@ -122,7 +143,7 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
     return () => {
       isMounted = false;
     };
-  }, [selectedChain, isLoadingChain, ensureValidAddress, getQuoteTokensForChain, getPopularTokensForChain]);
+  }, [selectedChain, ensureValidAddress, getQuoteTokensForChain, getPopularTokensForChain]);
 
   const handleChainChange = useCallback((chainId: ChainId) => {
     console.log(`Chain changed to: ${chainId}`);

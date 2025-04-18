@@ -33,19 +33,20 @@ const TokenPairControls: React.FC<TokenPairControlsProps> = ({
   console.log('TokenPairControls - quoteTokens:', quoteTokens.length);
   console.log('TokenPairControls - allChainTokens:', allChainTokens.length);
   
-  // Determine which tokens to display for base and quote selectors
-  // Make sure we always have something to display even if arrays are empty
-  const baseTokensToDisplay = popularTokens.length > 0 ? popularTokens : 
-                            allChainTokens.length > 0 ? allChainTokens : [];
-  const quoteTokensToDisplay = quoteTokens.length > 0 ? quoteTokens : 
-                             popularTokens.length > 0 ? popularTokens : [];
+  // Ensure we always have tokens to display
+  const baseTokenList = popularTokens.length > 0 ? popularTokens : 
+                      (allChainTokens.length > 0 ? allChainTokens : []);
+                      
+  const quoteTokenList = quoteTokens.length > 0 ? quoteTokens : 
+                       (popularTokens.length > 0 ? popularTokens : 
+                       (allChainTokens.length > 0 ? allChainTokens : []));
   
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
       <div className="space-y-1">
         <label className="text-sm font-medium">Base Token (From)</label>
         <TokenSelectorNew
-          tokens={baseTokensToDisplay}
+          tokens={baseTokenList}
           selectedToken={baseToken}
           onSelectToken={onBaseTokenSelect}
           placeholder="Select Base Token"
@@ -69,7 +70,7 @@ const TokenPairControls: React.FC<TokenPairControlsProps> = ({
       <div className="space-y-1 md:col-start-2 md:row-start-1">
         <label className="text-sm font-medium">Quote Token (To)</label>
         <TokenSelectorNew
-          tokens={quoteTokensToDisplay}
+          tokens={quoteTokenList}
           selectedToken={quoteToken}
           onSelectToken={onQuoteTokenSelect}
           placeholder="Select Quote Token"
