@@ -1,3 +1,4 @@
+
 import { BaseAdapter } from './BaseAdapter';
 import { PriceQuote } from '../types';
 import { TokenInfo } from '../../tokenListService';
@@ -6,6 +7,7 @@ import { jupiterRateLimiter } from '../utils/rateLimiter';
 export class JupiterAdapter extends BaseAdapter {
   public async fetchQuote(baseToken: TokenInfo, quoteToken: TokenInfo, amount: number = 1): Promise<PriceQuote> {
     try {
+      // Use enhanced rate limiter with backoff strategy
       await jupiterRateLimiter.waitForSlot();
 
       // Verify we're on Solana chain
@@ -23,6 +25,7 @@ export class JupiterAdapter extends BaseAdapter {
       const response = await fetch(url);
       
       if (!response.ok) {
+        jupiterRateLimiter.recordFailure(); // Record failure for backoff
         throw new Error(`Jupiter API error: ${response.status}`);
       }
 
@@ -39,6 +42,8 @@ export class JupiterAdapter extends BaseAdapter {
       // Get liquidity data from Jupiter's route API for more accuracy
       const routeUrl = `https://quote-api.jup.ag/v6/quote?inputMint=${baseToken.address}&outputMint=${quoteToken.address}&amount=${amountInSmallestUnit}&slippageBps=50`;
       const routeData = await fetch(routeUrl).then(res => res.json());
+      
+      jupiterRateLimiter.recordSuccess(); // Record success to reset backoff
 
       return {
         dexName: this.getName(),
@@ -54,6 +59,7 @@ export class JupiterAdapter extends BaseAdapter {
 
     } catch (error) {
       console.error(`[JupiterAdapter] Error:`, error);
+      jupiterRateLimiter.recordFailure(); // Record failure for backoff
       return this.getFallbackQuote(baseToken, quoteToken);
     }
   }

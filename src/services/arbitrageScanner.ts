@@ -4,6 +4,7 @@ import { TokenInfo } from '@/services/tokenListService';
 import { ArbitrageOpportunity } from '@/services/dexService';
 import DexRegistry from './dex/DexRegistry';
 import { PriceQuote } from './dex/types';
+import { PriceAggregationService } from './dex/services/PriceAggregationService';
 
 interface ScanResult {
   opportunities: ArbitrageOpportunity[];
@@ -31,21 +32,16 @@ export async function scanArbitrageOpportunities(
       };
     }
 
-    // Fetch prices from all DEXes concurrently
-    const priceQuotes: Record<string, PriceQuote> = {};
-    const quotePromises = adapters.map(async (adapter) => {
-      if (!adapter.isEnabled()) return;
-      
-      try {
-        const quote = await adapter.fetchQuote(baseToken, quoteToken);
-        priceQuotes[adapter.getName()] = quote;
-      } catch (error) {
-        console.error(`Error fetching quote from ${adapter.getName()}:`, error);
-        errors.push(`Failed to fetch price from ${adapter.getName()}`);
-      }
-    });
-
-    await Promise.all(quotePromises);
+    // Use the new price aggregation service
+    const priceAggregationService = PriceAggregationService.getInstance();
+    const priceQuotes = await priceAggregationService.aggregatePrices(baseToken, quoteToken);
+    
+    if (Object.keys(priceQuotes).length < 2) {
+      return {
+        opportunities: [],
+        errors: ['Not enough price quotes available for arbitrage']
+      };
+    }
 
     // Compare prices between DEXes to find arbitrage opportunities
     const dexNames = Object.keys(priceQuotes);
@@ -70,13 +66,17 @@ export async function scanArbitrageOpportunities(
               : [dex2, dex1, quote2.price, quote1.price];
 
           // Calculate fees and potential profit
-          const buyFee = quote1.fees * investmentAmount;
-          const sellFee = quote2.fees * investmentAmount;
-          const gasFee = quote1.gasEstimate + quote2.gasEstimate;
-          const estimatedProfit = (sellPrice - buyPrice) * investmentAmount;
+          const buyFee = (quote1.fees || 0.003) * investmentAmount;
+          const sellFee = (quote2.fees || 0.003) * investmentAmount;
+          const gasFee = (quote1.gasEstimate || 0) + (quote2.gasEstimate || 0);
+          const estimatedProfit = (sellPrice - buyPrice) * investmentAmount / buyPrice;
           const netProfit = estimatedProfit - buyFee - sellFee - gasFee;
 
-          if (netProfit > 0) {
+          // Add platform fee (0.5% of investment)
+          const platformFee = investmentAmount * 0.005;
+          const finalNetProfit = netProfit - platformFee;
+
+          if (finalNetProfit > 0) {
             opportunities.push({
               id: `${baseToken.symbol}-${quoteToken.symbol}-${buyDex}-${sellDex}-${Date.now()}`,
               tokenPair: `${baseToken.symbol}/${quoteToken.symbol}`,
@@ -87,19 +87,19 @@ export async function scanArbitrageOpportunities(
               buyPrice,
               sellPrice,
               priceDifferencePercentage: profitPercentage,
-              liquidity: Math.min(quote1.liquidityUSD, quote2.liquidityUSD),
+              liquidity: Math.min(quote1.liquidityUSD || 0, quote2.liquidityUSD || 0),
               estimatedProfit,
               estimatedProfitPercentage: profitPercentage,
               gasFee,
-              netProfit,
-              netProfitPercentage: (netProfit / investmentAmount) * 100,
+              netProfit: finalNetProfit,
+              netProfitPercentage: (finalNetProfit / investmentAmount) * 100,
               baseToken,
               quoteToken,
               timestamp: Date.now(),
-              buyGasFee: quote1.gasEstimate,
-              sellGasFee: quote2.gasEstimate,
+              buyGasFee: quote1.gasEstimate || 0,
+              sellGasFee: quote2.gasEstimate || 0,
               tradingFees: buyFee + sellFee,
-              platformFee: 0, // Will be calculated based on subscription tier
+              platformFee,
               investmentAmount
             });
           }

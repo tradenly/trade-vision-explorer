@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { TokenInfo } from '@/services/tokenListService';
 import { ArbitrageOpportunity } from '@/services/dexService';
-import { fetchAndStorePriceData, findArbitrageOpportunities } from '@/services/priceDataCollection';
+import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
 import { scanArbitrageOpportunities } from '@/services/arbitrageScanner';
 
@@ -25,6 +25,30 @@ export function useArbitrageScanner(
     setError(null);
   }, []);
 
+  // Function to scan for arbitrage opportunities using edge function
+  const scanUsingEdgeFunction = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('scan-arbitrage', {
+        body: {
+          baseToken,
+          quoteToken,
+          minProfitPercentage,
+          investmentAmount
+        }
+      });
+
+      if (error) throw new Error(error.message);
+      
+      return {
+        opportunities: data.opportunities || [],
+        errors: data.error ? [data.error] : []
+      };
+    } catch (error) {
+      console.error("Error calling edge function:", error);
+      throw error;
+    }
+  };
+
   const scanForOpportunities = useCallback(async () => {
     if (!baseToken || !quoteToken) {
       setError('Please select both base and quote tokens');
@@ -35,12 +59,19 @@ export function useArbitrageScanner(
     setError(null);
 
     try {
-      const result = await scanArbitrageOpportunities(
-        baseToken,
-        quoteToken,
-        minProfitPercentage,
-        investmentAmount
-      );
+      // Try to use the edge function first, fall back to client-side scanning
+      let result;
+      try {
+        result = await scanUsingEdgeFunction();
+      } catch (edgeError) {
+        console.warn('Edge function failed, falling back to client-side scan:', edgeError);
+        result = await scanArbitrageOpportunities(
+          baseToken,
+          quoteToken,
+          minProfitPercentage,
+          investmentAmount
+        );
+      }
 
       if (result.errors.length > 0) {
         setError(result.errors.join(', '));

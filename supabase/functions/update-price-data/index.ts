@@ -55,62 +55,21 @@ serve(async (req) => {
         console.log(`Fetching prices from ${dex.name} for batch ${i/batchSize + 1}`);
         
         try {
-          // Use 1inch API for price discovery across DEXes
-          const pricePromises = batch.map(async (pair: any) => {
-            const amountIn = "1000000000000000000"; // 1 token in wei
-            const url = `https://api.1inch.io/v5.0/${chainId}/quote?` +
-              `fromTokenAddress=${pair.baseToken.address}&` +
-              `toTokenAddress=${pair.quoteToken.address}&` +
-              `amount=${amountIn}&` +
-              `protocols=${dex.name.toLowerCase()}`;
-
-            const response = await fetch(url, {
-              headers: { 'Accept': 'application/json' }
-            });
-
-            if (!response.ok) {
-              throw new Error(`API error: ${response.status}`);
-            }
-
-            const data = await response.json();
-            
-            // Calculate price from response
-            const fromDecimals = pair.baseToken.decimals || 18;
-            const toDecimals = pair.quoteToken.decimals || 18;
-            const fromAmount = parseInt(data.fromTokenAmount) / Math.pow(10, fromDecimals);
-            const toAmount = parseInt(data.toTokenAmount) / Math.pow(10, toDecimals);
-            const price = toAmount / fromAmount;
-
-            return {
-              token_pair: `${pair.baseToken.symbol}/${pair.quoteToken.symbol}`,
-              price,
-              chain_id: chainId,
-              dex_name: dex.name.toLowerCase(),
-              timestamp: new Date().toISOString(),
-              liquidity: data.protocols?.[0]?.[0]?.liquidityInUsd || 0
-            };
-          });
-
-          const prices = await Promise.all(pricePromises);
-
-          // Store prices in database
-          if (prices.length > 0) {
-            const { error: insertError } = await supabase
-              .from('dex_price_history')
-              .insert(prices);
-
-            if (insertError) {
-              console.error(`Error storing prices for ${dex.name}:`, insertError);
-              continue;
-            }
-
-            results.push({
-              dex: dex.name,
-              pairs: prices.length,
-              success: true
-            });
+          // Different handling for different chain types
+          if (chainId === 101) {
+            // Solana chain handling using Jupiter price API
+            await processSolanaTokenPairs(batch, dex, supabase);
+          } else {
+            // EVM chains using 1inch or custom APIs
+            await processEvmTokenPairs(batch, dex, chainId, supabase);
           }
 
+          results.push({
+            dex: dex.name,
+            pairs: batch.length,
+            success: true
+          });
+          
         } catch (error) {
           console.error(`Error fetching prices from ${dex.name}:`, error);
           results.push({
@@ -144,3 +103,104 @@ serve(async (req) => {
     );
   }
 });
+
+async function processSolanaTokenPairs(batch: any[], dex: any, supabase: any) {
+  // Jupiter price API for Solana tokens
+  const prices = [];
+  
+  for (const pair of batch) {
+    // Get token addresses
+    const baseAddress = pair.baseToken.address;
+    const quoteAddress = pair.quoteToken.address;
+    
+    // Call Jupiter price API
+    const response = await fetch(`https://price.jup.ag/v4/price?ids=${baseAddress},${quoteAddress}`);
+    
+    if (!response.ok) {
+      throw new Error(`Jupiter API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (!data.data?.[baseAddress]?.price || !data.data?.[quoteAddress]?.price) {
+      continue; // Skip this pair if prices are missing
+    }
+    
+    const basePrice = data.data[baseAddress].price;
+    const quotePrice = data.data[quoteAddress].price;
+    const price = basePrice / quotePrice;
+    
+    prices.push({
+      token_pair: `${pair.baseToken.symbol}/${pair.quoteToken.symbol}`,
+      price,
+      chain_id: 101,
+      dex_name: dex.name.toLowerCase(),
+      timestamp: new Date().toISOString(),
+      liquidity: data.data[baseAddress].vsMarketCap || 100000
+    });
+  }
+  
+  // Store prices in database
+  if (prices.length > 0) {
+    const { error } = await supabase.from('dex_price_history').insert(prices);
+    
+    if (error) {
+      throw error;
+    }
+  }
+}
+
+async function processEvmTokenPairs(batch: any[], dex: any, chainId: number, supabase: any) {
+  // Process EVM chains using 1inch API
+  const prices = [];
+  
+  for (const pair of batch) {
+    try {
+      // Use 1inch API for price discovery
+      const amountIn = "1000000000000000000"; // 1 token in wei
+      const url = `https://api.1inch.io/v5.0/${chainId}/quote?` +
+        `fromTokenAddress=${pair.baseToken.address}&` +
+        `toTokenAddress=${pair.quoteToken.address}&` +
+        `amount=${amountIn}&` +
+        `protocols=${dex.name.toLowerCase()}`;
+
+      const response = await fetch(url, {
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (!response.ok) {
+        // Try fallback methods here if needed
+        continue;
+      }
+
+      const data = await response.json();
+      
+      // Calculate price from response
+      const fromDecimals = pair.baseToken.decimals || 18;
+      const toDecimals = pair.quoteToken.decimals || 18;
+      const fromAmount = parseInt(data.fromTokenAmount) / Math.pow(10, fromDecimals);
+      const toAmount = parseInt(data.toTokenAmount) / Math.pow(10, toDecimals);
+      const price = toAmount / fromAmount;
+
+      prices.push({
+        token_pair: `${pair.baseToken.symbol}/${pair.quoteToken.symbol}`,
+        price,
+        chain_id: chainId,
+        dex_name: dex.name.toLowerCase(),
+        timestamp: new Date().toISOString(),
+        liquidity: data.protocols?.[0]?.[0]?.liquidityInUsd || 100000
+      });
+    } catch (error) {
+      console.error(`Error processing pair ${pair.baseToken.symbol}/${pair.quoteToken.symbol}:`, error);
+    }
+  }
+  
+  // Store prices in database
+  if (prices.length > 0) {
+    const { error } = await supabase.from('dex_price_history').insert(prices);
+    
+    if (error) {
+      throw error;
+    }
+  }
+}
