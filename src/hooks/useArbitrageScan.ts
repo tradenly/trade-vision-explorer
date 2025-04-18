@@ -1,47 +1,47 @@
 
 import { useState, useCallback } from 'react';
 import { TokenInfo } from '@/services/tokenListService';
-import { ArbitrageOpportunity } from '@/services/arbitrage/types';
-import { OnChainPriceService } from '@/services/dex/services/OnChainPriceService';
-import { ArbitrageOpportunityService } from '@/services/arbitrage/ArbitrageOpportunityService';
-import { GasEstimationService } from '@/services/dex/services/GasEstimationService';
+import { supabase } from '@/lib/supabaseClient';
 
-// Helper function to get network name from chainId
-const getNetworkName = (chainId: number): string => {
-  switch (chainId) {
-    case 1:
-      return 'ethereum';
-    case 56:
-      return 'binance';
-    case 101:
-      return 'solana';
-    default:
-      return 'ethereum';
-  }
-};
+export interface ArbitrageOpportunity {
+  id: string;
+  buyDex: string;
+  sellDex: string;
+  buyPrice: number;
+  sellPrice: number;
+  priceDifferencePercentage: number;
+  baseToken: TokenInfo;
+  quoteToken: TokenInfo;
+  tokenPair: string;
+  network: string;
+  estimatedProfit: number;
+  investmentAmount: number;
+  timestamp: number;
+  totalFees: number;
+  netProfit: number;
+  tradeFee: number;
+  gasFee: number;
+  platformFee: number;
+}
 
 export interface ScanOptions {
   minProfitPercentage: number;
-  maxSlippageTolerance: number;
-  minLiquidity: number;
+  maxSlippageTolerance?: number;
+  minLiquidity?: number;
 }
 
 export function useArbitrageScan(
   baseToken: TokenInfo | null,
   quoteToken: TokenInfo | null,
   investmentAmount: number = 1000,
-  options: ScanOptions,
+  scanOptions: ScanOptions = { minProfitPercentage: 0.5 },
   autoScan: boolean = false
 ) {
   const [opportunities, setOpportunities] = useState<ArbitrageOpportunity[]>([]);
   const [prices, setPrices] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastScanned, setLastScanned] = useState<Date | null>(null);
-
-  const onChainPriceService = OnChainPriceService.getInstance();
-  const arbitrageService = ArbitrageOpportunityService.getInstance();
-  const gasService = GasEstimationService.getInstance();
+  const [lastScanTime, setLastScanTime] = useState<Date | null>(null);
 
   const scanForOpportunities = useCallback(async () => {
     if (!baseToken || !quoteToken) {
@@ -53,47 +53,53 @@ export function useArbitrageScan(
     setError(null);
 
     try {
-      const priceQuotes = await onChainPriceService.getOnChainPrices(baseToken, quoteToken);
+      console.log(`Scanning for arbitrage: ${baseToken.symbol}/${quoteToken.symbol}`);
+      console.log('Investment amount:', investmentAmount);
+      console.log('Min profit percentage:', scanOptions.minProfitPercentage);
       
-      if (Object.keys(priceQuotes).length < 2) {
-        setError('Not enough price quotes available for arbitrage');
-        setOpportunities([]);
-        return;
+      // Call the scan-arbitrage edge function
+      const { data, error } = await supabase.functions.invoke('scan-arbitrage', {
+        body: { 
+          baseToken, 
+          quoteToken,
+          minProfitPercentage: scanOptions.minProfitPercentage,
+          investmentAmount 
+        }
+      });
+
+      if (error) {
+        throw new Error(`Edge function error: ${error.message}`);
       }
       
-      setPrices(priceQuotes);
+      // Save the prices and opportunities
+      if (data.prices) {
+        setPrices(data.prices);
+      }
       
-      const networkName = getNetworkName(baseToken.chainId);
-      const gasEstimate = await gasService.getOperationGasEstimate(networkName, 'swap');
-      const approvalGasEstimate = await gasService.getOperationGasEstimate(networkName, 'approval');
+      if (data.opportunities) {
+        console.log(`Found ${data.opportunities.length} opportunities`);
+        setOpportunities(data.opportunities);
+      } else {
+        console.log('No opportunities found');
+        setOpportunities([]);
+      }
       
-      const foundOpportunities = arbitrageService.findOpportunities(
-        priceQuotes,
-        baseToken,
-        quoteToken,
-        options.minProfitPercentage,
-        investmentAmount,
-        networkName,
-        gasEstimate,
-        approvalGasEstimate
-      );
-      
-      setOpportunities(foundOpportunities);
-      setLastScanned(new Date());
+      setLastScanTime(new Date());
     } catch (err) {
       console.error('Error scanning for arbitrage:', err);
       setError(err instanceof Error ? err.message : 'Failed to scan for arbitrage opportunities');
+      setOpportunities([]);
     } finally {
       setLoading(false);
     }
-  }, [baseToken, quoteToken, options.minProfitPercentage, investmentAmount]);
+  }, [baseToken, quoteToken, investmentAmount, scanOptions.minProfitPercentage]);
 
   return {
     opportunities,
     prices,
     loading,
     error,
-    lastScanned,
+    lastScanTime,
     scanForOpportunities
   };
 }

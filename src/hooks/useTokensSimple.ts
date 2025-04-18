@@ -34,8 +34,16 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
       wrappedSymbols.includes(token.symbol)
     );
     
+    // If no quote tokens found, add the default ones
+    if (quoteTokens.length === 0) {
+      const defaultQuotes = getDefaultTokensForChain(selectedChain).filter(token =>
+        stableSymbols.includes(token.symbol) || wrappedSymbols.includes(token.symbol)
+      );
+      return defaultQuotes;
+    }
+    
     return quoteTokens;
-  }, []);
+  }, [selectedChain]);
 
   // Function to get popular tokens from all tokens
   const getPopularTokensForChain = useCallback((tokens: TokenInfo[]): TokenInfo[] => {
@@ -49,14 +57,31 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
     const popularSymbols = popularByChain[selectedChain] || [];
     
     // Find popular tokens
-    return tokens
-      .filter(token => popularSymbols.includes(token.symbol))
-      .sort((a, b) => {
-        // Sort by position in the array
-        const aIndex = popularSymbols.indexOf(a.symbol);
-        const bIndex = popularSymbols.indexOf(b.symbol);
-        return aIndex - bIndex;
-      });
+    const found = tokens.filter(token => 
+      popularSymbols.includes(token.symbol)
+    ).sort((a, b) => {
+      // Sort by position in the array
+      const aIndex = popularSymbols.indexOf(a.symbol);
+      const bIndex = popularSymbols.indexOf(b.symbol);
+      return aIndex - bIndex;
+    });
+    
+    // If not enough popular tokens found, add defaults
+    if (found.length < 5) {
+      const defaults = getDefaultTokensForChain(selectedChain);
+      
+      // Add any missing popular tokens from defaults
+      const combined = [...found];
+      for (const token of defaults) {
+        if (!combined.some(t => t.symbol === token.symbol)) {
+          combined.push(token);
+        }
+      }
+      
+      return combined;
+    }
+    
+    return found;
   }, [selectedChain]);
 
   // Load tokens from API or use default tokens
@@ -70,11 +95,15 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
       try {
         console.log(`Loading tokens for chain ${selectedChain}`);
         
-        // Try to fetch token list from API
-        let tokens: TokenInfo[] = [];
+        // Check if we recently fetched this chain's tokens
+        const now = Date.now();
+        const lastFetchTime = lastFetch[selectedChain] || 0;
         
-        try {
-          // First try the database function
+        // Only fetch if more than 5 minutes have passed since last fetch
+        if (now - lastFetchTime > 5 * 60 * 1000) {
+          console.log('Fetching fresh token data...');
+          
+          // Call our edge function to get tokens
           const { data, error } = await supabase.functions.invoke('fetch-tokens', {
             body: { chainId: selectedChain }
           });
@@ -82,37 +111,40 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
           if (error) throw error;
           
           if (data?.tokens && Array.isArray(data.tokens)) {
-            tokens = data.tokens;
+            const tokens = data.tokens.map(ensureValidAddress);
             console.log(`Successfully fetched ${tokens.length} tokens for chain ${selectedChain}`);
-          } else {
-            throw new Error('Invalid token data format');
+            
+            if (!isMounted) return;
+            
+            // Update state with the tokens
+            setAllChainTokens(tokens);
+            
+            // Extract quote and popular tokens
+            const extractedQuoteTokens = getQuoteTokensForChain(tokens);
+            const extractedPopularTokens = getPopularTokensForChain(tokens);
+            
+            setQuoteTokens(extractedQuoteTokens);
+            setPopularTokens(extractedPopularTokens);
+            
+            // Update last fetch time
+            setLastFetch(prev => ({ ...prev, [selectedChain]: now }));
+            console.log(`Set ${extractedQuoteTokens.length} quote tokens and ${extractedPopularTokens.length} popular tokens`);
+            
+            setLoading(false);
+            return;
           }
-        } catch (apiError) {
-          console.error('Error fetching tokens from API:', apiError);
-          
-          // Fallback to default tokens by chain
-          tokens = getDefaultTokensForChain(selectedChain);
-          console.log(`Using ${tokens.length} default tokens for chain ${selectedChain}`);
+        } else {
+          console.log('Using cached token data');
         }
         
-        if (!isMounted) return;
+        // If no fresh data, use default tokens
+        if (allChainTokens.length === 0) {
+          const defaultTokens = getDefaultTokensForChain(selectedChain);
+          setAllChainTokens(defaultTokens);
+          setQuoteTokens(getQuoteTokensForChain(defaultTokens));
+          setPopularTokens(getPopularTokensForChain(defaultTokens));
+        }
         
-        // Process and validate tokens
-        const validTokens = tokens
-          .filter(token => token && token.symbol)
-          .map(ensureValidAddress);
-        
-        // Update state with the tokens
-        setAllChainTokens(validTokens);
-        
-        // Extract quote and popular tokens
-        const extractedQuoteTokens = getQuoteTokensForChain(validTokens);
-        const extractedPopularTokens = getPopularTokensForChain(validTokens);
-        
-        setQuoteTokens(extractedQuoteTokens);
-        setPopularTokens(extractedPopularTokens);
-        
-        console.log(`Set ${extractedQuoteTokens.length} quote tokens and ${extractedPopularTokens.length} popular tokens`);
       } catch (err) {
         console.error('Error in loadTokensForChain:', err);
         
@@ -143,7 +175,7 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
     return () => {
       isMounted = false;
     };
-  }, [selectedChain, ensureValidAddress, getQuoteTokensForChain, getPopularTokensForChain]);
+  }, [selectedChain, ensureValidAddress, getQuoteTokensForChain, getPopularTokensForChain, allChainTokens.length, lastFetch]);
 
   const handleChainChange = useCallback((chainId: ChainId) => {
     console.log(`Chain changed to: ${chainId}`);
@@ -153,6 +185,7 @@ export const useTokensSimple = (initialChainId: ChainId = ChainId.ETHEREUM) => {
   const refreshTokens = useCallback(() => {
     // Force a refresh by clearing the last fetch timestamp
     setLastFetch(prev => ({ ...prev, [selectedChain]: 0 }));
+    setAllChainTokens([]);
   }, [selectedChain]);
 
   return {

@@ -1,57 +1,85 @@
 
-import React, { useState, useCallback } from 'react';
-import { TokenInfo } from '@/services/tokenListService';
-import { Check, ChevronsUpDown, Loader2 } from 'lucide-react';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Check, ChevronsUpDown, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Skeleton } from '@/components/ui/skeleton';
+import { TokenInfo } from '@/services/tokenListService';
 
-interface TokenSelectorNewProps {
+interface TokenSelectorProps {
   tokens: TokenInfo[];
   selectedToken: TokenInfo | null;
   onSelectToken: (token: TokenInfo) => void;
   placeholder?: string;
-  disabled?: boolean;
   loading?: boolean;
+  disabled?: boolean;
 }
 
-const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
+const TokenSelectorNew: React.FC<TokenSelectorProps> = ({
   tokens,
   selectedToken,
   onSelectToken,
-  placeholder = 'Select a token',
-  disabled = false,
-  loading = false
+  placeholder = "Select token",
+  loading = false,
+  disabled = false
 }) => {
   const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredTokens = useCallback(() => {
-    if (!search || !tokens || tokens.length === 0) {
-      return tokens || [];
-    }
+  // Filter tokens based on search query
+  const filteredTokens = useMemo(() => {
+    if (!searchQuery) return tokens;
+    
+    const lowerQuery = searchQuery.toLowerCase();
+    return tokens.filter(token => 
+      token.name.toLowerCase().includes(lowerQuery) || 
+      token.symbol.toLowerCase().includes(lowerQuery) ||
+      token.address.toLowerCase().includes(lowerQuery)
+    );
+  }, [tokens, searchQuery]);
 
-    const searchLower = search.toLowerCase();
-    return tokens
-      .filter(token => 
-        token && ((token.symbol && token.symbol.toLowerCase().includes(searchLower)) ||
-        (token.name && token.name.toLowerCase().includes(searchLower)))
-      );
-  }, [tokens, search]);
+  // Reset search query when popover closes
+  useEffect(() => {
+    if (!open) setSearchQuery('');
+  }, [open]);
 
-  const effectiveTokens = tokens && tokens.length > 0 ? tokens : [];
-  const isActuallyLoading = loading || effectiveTokens.length === 0;
-
-  const handleSelect = (tokenAddress: string) => {
-    if (!tokens) return;
-    const token = tokens.find(t => t.address === tokenAddress);
-    if (token) {
-      onSelectToken(token);
-      setOpen(false);
-    }
+  const handleTokenSelect = (token: TokenInfo) => {
+    onSelectToken(token);
+    setOpen(false);
   };
+
+  // Format token display value
+  const getTokenDisplayValue = (token: TokenInfo | null) => {
+    if (!token) return placeholder;
+    return token.symbol;
+  };
+
+  // Generate a unique value for each token
+  const getTokenValue = (token: TokenInfo) => {
+    return `${token.symbol}-${token.address}-${token.chainId}`;
+  };
+
+  // Render loading state
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 h-10 p-2 bg-secondary rounded-md">
+        <Skeleton className="h-5 w-5 rounded-full" />
+        <Skeleton className="h-4 w-24" />
+      </div>
+    );
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -60,91 +88,82 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          disabled={disabled || tokens.length === 0}
           className={cn(
-            "w-full justify-between bg-background border-input",
-            disabled && "opacity-50 cursor-not-allowed"
+            "justify-between w-full font-normal",
+            !selectedToken && "text-muted-foreground"
           )}
-          disabled={disabled || isActuallyLoading}
         >
-          {isActuallyLoading ? (
+          {selectedToken ? (
             <div className="flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Loading tokens...</span>
-            </div>
-          ) : selectedToken ? (
-            <div className="flex items-center gap-2">
-              {selectedToken.logoURI && (
-                <img
-                  src={selectedToken.logoURI}
-                  alt={selectedToken.name}
+              {selectedToken.logoURI ? (
+                <img 
+                  src={selectedToken.logoURI} 
+                  alt={selectedToken.symbol} 
                   className="w-5 h-5 rounded-full"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = 'none';
                   }}
                 />
+              ) : (
+                <div className="w-5 h-5 rounded-full bg-secondary flex items-center justify-center">
+                  {selectedToken.symbol.charAt(0)}
+                </div>
               )}
-              <span>{selectedToken.symbol}</span>
+              <span>{getTokenDisplayValue(selectedToken)}</span>
             </div>
           ) : (
-            <span className="text-muted-foreground">{placeholder}</span>
+            <span>{placeholder}</span>
           )}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-0 z-[100]" align="start">
-        <Command shouldFilter={false}>
-          <CommandInput
-            placeholder="Search tokens..."
-            value={search}
-            onValueChange={setSearch}
-            className="h-9"
+      <PopoverContent className="p-0 w-[300px]">
+        <Command>
+          <CommandInput 
+            placeholder="Search tokens..." 
+            onValueChange={setSearchQuery}
+            value={searchQuery}
           />
-          <CommandList>
-            <CommandEmpty>
-              {isActuallyLoading ? (
-                <div className="flex flex-col items-center justify-center p-6">
-                  <Loader2 className="h-6 w-6 animate-spin mb-2" />
-                  <p>Loading tokens...</p>
-                </div>
-              ) : effectiveTokens.length === 0 ? (
-                <p className="text-center p-6 text-muted-foreground">No tokens available.</p>
-              ) : (
-                <p className="text-center p-6 text-muted-foreground">No tokens match your search.</p>
-              )}
-            </CommandEmpty>
-            <CommandGroup>
-              <ScrollArea className="h-[300px]">
-                {filteredTokens().map((token) => (
-                  <CommandItem
-                    key={token.address || `${token.symbol}-fallback`}
-                    value={token.address}
-                    onSelect={handleSelect}
-                    className="flex items-center gap-2 cursor-pointer"
-                  >
-                    {token.logoURI && (
-                      <img
-                        src={token.logoURI}
-                        alt={token.name}
-                        className="w-5 h-5 rounded-full"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                        }}
-                      />
-                    )}
-                    <div className="flex-1 flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <span className="font-medium">{token.symbol}</span>
-                        <span className="text-xs text-muted-foreground">{token.name}</span>
-                      </div>
-                      {selectedToken?.address === token.address && (
-                        <Check className="h-4 w-4" />
-                      )}
+          <CommandEmpty>No token found.</CommandEmpty>
+          <CommandGroup className="max-h-[300px] overflow-auto">
+            {filteredTokens.map((token) => (
+              <CommandItem
+                key={getTokenValue(token)}
+                value={getTokenValue(token)}
+                onSelect={() => handleTokenSelect(token)}
+              >
+                <div className="flex items-center gap-2 w-full">
+                  {token.logoURI ? (
+                    <img 
+                      src={token.logoURI} 
+                      alt={token.symbol} 
+                      className="w-5 h-5 rounded-full"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-5 h-5 rounded-full bg-secondary flex items-center justify-center">
+                      {token.symbol.charAt(0)}
                     </div>
-                  </CommandItem>
-                ))}
-              </ScrollArea>
-            </CommandGroup>
-          </CommandList>
+                  )}
+                  <span>{token.symbol}</span>
+                  <span className="text-muted-foreground text-xs ml-auto truncate">
+                    {token.name}
+                  </span>
+                </div>
+                {selectedToken?.address === token.address && (
+                  <Check className="ml-auto h-4 w-4" />
+                )}
+              </CommandItem>
+            ))}
+            {filteredTokens.length === 0 && searchQuery && (
+              <div className="px-2 py-3 text-sm text-muted-foreground">
+                No tokens match your search.
+              </div>
+            )}
+          </CommandGroup>
         </Command>
       </PopoverContent>
     </Popover>
