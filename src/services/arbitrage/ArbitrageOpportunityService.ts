@@ -1,18 +1,25 @@
-import { TokenInfo } from '@/services/tokenListService';
+
+import { TokenInfo } from '../tokenListService';
 import { ArbitrageOpportunity } from './types';
-import { PriceQuote } from '@/services/dex/types';
-import { getNetworkName, calculateTradingFees, calculatePlatformFee } from './utils';
-import { FeeService } from '@/services/dex/services/FeeService';
-import { PriceImpactService } from '@/services/dex/services/PriceImpactService';
+import { PriceQuote } from '../dex/types';
+import { getNetworkName } from './utils';
+import { FeeService } from '../dex/services/FeeService';
+import { PriceCalculationService } from './PriceCalculationService';
+import { ArbitrageProfitService } from './ArbitrageProfitService';
+import { ArbitrageOpportunityBuilder } from './ArbitrageOpportunityBuilder';
 
 export class ArbitrageOpportunityService {
   private static instance: ArbitrageOpportunityService;
   private feeService: FeeService;
-  private priceImpactService: PriceImpactService;
+  private priceCalculationService: PriceCalculationService;
+  private profitService: ArbitrageProfitService;
+  private opportunityBuilder: ArbitrageOpportunityBuilder;
 
   private constructor() {
     this.feeService = FeeService.getInstance();
-    this.priceImpactService = PriceImpactService.getInstance();
+    this.priceCalculationService = PriceCalculationService.getInstance();
+    this.profitService = ArbitrageProfitService.getInstance();
+    this.opportunityBuilder = ArbitrageOpportunityBuilder.getInstance();
   }
 
   public static getInstance(): ArbitrageOpportunityService {
@@ -41,8 +48,7 @@ export class ArbitrageOpportunityService {
     
     // Default gas estimates if not provided
     const gasFee = gasEstimate || 0.1;
-    const approvalGas = approvalGasEstimate || 0.05;
-
+    
     // Compare each pair of DEXes
     for (let i = 0; i < dexes.length; i++) {
       for (let j = 0; j < dexes.length; j++) {
@@ -72,7 +78,7 @@ export class ArbitrageOpportunityService {
         if (minLiquidity < investmentAmount * 3) continue; // Require 3x coverage
         
         // Calculate slippage and price impact
-        const slippageInfo = this.priceImpactService.calculateSlippageAdjustedPrices(
+        const slippageInfo = this.priceCalculationService.calculateSlippageAdjustedPrices(
           buyQuote.price, 
           sellQuote.price,
           buyLiquidity,
@@ -83,52 +89,52 @@ export class ArbitrageOpportunityService {
         // Skip if not profitable after slippage
         if (!slippageInfo.isProfitableAfterSlippage) continue;
         
-        // Trading fees (DEX fees)
-        const tradingFees = calculateTradingFees(investmentAmount, buyDex, sellDex);
+        // Calculate estimated profit and fees
+        const profitInfo = this.profitService.calculateEstimatedProfit(
+          buyQuote.price,
+          sellQuote.price,
+          investmentAmount,
+          buyDex,
+          sellDex,
+          gasFee
+        );
         
-        // Platform fee (Tradenly's fee)
-        const platformFee = calculatePlatformFee(investmentAmount);
-        
-        // Calculate gross profit (before fees)
-        const totalTokensBought = investmentAmount / slippageInfo.adjustedBuyPrice;
-        const grossProceeds = totalTokensBought * slippageInfo.adjustedSellPrice;
-        const estimatedProfit = grossProceeds - investmentAmount;
-        
-        // Calculate net profit after all fees
-        const netProfit = estimatedProfit - tradingFees - platformFee - gasFee;
-        const netProfitPercentage = (netProfit / investmentAmount) * 100;
+        // Calculate net profit after all fees and slippage
+        const netProfitInfo = this.profitService.calculateNetProfit(
+          slippageInfo.adjustedBuyPrice,
+          slippageInfo.adjustedSellPrice,
+          investmentAmount,
+          profitInfo.tradingFees,
+          profitInfo.platformFee,
+          gasFee
+        );
         
         // Only include profitable opportunities after all fees
-        if (netProfitPercentage >= minProfitPercentage) {
-          opportunities.push({
-            id: `${baseToken.symbol}-${quoteToken.symbol}-${buyDex}-${sellDex}-${Date.now()}`,
-            tokenPair: `${baseToken.symbol}/${quoteToken.symbol}`,
-            token: baseToken.symbol,
-            network,
-            buyDex,
-            sellDex,
-            buyPrice: buyQuote.price,
-            sellPrice: sellQuote.price,
-            priceDifferencePercentage: priceDiffPercentage,
-            liquidity: minLiquidity,
-            estimatedProfit,
-            estimatedProfitPercentage: priceDiffPercentage,
-            gasFee,
-            netProfit,
-            netProfitPercentage,
+        if (netProfitInfo.netProfitPercentage >= minProfitPercentage) {
+          const opportunity = this.opportunityBuilder.createOpportunity(
             baseToken,
             quoteToken,
-            timestamp: Date.now(),
-            buyGasFee: gasFee * 0.6,  // 60% for buy operation
-            sellGasFee: gasFee * 0.4,  // 40% for sell operation
-            tradingFees,
-            platformFee,
+            buyDex,
+            sellDex,
+            buyQuote.price,
+            sellQuote.price,
+            priceDiffPercentage,
+            minLiquidity,
+            profitInfo.estimatedProfit,
+            profitInfo.estimatedProfitPercentage,
+            gasFee,
+            netProfitInfo.netProfit,
+            netProfitInfo.netProfitPercentage,
+            profitInfo.tradingFees,
+            profitInfo.platformFee,
             investmentAmount,
-            buyPriceImpact: slippageInfo.buyPriceImpact,
-            sellPriceImpact: slippageInfo.sellPriceImpact,
-            adjustedBuyPrice: slippageInfo.adjustedBuyPrice,
-            adjustedSellPrice: slippageInfo.adjustedSellPrice
-          });
+            slippageInfo.buyPriceImpact,
+            slippageInfo.sellPriceImpact,
+            slippageInfo.adjustedBuyPrice,
+            slippageInfo.adjustedSellPrice
+          );
+          
+          opportunities.push(opportunity);
         }
       }
     }
