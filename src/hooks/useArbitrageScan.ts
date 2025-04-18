@@ -1,6 +1,24 @@
+
 import { useState, useCallback } from 'react';
 import { TokenInfo } from '@/services/tokenListService';
 import { ArbitrageOpportunity } from '@/services/arbitrage/types';
+import { OnChainPriceService } from '@/services/dex/services/OnChainPriceService';
+import { ArbitrageOpportunityService } from '@/services/arbitrage/ArbitrageOpportunityService';
+import { GasEstimationService } from '@/services/dex/services/GasEstimationService';
+
+// Helper function to get network name from chainId
+const getNetworkName = (chainId: number): string => {
+  switch (chainId) {
+    case 1:
+      return 'ethereum';
+    case 56:
+      return 'binance';
+    case 101:
+      return 'solana';
+    default:
+      return 'ethereum';
+  }
+};
 
 export interface ScanOptions {
   minProfitPercentage: number;

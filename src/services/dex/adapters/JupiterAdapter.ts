@@ -1,3 +1,4 @@
+
 import { BaseAdapter } from './BaseAdapter';
 import { PriceQuote } from '../types';
 import { TokenInfo } from '../../tokenListService';
@@ -88,14 +89,20 @@ export class JupiterAdapter extends BaseAdapter {
   private async getFallbackQuote(baseToken: TokenInfo, quoteToken: TokenInfo): Promise<PriceQuote> {
     try {
       console.log('[JupiterAdapter] Using fallback price source');
-      const { data } = await fetch(
+      const response = await fetch(
         `https://fkagpyfzgczcaxsqwsoi.supabase.co/rest/v1/dex_price_history?dex_name=eq.jupiter&token_pair=eq.${baseToken.symbol}/${quoteToken.symbol}&order=timestamp.desc&limit=1`,
         {
           headers: {
             'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrYWdweWZ6Z2N6Y2F4c3F3c29pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI5MDcxODAsImV4cCI6MjA1ODQ4MzE4MH0.hd1Os5VQkyGYLpY1bRBZ3ypy2wxdByFIzoUpk8qBRts'
           }
         }
-      ).then(res => res.json());
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Fallback API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
 
       if (data && data.length > 0 && data[0].price) {
         return {

@@ -46,7 +46,7 @@ const TradeSettings: React.FC<TradeSettingsProps> = ({
           {maxTradeSize > 0 && (
             <TooltipProvider>
               <Tooltip>
-                <TooltipTrigger asChild>
+                <TooltipTrigger>
                   <span className="text-xs text-muted-foreground cursor-help">
                     Max: ${maxTradeSize.toFixed(2)}
                   </span>
@@ -103,7 +103,6 @@ const TradeSettings: React.FC<TradeSettingsProps> = ({
         <Switch
           checked={advancedMode}
           onCheckedChange={onAdvancedModeChange}
-          disabled={!!executing}
         />
       </div>
 

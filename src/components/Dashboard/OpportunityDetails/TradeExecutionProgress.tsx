@@ -18,7 +18,7 @@ const TradeExecutionProgress: React.FC<TradeExecutionProgressProps> = ({
 
   return (
     <div className="space-y-2">
-      <Progress value={executionProgress} className="h-2" />
+      <Progress value={executionProgress} />
       <p className="text-sm text-center text-muted-foreground">
         {transactionStatus === TransactionStatus.PENDING && "Executing trade..."}
         {transactionStatus === TransactionStatus.SUCCESS && "Trade executed successfully!"}

@@ -29,13 +29,13 @@ const ChainSelector: React.FC<ChainSelectorProps> = ({ selectedChain, onChainCha
         value={selectedChain.toString()} 
         onValueChange={(value) => onChainChange(parseInt(value) as ChainId)}
       >
-        <SelectTrigger className="w-full bg-background border border-input">
+        <SelectTrigger>
           <SelectValue placeholder="Select Blockchain" />
         </SelectTrigger>
-        <SelectContent className="bg-background border border-input">
+        <SelectContent>
           <SelectGroup>
             {Object.entries(SUPPORTED_CHAINS).map(([id, name]) => (
-              <SelectItem key={id} value={id} className="cursor-pointer">
+              <SelectItem key={id} value={id}>
                 <div className="flex items-center gap-2">
                   <img 
                     src={chainLogos[Number(id)]} 

@@ -5,6 +5,7 @@ import { TransactionStatus as TxStatus } from '@/services/dex/types';
 import { TransactionStatusProps } from './types';
 import { CheckCircle, XCircle, AlertTriangle, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 const TransactionStatusIndicator: React.FC<TransactionStatusProps> = ({
   transactionStatus,
@@ -32,7 +33,7 @@ const TransactionStatusIndicator: React.FC<TransactionStatusProps> = ({
         {getStatusIcon()}
       </div>
       
-      <Progress value={progress} className={transactionStatus === TxStatus.ERROR ? "bg-red-100" : ""} />
+      <Progress value={progress} />
       
       {details && (transactionStatus === TxStatus.SUCCESS || transactionStatus === TxStatus.ERROR) && (
         <div className="mt-3 text-xs space-y-2 bg-muted p-3 rounded-md">
