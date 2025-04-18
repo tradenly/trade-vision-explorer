@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -11,6 +11,9 @@ import { TransactionStatus } from '@/services/dex/types';
 import TradeDetails from './TradeDetails';
 import TradeSettings from './TradeSettings';
 import TransactionStatusIndicator from './TransactionStatus';
+import { FeeService } from '@/services/dex/services/FeeService';
+import { PriceImpactService } from '@/services/dex/services/PriceImpactService';
+import { LiquidityValidationService } from '@/services/dex/services/LiquidityValidationService';
 
 interface TradeConfirmDialogProps {
   open: boolean;
@@ -34,7 +37,18 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
   const [slippageTolerance, setSlippageTolerance] = useState<number>(0.5);
   const [advancedMode, setAdvancedMode] = useState<boolean>(false);
   const [customAmount, setCustomAmount] = useState<number>(investmentAmount);
+  const [buyPriceImpact, setBuyPriceImpact] = useState<number>(0);
+  const [sellPriceImpact, setSellPriceImpact] = useState<number>(0);
+  const [tradingFees, setTradingFees] = useState<number>(0);
+  const [gasFees, setGasFees] = useState<number>(0);
+  const [platformFee, setPlatformFee] = useState<number>(0);
+  const [maxTradeSize, setMaxTradeSize] = useState<number>(0);
   const { toast } = useToast();
+  
+  // Initialize services
+  const priceImpactService = PriceImpactService.getInstance();
+  const feeService = FeeService.getInstance();
+  const liquidityService = LiquidityValidationService.getInstance();
   
   const { progress, step } = useExecutionProgress(
     executing !== null,
@@ -42,15 +56,70 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
     opportunity
   );
   
+  // Calculate fees and impacts when opportunity or amount changes
+  useEffect(() => {
+    const calculateFeesAndImpacts = async () => {
+      if (!opportunity) return;
+      
+      const tradeAmount = customAmount || investmentAmount;
+      
+      try {
+        // Get liquidity information
+        const liquidityInfo = await liquidityService.validateArbitrageRoute(
+          opportunity.baseToken,
+          opportunity.quoteToken,
+          opportunity.buyDex,
+          opportunity.sellDex,
+          tradeAmount
+        );
+        
+        // Set price impacts
+        setBuyPriceImpact(liquidityInfo.buyLiquidity.priceImpact);
+        setSellPriceImpact(liquidityInfo.sellLiquidity.priceImpact);
+        
+        // Set max trade size
+        setMaxTradeSize(Math.min(
+          liquidityInfo.buyLiquidity.maxTradeSize,
+          liquidityInfo.sellLiquidity.maxTradeSize
+        ));
+        
+        // Calculate all fees
+        const fees = await feeService.calculateAllFees(
+          tradeAmount,
+          opportunity.buyDex,
+          opportunity.sellDex,
+          opportunity.network
+        );
+        
+        setTradingFees(fees.tradingFee);
+        setGasFees(fees.gasFee);
+        setPlatformFee(fees.platformFee);
+      } catch (error) {
+        console.error("Error calculating fees and impacts:", error);
+        // Use fallback values from opportunity if calculation fails
+        setBuyPriceImpact(opportunity.liquidityBuy 
+          ? priceImpactService.calculatePriceImpact(tradeAmount, opportunity.liquidityBuy)
+          : 0.3);
+          
+        setSellPriceImpact(opportunity.liquiditySell
+          ? priceImpactService.calculatePriceImpact(tradeAmount, opportunity.liquiditySell)
+          : 0.3);
+          
+        setTradingFees(opportunity.tradingFees);
+        setGasFees(opportunity.gasFee);
+        setPlatformFee(opportunity.platformFee);
+      }
+    };
+    
+    calculateFeesAndImpacts();
+  }, [opportunity, customAmount, investmentAmount]);
+  
   if (!opportunity) return null;
   
   const tradeAmount = customAmount || investmentAmount;
-  const tradingFee = opportunity.tradingFees / 100 * tradeAmount;
-  const estimatedTokenAmount = (tradeAmount - tradingFee) / opportunity.buyPrice;
+  const estimatedTokenAmount = tradeAmount / opportunity.buyPrice;
   
-  const buyPriceImpact = opportunity.liquidity 
-    ? Math.min((tradeAmount / opportunity.liquidity) * 100, 5) 
-    : 0.1;
+  const isPriceImpactHigh = buyPriceImpact > 2 || sellPriceImpact > 2;
   
   const handleSlippageChange = (value: number[]) => {
     setSlippageTolerance(value[0]);
@@ -60,12 +129,18 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
     const value = parseFloat(e.target.value);
     if (!isNaN(value) && value > 0) {
       setCustomAmount(value);
+      
+      if (value > maxTradeSize && maxTradeSize > 0) {
+        toast({
+          title: "Trade Size Warning",
+          description: `Your trade size may cause high price impact. Consider reducing to $${maxTradeSize.toFixed(2)} or less.`,
+          variant: "warning"
+        });
+      }
     } else {
       setCustomAmount(0);
     }
   };
-  
-  const isPriceImpactHigh = buyPriceImpact > 2;
   
   return (
     <Dialog open={open} onOpenChange={(open) => !executing && onOpenChange(open)}>
@@ -84,7 +159,12 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
             opportunity={opportunity}
             tradeAmount={tradeAmount}
             buyPriceImpact={buyPriceImpact}
+            sellPriceImpact={sellPriceImpact}
             estimatedTokenAmount={estimatedTokenAmount}
+            tradingFees={tradingFees}
+            gasFees={gasFees}
+            platformFee={platformFee}
+            maxTradeSize={maxTradeSize}
           />
 
           <TradeSettings
@@ -93,6 +173,7 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
             advancedMode={advancedMode}
             buyPriceImpact={buyPriceImpact}
             executing={executing}
+            maxTradeSize={maxTradeSize}
             onCustomAmountChange={handleCustomAmountChange}
             onSlippageChange={handleSlippageChange}
             onAdvancedModeChange={setAdvancedMode}
@@ -117,7 +198,10 @@ const TradeConfirmDialog: React.FC<TradeConfirmDialogProps> = ({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={!!executing}>
             Cancel
           </Button>
-          <Button onClick={onConfirm} disabled={!!executing || (isPriceImpactHigh && !advancedMode)}>
+          <Button 
+            onClick={onConfirm} 
+            disabled={!!executing || (isPriceImpactHigh && !advancedMode) || tradeAmount > maxTradeSize * 2}
+          >
             {executing ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

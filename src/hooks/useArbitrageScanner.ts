@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { TokenInfo } from '@/services/tokenListService';
 import { ArbitrageOpportunity } from '@/services/dexService';
@@ -6,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { scanArbitrageOpportunities } from '@/services/arbitrageScanner';
 import { LiquidityValidationService } from '@/services/dex/services/LiquidityValidationService';
 import { RouteOptimizationService } from '@/services/dex/services/RouteOptimizationService';
+import { FeeService } from '@/services/dex/services/FeeService';
 
 export interface ScanOptions {
   minProfitPercentage: number;
@@ -26,6 +28,11 @@ export function useArbitrageScanner(
   const [lastScanTime, setLastScanTime] = useState<Date | null>(null);
   const [consecutiveErrors, setConsecutiveErrors] = useState(0);
   const { toast } = useToast();
+  
+  // Services
+  const liquidityService = LiquidityValidationService.getInstance();
+  const routeOptimizer = RouteOptimizationService.getInstance();
+  const feeService = FeeService.getInstance();
 
   const resetErrors = useCallback(() => {
     setConsecutiveErrors(0);
@@ -74,36 +81,77 @@ export function useArbitrageScanner(
         return;
       }
 
-      const routeOptimizer = RouteOptimizationService.getInstance();
       const optimizedOpportunities = [];
 
       for (const opp of priceData.opportunities) {
-        const quotes = {
-          [opp.buyDex]: { price: opp.buyPrice, fees: opp.tradingFees / 2, gasEstimate: opp.buyGasFee },
-          [opp.sellDex]: { price: opp.sellPrice, fees: opp.tradingFees / 2, gasEstimate: opp.sellGasFee }
-        };
+        try {
+          // Validate liquidity
+          const liquidityValidation = await liquidityService.validateArbitrageRoute(
+            baseToken,
+            quoteToken,
+            opp.buyDex,
+            opp.sellDex,
+            investmentAmount
+          );
+          
+          if (!liquidityValidation.isValid) {
+            console.log(`Skipping opportunity due to insufficient liquidity: ${opp.buyDex} -> ${opp.sellDex}`);
+            continue;
+          }
+          
+          // Calculate fees more precisely
+          const fees = await feeService.calculateAllFees(
+            investmentAmount,
+            opp.buyDex,
+            opp.sellDex,
+            opp.network
+          );
+          
+          const quotes = {
+            [opp.buyDex]: { 
+              price: opp.buyPrice, 
+              fees: fees.tradingFee / 2 / investmentAmount, 
+              gasEstimate: fees.gasFee / 2,
+              liquidityUSD: liquidityValidation.buyLiquidity.availableLiquidity
+            },
+            [opp.sellDex]: { 
+              price: opp.sellPrice, 
+              fees: fees.tradingFee / 2 / investmentAmount, 
+              gasEstimate: fees.gasFee / 2,
+              liquidityUSD: liquidityValidation.sellLiquidity.availableLiquidity
+            }
+          };
 
-        const optimizedRoute = await routeOptimizer.findOptimalRoute(
-          baseToken,
-          quoteToken,
-          investmentAmount,
-          quotes
-        );
+          const optimizedRoute = await routeOptimizer.findOptimalRoute(
+            baseToken,
+            quoteToken,
+            investmentAmount,
+            quotes
+          );
 
-        if (optimizedRoute.isViable) {
-          optimizedOpportunities.push({
-            ...opp,
-            route: optimizedRoute.steps,
-            netProfit: optimizedRoute.expectedProfit,
-            gasFee: optimizedRoute.totalGasEstimate,
-            liquidity: optimizedRoute.minRequiredLiquidity
-          });
+          if (optimizedRoute.isViable) {
+            optimizedOpportunities.push({
+              ...opp,
+              route: optimizedRoute.steps,
+              netProfit: optimizedRoute.expectedProfit,
+              gasFee: fees.gasFee,
+              tradingFees: fees.tradingFee,
+              platformFee: fees.platformFee,
+              liquidity: Math.min(
+                liquidityValidation.buyLiquidity.availableLiquidity,
+                liquidityValidation.sellLiquidity.availableLiquidity
+              )
+            });
+          }
+        } catch (oppError) {
+          console.error('Error processing opportunity:', oppError);
+          // Continue with next opportunity
         }
       }
 
       const filteredOpportunities = optimizedOpportunities
         .filter(opp => 
-          opp.netProfit >= scanOptions.minProfitPercentage && 
+          opp.netProfit >= (investmentAmount * scanOptions.minProfitPercentage / 100) && 
           opp.liquidity >= scanOptions.minLiquidity
         )
         .sort((a, b) => b.netProfit - a.netProfit);
@@ -132,7 +180,7 @@ export function useArbitrageScanner(
     } finally {
       setLoading(false);
     }
-  }, [baseToken, quoteToken, scanOptions, investmentAmount, toast, resetErrors]);
+  }, [baseToken, quoteToken, scanOptions, investmentAmount, liquidityService, routeOptimizer, feeService, toast, resetErrors]);
 
   useEffect(() => {
     if (!autoScan || !baseToken || !quoteToken) return;

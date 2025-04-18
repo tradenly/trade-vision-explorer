@@ -48,4 +48,28 @@ export class PriceImpactService {
   public getEffectiveSellPrice(basePrice: number, priceImpact: number): number {
     return basePrice * (1 - priceImpact / 100);
   }
+  
+  /**
+   * Calculate maximum trade size based on available liquidity and maximum acceptable price impact
+   * @param liquidity Available liquidity in USD
+   * @param maxAcceptablePriceImpact Maximum acceptable price impact percentage
+   * @returns Maximum trade size in USD
+   */
+  public calculateMaxTradeSize(liquidity: number, maxAcceptablePriceImpact: number = 3): number {
+    // Using formula: impact = (tradeAmount / liquidity) * 100
+    // Rearranged to: tradeAmount = (impact * liquidity) / 100
+    return (maxAcceptablePriceImpact * liquidity) / 100;
+  }
+  
+  /**
+   * Determine if a trade size is safe given available liquidity
+   * @param tradeAmount Amount being traded in USD
+   * @param liquidity Available liquidity in USD
+   * @param maxAcceptablePriceImpact Maximum acceptable price impact percentage
+   * @returns Boolean indicating if the trade size is safe
+   */
+  public isTradeSizeSafe(tradeAmount: number, liquidity: number, maxAcceptablePriceImpact: number = 3): boolean {
+    const impact = this.calculatePriceImpact(tradeAmount, liquidity);
+    return impact <= maxAcceptablePriceImpact;
+  }
 }

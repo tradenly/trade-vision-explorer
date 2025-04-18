@@ -3,22 +3,49 @@ import React from 'react';
 import { ArbitrageOpportunity } from '@/services/dexService';
 import { Separator } from '@/components/ui/separator';
 import { AlertTriangle } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface TradeDetailsProps {
   opportunity: ArbitrageOpportunity;
   slippageTolerance?: number;
   tradeAmount: number;
   buyPriceImpact: number;
+  sellPriceImpact?: number;
   estimatedTokenAmount: number;
+  tradingFees?: number;
+  gasFees?: number;
+  platformFee?: number;
+  maxTradeSize?: number;
 }
 
 const TradeDetails: React.FC<TradeDetailsProps> = ({
   opportunity,
   tradeAmount,
   buyPriceImpact,
+  sellPriceImpact = 0,
   estimatedTokenAmount,
+  tradingFees = opportunity.tradingFees,
+  gasFees = opportunity.gasFee,
+  platformFee = opportunity.platformFee,
+  maxTradeSize = 0,
 }) => {
-  const isPriceImpactHigh = buyPriceImpact > 2;
+  const isPriceImpactHigh = buyPriceImpact > 2 || sellPriceImpact > 2;
+  const totalFees = tradingFees + gasFees + platformFee;
+  
+  // Calculate expected return with slippage
+  const effectiveBuyPrice = opportunity.buyPrice * (1 + buyPriceImpact / 100);
+  const effectiveSellPrice = opportunity.sellPrice * (1 - sellPriceImpact / 100);
+  const expectedReturn = estimatedTokenAmount * effectiveSellPrice;
+  
+  // Calculate expected profit after all fees
+  const grossProfit = expectedReturn - tradeAmount;
+  const netProfit = grossProfit - totalFees;
+  const netProfitPercentage = (netProfit / tradeAmount) * 100;
 
   return (
     <div className="space-y-4 max-h-[60vh] overflow-y-auto">
@@ -35,32 +62,107 @@ const TradeDetails: React.FC<TradeDetailsProps> = ({
         <span className="font-medium">Network:</span>
         <span className="capitalize">{opportunity.network}</span>
         
-        <span className="font-medium">Gas Fee:</span>
-        <span>${opportunity.gasFee.toFixed(4)}</span>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="font-medium flex items-center">
+                Price Impact (Buy):
+                {buyPriceImpact > 1.5 && (
+                  <AlertTriangle className="h-3 w-3 ml-1 text-amber-500" />
+                )}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs" side="bottom">
+              <p className="text-xs">
+                Price impact increases with trade size. Large trades can move market prices.
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <span className={buyPriceImpact > 3 ? "text-red-500" : buyPriceImpact > 1.5 ? "text-amber-500" : ""}>
+          {buyPriceImpact.toFixed(2)}%
+        </span>
         
-        <span className="font-medium">Trading Fees:</span>
-        <span>${opportunity.tradingFees.toFixed(4)}</span>
-        
-        <span className="font-medium">Platform Fee (0.5%):</span>
-        <span>${opportunity.platformFee.toFixed(4)}</span>
+        {sellPriceImpact > 0 && (
+          <>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="font-medium flex items-center">
+                    Price Impact (Sell):
+                    {sellPriceImpact > 1.5 && (
+                      <AlertTriangle className="h-3 w-3 ml-1 text-amber-500" />
+                    )}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs" side="bottom">
+                  <p className="text-xs">
+                    Sell price impact shows how the sell transaction may affect market price.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <span className={sellPriceImpact > 3 ? "text-red-500" : sellPriceImpact > 1.5 ? "text-amber-500" : ""}>
+              {sellPriceImpact.toFixed(2)}%
+            </span>
+          </>
+        )}
         
         <span className="font-medium">Available Liquidity</span>
         <div className="text-muted-foreground">
           ${opportunity.liquidity?.toLocaleString() || 'Unknown'}
         </div>
+        
+        {maxTradeSize > 0 && (
+          <>
+            <span className="font-medium">Recommended Max Size</span>
+            <div className="text-muted-foreground">
+              ${maxTradeSize.toFixed(2)}
+            </div>
+          </>
+        )}
       </div>
 
       <Separator />
+      
+      <div className="space-y-3 p-3 bg-muted/50 rounded-md">
+        <div className="flex justify-between items-center text-sm">
+          <span className="text-muted-foreground">Trade Amount</span>
+          <span>${tradeAmount.toFixed(2)}</span>
+        </div>
+        
+        <div className="flex justify-between items-center text-sm">
+          <span className="text-muted-foreground">Trading Fees</span>
+          <span>-${tradingFees.toFixed(2)}</span>
+        </div>
+        
+        <div className="flex justify-between items-center text-sm">
+          <span className="text-muted-foreground">Gas Fee</span>
+          <span>-${gasFees.toFixed(2)}</span>
+        </div>
+        
+        <div className="flex justify-between items-center text-sm">
+          <span className="text-muted-foreground">Platform Fee (0.5%)</span>
+          <span>-${platformFee.toFixed(2)}</span>
+        </div>
+        
+        <Separator />
+        
+        <div className="flex justify-between items-center font-medium">
+          <span>Expected Return</span>
+          <span>${expectedReturn.toFixed(2)}</span>
+        </div>
+      </div>
       
       <div className="border rounded-lg p-3">
         <div className="space-y-2">
           <div className="font-medium">Expected Profit</div>
           <div className="flex justify-between text-lg">
             <span className="text-green-600 font-bold">
-              ${opportunity.estimatedProfit.toFixed(4)}
+              ${netProfit.toFixed(4)}
             </span>
             <span className="text-green-600 font-bold">
-              ({opportunity.estimatedProfitPercentage.toFixed(2)}%)
+              ({netProfitPercentage.toFixed(2)}%)
             </span>
           </div>
         </div>
