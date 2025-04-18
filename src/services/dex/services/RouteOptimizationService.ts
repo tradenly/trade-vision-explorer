@@ -1,7 +1,8 @@
-
 import { TokenInfo } from '@/services/tokenListService';
 import { PriceQuote } from '../types';
 import { LiquidityValidationService, LiquidityInfo } from './LiquidityValidationService';
+import { PriceImpactService } from './PriceImpactService';
+import { TradeProfitabilityService } from './TradeProfitabilityService';
 
 export interface RouteStep {
   dexName: string;
@@ -23,9 +24,13 @@ export interface OptimizedRoute {
 export class RouteOptimizationService {
   private static instance: RouteOptimizationService;
   private liquidityService: LiquidityValidationService;
+  private priceImpactService: PriceImpactService;
+  private profitabilityService: TradeProfitabilityService;
 
   private constructor() {
     this.liquidityService = LiquidityValidationService.getInstance();
+    this.priceImpactService = PriceImpactService.getInstance();
+    this.profitabilityService = TradeProfitabilityService.getInstance();
   }
 
   public static getInstance(): RouteOptimizationService {
@@ -35,9 +40,6 @@ export class RouteOptimizationService {
     return RouteOptimizationService.instance;
   }
 
-  /**
-   * Find and validate the optimal arbitrage route
-   */
   public async findOptimalRoute(
     baseToken: TokenInfo,
     quoteToken: TokenInfo,
@@ -54,7 +56,6 @@ export class RouteOptimizationService {
         minRequiredLiquidity: 0
       };
 
-      // Find the best buy and sell DEX combination
       for (const buyDex of dexes) {
         for (const sellDex of dexes) {
           if (buyDex === sellDex) continue;
@@ -64,7 +65,6 @@ export class RouteOptimizationService {
 
           if (!buyQuote || !sellQuote) continue;
 
-          // Validate liquidity on both DEXes
           const [buyLiquidity, sellLiquidity] = await Promise.all([
             this.liquidityService.validateLiquidity(baseToken, quoteToken, tradeAmount, buyDex),
             this.liquidityService.validateLiquidity(baseToken, quoteToken, tradeAmount, sellDex)
@@ -116,7 +116,6 @@ export class RouteOptimizationService {
     buyDex: string,
     sellDex: string
   ): Promise<OptimizedRoute> {
-    // Calculate buy step
     const buyStep: RouteStep = {
       dexName: buyDex,
       tokenIn: quoteToken,
@@ -126,7 +125,6 @@ export class RouteOptimizationService {
       estimatedGas: buyQuote.gasEstimate || 0
     };
 
-    // Calculate sell step
     const sellStep: RouteStep = {
       dexName: sellDex,
       tokenIn: baseToken,
@@ -137,7 +135,7 @@ export class RouteOptimizationService {
     };
 
     const totalGasEstimate = buyStep.estimatedGas + sellStep.estimatedGas;
-    const expectedProfit = this.calculateExpectedProfit(
+    const expectedProfit = this.profitabilityService.calculateExpectedProfit(
       tradeAmount,
       buyQuote,
       sellQuote,
@@ -153,25 +151,5 @@ export class RouteOptimizationService {
       isViable: expectedProfit > 0,
       minRequiredLiquidity: Math.min(buyLiquidity.availableLiquidity, sellLiquidity.availableLiquidity)
     };
-  }
-
-  private calculateExpectedProfit(
-    tradeAmount: number,
-    buyQuote: PriceQuote,
-    sellQuote: PriceQuote,
-    buyImpact: number,
-    sellImpact: number,
-    gasEstimate: number
-  ): number {
-    // Apply price impact to quotes
-    const effectiveBuyPrice = buyQuote.price * (1 + buyImpact / 100);
-    const effectiveSellPrice = sellQuote.price * (1 - sellImpact / 100);
-
-    // Calculate expected profit
-    const baseTokenAmount = tradeAmount / effectiveBuyPrice;
-    const expectedReturn = baseTokenAmount * effectiveSellPrice;
-    const tradingFees = (buyQuote.fees || 0.003) * tradeAmount + (sellQuote.fees || 0.003) * expectedReturn;
-    
-    return expectedReturn - tradeAmount - tradingFees - gasEstimate;
   }
 }
