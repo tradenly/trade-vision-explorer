@@ -1,3 +1,4 @@
+
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -31,4 +32,31 @@ export function formatTokenPrice(value: number, symbol?: string): string {
   } else {
     return formatNumber(value, 2);
   }
+}
+
+/**
+ * Format a currency value with dollar sign
+ */
+export function formatCurrency(value: number, decimals: number = 2): string {
+  if (isNaN(value) || value === null) return '$0.00';
+  
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  }).format(value);
+}
+
+/**
+ * Format a percentage value
+ */
+export function formatPercentage(value: number, decimals: number = 2): string {
+  if (isNaN(value) || value === null) return '0.00%';
+  
+  return new Intl.NumberFormat('en-US', {
+    style: 'percent',
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  }).format(value / 100);
 }
