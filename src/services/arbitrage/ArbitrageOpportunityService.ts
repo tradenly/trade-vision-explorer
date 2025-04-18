@@ -1,6 +1,5 @@
-
 import { TokenInfo } from '@/services/tokenListService';
-import { ArbitrageOpportunity } from '@/services/dexService';
+import { ArbitrageOpportunity } from './types';
 import { PriceQuote } from '@/services/dex/types';
 import { getNetworkName, calculateTradingFees, calculatePlatformFee } from './utils';
 import { FeeService } from '@/services/dex/services/FeeService';
