@@ -17,6 +17,16 @@ export class TradeProfitabilityService {
     return TradeProfitabilityService.instance;
   }
 
+  /**
+   * Calculate expected profit from an arbitrage trade
+   * @param tradeAmount Amount being traded in USD
+   * @param buyQuote Buy price quote
+   * @param sellQuote Sell price quote
+   * @param buyImpact Price impact for buy transaction
+   * @param sellImpact Price impact for sell transaction
+   * @param gasEstimate Gas cost estimate in USD
+   * @returns Expected profit in USD
+   */
   public calculateExpectedProfit(
     tradeAmount: number,
     buyQuote: PriceQuote,
