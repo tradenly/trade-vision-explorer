@@ -1,4 +1,3 @@
-
 /**
  * Enhanced rate limiter for DEX API calls with backoff strategy
  */
@@ -37,14 +36,30 @@ class RateLimiter {
   recordFailure(): void {
     this.consecutiveFailures++;
   }
+
+  public async isThrottled(): Promise<boolean> {
+    return this.consecutiveFailures >= 5;
+  }
+
+  public getBackoffTime(): number {
+    if (this.consecutiveFailures === 0) return 0;
+    return Math.min(Math.pow(2, this.consecutiveFailures) * 1000, this.maxBackoffMs);
+  }
+
+  public getStatus(): { isThrottled: boolean; backoffTime: number } {
+    return {
+      isThrottled: this.consecutiveFailures >= 5,
+      backoffTime: this.getBackoffTime()
+    };
+  }
 }
 
 // Create rate limiters for different DEXs with appropriate limits
-export const uniswapRateLimiter = new RateLimiter(3);  // 3 requests per second (TheGraph limit)
-export const sushiswapRateLimiter = new RateLimiter(5);
-export const jupiterRateLimiter = new RateLimiter(10); // Jupiter allows more requests
+export const uniswapRateLimiter = new RateLimiter(5);  // 5 requests per second
+export const sushiswapRateLimiter = new RateLimiter(3); // 3 requests per second
+export const jupiterRateLimiter = new RateLimiter(10);  // Jupiter allows more requests
 export const orcaRateLimiter = new RateLimiter(5);
 export const raydiumRateLimiter = new RateLimiter(5);
-export const pancakeswapRateLimiter = new RateLimiter(5);
+export const pancakeswapRateLimiter = new RateLimiter(3);
 export const balancerRateLimiter = new RateLimiter(3);
-export const curveRateLimiter = new RateLimiter(3);
+export const curveRateLimiter = new RateLimiter(2);    // More conservative rate for Curve
