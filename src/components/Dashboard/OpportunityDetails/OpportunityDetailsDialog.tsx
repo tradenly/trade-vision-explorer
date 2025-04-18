@@ -6,6 +6,7 @@ import { TransactionStatus } from '@/services/dex/types';
 import TradeSummary from './TradeSummary';
 import TradeExecutionProgress from './TradeExecutionProgress';
 import DialogFooter from './DialogFooter';
+import OpportunitySkeleton from './OpportunitySkeleton';
 
 interface OpportunityDetailsDialogProps {
   open: boolean;
@@ -18,6 +19,7 @@ interface OpportunityDetailsDialogProps {
   walletAddress: string | null;
   isConnected: boolean;
   investmentAmount: number;
+  loading?: boolean;
 }
 
 const OpportunityDetailsDialog: React.FC<OpportunityDetailsDialogProps> = ({
@@ -30,9 +32,10 @@ const OpportunityDetailsDialog: React.FC<OpportunityDetailsDialogProps> = ({
   onExecute,
   walletAddress,
   isConnected,
-  investmentAmount
+  investmentAmount,
+  loading = false
 }) => {
-  if (!opportunity) return null;
+  if (!opportunity && !loading) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -45,10 +48,16 @@ const OpportunityDetailsDialog: React.FC<OpportunityDetailsDialogProps> = ({
         </DialogHeader>
 
         <div className="space-y-4">
-          <TradeSummary 
-            opportunity={opportunity} 
-            investmentAmount={investmentAmount} 
-          />
+          {loading ? (
+            <OpportunitySkeleton />
+          ) : (
+            opportunity && (
+              <TradeSummary 
+                opportunity={opportunity} 
+                investmentAmount={investmentAmount} 
+              />
+            )
+          )}
 
           <TradeExecutionProgress
             executing={executing}
@@ -67,6 +76,7 @@ const OpportunityDetailsDialog: React.FC<OpportunityDetailsDialogProps> = ({
           executing={executing}
           onExecute={onExecute}
           onClose={() => onOpenChange(false)}
+          disabled={loading}
         />
       </DialogContent>
     </Dialog>

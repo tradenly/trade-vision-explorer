@@ -9,6 +9,7 @@ interface DialogFooterProps {
   executing: boolean;
   onExecute: () => void;
   onClose: () => void;
+  disabled?: boolean;
 }
 
 const DialogFooter: React.FC<DialogFooterProps> = ({
@@ -16,7 +17,8 @@ const DialogFooter: React.FC<DialogFooterProps> = ({
   walletAddress,
   executing,
   onExecute,
-  onClose
+  onClose,
+  disabled = false
 }) => {
   return (
     <div className="flex flex-col sm:flex-row sm:justify-between gap-4">
@@ -34,13 +36,13 @@ const DialogFooter: React.FC<DialogFooterProps> = ({
         <Button 
           variant="outline" 
           onClick={onClose}
-          disabled={executing}
+          disabled={executing || disabled}
         >
           Cancel
         </Button>
         <Button 
           onClick={onExecute}
-          disabled={executing || !isConnected}
+          disabled={executing || !isConnected || disabled}
         >
           {executing ? (
             <>
