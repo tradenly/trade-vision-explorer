@@ -1,10 +1,11 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { TokenInfo } from '@/services/tokenListService';
 import { ArbitrageOpportunity } from '@/services/dexService';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
 import { scanArbitrageOpportunities } from '@/services/arbitrageScanner';
+import { LiquidityValidationService } from '@/services/dex/services/LiquidityValidationService';
+import { RouteOptimizationService } from '@/services/dex/services/RouteOptimizationService';
 
 export interface ScanOptions {
   minProfitPercentage: number;
@@ -31,7 +32,6 @@ export function useArbitrageScanner(
     setError(null);
   }, []);
 
-  // Function to scan for arbitrage opportunities using edge function
   const scanUsingEdgeFunction = async () => {
     try {
       const { data, error } = await supabase.functions.invoke('scan-arbitrage', {
@@ -67,32 +67,46 @@ export function useArbitrageScanner(
     setError(null);
 
     try {
-      // Try to use the edge function first, fall back to client-side scanning
-      let result;
-      try {
-        result = await scanUsingEdgeFunction();
-      } catch (edgeError) {
-        console.warn('Edge function failed, falling back to client-side scan:', edgeError);
-        result = await scanArbitrageOpportunities(
+      const priceData = await scanUsingEdgeFunction();
+      
+      if (!priceData.opportunities || priceData.opportunities.length === 0) {
+        setOpportunities([]);
+        return;
+      }
+
+      const routeOptimizer = RouteOptimizationService.getInstance();
+      const optimizedOpportunities = [];
+
+      for (const opp of priceData.opportunities) {
+        const quotes = {
+          [opp.buyDex]: { price: opp.buyPrice, fees: opp.tradingFees / 2, gasEstimate: opp.buyGasFee },
+          [opp.sellDex]: { price: opp.sellPrice, fees: opp.tradingFees / 2, gasEstimate: opp.sellGasFee }
+        };
+
+        const optimizedRoute = await routeOptimizer.findOptimalRoute(
           baseToken,
           quoteToken,
-          scanOptions.minProfitPercentage,
-          investmentAmount
+          investmentAmount,
+          quotes
         );
+
+        if (optimizedRoute.isViable) {
+          optimizedOpportunities.push({
+            ...opp,
+            route: optimizedRoute.steps,
+            netProfit: optimizedRoute.expectedProfit,
+            gasFee: optimizedRoute.totalGasEstimate,
+            liquidity: optimizedRoute.minRequiredLiquidity
+          });
+        }
       }
 
-      if (result.errors.length > 0) {
-        setError(result.errors.join(', '));
-      }
-
-      // Filter and sort opportunities
-      const filteredOpportunities = result.opportunities
+      const filteredOpportunities = optimizedOpportunities
         .filter(opp => 
-          // Apply additional filters here if needed
-          opp.netProfitPercentage >= scanOptions.minProfitPercentage && 
-          (opp.liquidity >= scanOptions.minLiquidity)
+          opp.netProfit >= scanOptions.minProfitPercentage && 
+          opp.liquidity >= scanOptions.minLiquidity
         )
-        .sort((a, b) => b.netProfitPercentage - a.netProfitPercentage);
+        .sort((a, b) => b.netProfit - a.netProfit);
 
       setOpportunities(filteredOpportunities);
       setLastScanTime(new Date());
@@ -101,7 +115,7 @@ export function useArbitrageScanner(
       if (filteredOpportunities.length > 0) {
         toast({
           title: "Arbitrage Opportunities Found",
-          description: `Found ${filteredOpportunities.length} potential trades.`,
+          description: `Found ${filteredOpportunities.length} viable trades.`,
         });
       }
     } catch (err) {
