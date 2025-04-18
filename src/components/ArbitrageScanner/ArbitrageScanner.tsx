@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { ArbitrageOpportunity } from '@/services/dexService';
@@ -10,6 +9,7 @@ import { useArbitrageScanner } from '@/hooks/useArbitrageScanner';
 import { ScannerHeader } from './ScannerHeader';
 import { ScannerContent } from './ScannerContent';
 import TradeConfirmDialog from './TradeConfirmDialog';
+import { useRealTimePrices } from '@/hooks/useRealTimePrices';
 
 const ArbitrageScanner: React.FC = () => {
   const { toast } = useToast();
@@ -32,6 +32,8 @@ const ArbitrageScanner: React.FC = () => {
     lastScanTime 
   } = useArbitrageScanner(baseToken, quoteToken, investmentAmount, minProfitPercentage, autoScan);
 
+  const { prices: realTimePrices, loading: pricesLoading } = useRealTimePrices(baseToken, quoteToken);
+
   const handleTokenPairSelect = (base: TokenInfo, quote: TokenInfo) => {
     setBaseToken(base);
     setQuoteToken(quote);
@@ -52,6 +54,11 @@ const ArbitrageScanner: React.FC = () => {
       });
       return;
     }
+
+    if (Object.keys(realTimePrices).length > 0) {
+      console.log('Using real-time prices for scan:', realTimePrices);
+    }
+    
     scanForOpportunities();
   };
 
@@ -98,7 +105,7 @@ const ArbitrageScanner: React.FC = () => {
         <ScannerContent
           baseToken={baseToken}
           quoteToken={quoteToken}
-          loading={loading}
+          loading={loading || pricesLoading}
           error={error}
           opportunities={opportunities}
           lastScanTime={lastScanTime}
@@ -109,6 +116,7 @@ const ArbitrageScanner: React.FC = () => {
           onInvestmentAmountChange={setInvestmentAmount}
           onScan={handleScan}
           onOpportunitySelect={handleOpportunitySelect}
+          realTimePrices={realTimePrices}
         />
       </Card>
 
