@@ -38,4 +38,9 @@ export interface ArbitrageOpportunity {
   tradingFees: number;
   platformFee: number;
   investmentAmount: number;
+  // Add the missing properties
+  buyPriceImpact?: number;
+  sellPriceImpact?: number;
+  adjustedBuyPrice?: number;
+  adjustedSellPrice?: number;
 }
