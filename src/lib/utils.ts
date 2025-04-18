@@ -1,4 +1,3 @@
-
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
  
@@ -64,4 +63,14 @@ export function calculatePriceDifference(
   const percentage = (absolute / price1) * 100;
   
   return { percentage, absolute };
+}
+
+export function formatNumber(value: number, decimals: number = 2): string {
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(decimals)}M`;
+  }
+  if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(decimals)}K`;
+  }
+  return value.toFixed(decimals);
 }

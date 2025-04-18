@@ -1,179 +1,101 @@
 
-import React from 'react';
-import { ArbitrageOpportunity } from '@/services/dexService';
-import { Separator } from '@/components/ui/separator';
-import { AlertTriangle } from 'lucide-react';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-
-interface TradeDetailsProps {
-  opportunity: ArbitrageOpportunity;
-  slippageTolerance?: number;
-  tradeAmount: number;
-  buyPriceImpact: number;
-  sellPriceImpact?: number;
-  estimatedTokenAmount: number;
-  tradingFees?: number;
-  gasFees?: number;
-  platformFee?: number;
-  maxTradeSize?: number;
-}
+import { formatNumber } from '@/lib/utils';
+import { AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { TradeDetailsProps } from './types';
 
 const TradeDetails: React.FC<TradeDetailsProps> = ({
   opportunity,
   tradeAmount,
   buyPriceImpact,
-  sellPriceImpact = 0,
+  sellPriceImpact,
   estimatedTokenAmount,
-  tradingFees = opportunity.tradingFees,
-  gasFees = opportunity.gasFee,
-  platformFee = opportunity.platformFee,
-  maxTradeSize = 0,
+  tradingFees,
+  gasFees,
+  platformFee,
+  maxTradeSize
 }) => {
-  const isPriceImpactHigh = buyPriceImpact > 2 || sellPriceImpact > 2;
-  const totalFees = tradingFees + gasFees + platformFee;
-  
-  // Calculate expected return with slippage
-  const effectiveBuyPrice = opportunity.buyPrice * (1 + buyPriceImpact / 100);
-  const effectiveSellPrice = opportunity.sellPrice * (1 - sellPriceImpact / 100);
-  const expectedReturn = estimatedTokenAmount * effectiveSellPrice;
-  
-  // Calculate expected profit after all fees
-  const grossProfit = expectedReturn - tradeAmount;
-  const netProfit = grossProfit - totalFees;
-  const netProfitPercentage = (netProfit / tradeAmount) * 100;
-
   return (
-    <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-      <div className="grid grid-cols-2 gap-2 py-2">
-        <span className="font-medium">Token Pair:</span>
-        <span>{opportunity.tokenPair}</span>
-        
-        <span className="font-medium">Buy On:</span>
-        <span>{opportunity.buyDex} (${opportunity.buyPrice.toFixed(4)})</span>
-        
-        <span className="font-medium">Sell On:</span>
-        <span>{opportunity.sellDex} (${opportunity.sellPrice.toFixed(4)})</span>
-        
-        <span className="font-medium">Network:</span>
-        <span className="capitalize">{opportunity.network}</span>
-        
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="font-medium flex items-center">
-                Price Impact (Buy):
-                {buyPriceImpact > 1.5 && (
-                  <AlertTriangle className="h-3 w-3 ml-1 text-amber-500" />
-                )}
-              </span>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-xs" side="bottom">
-              <p className="text-xs">
-                Price impact increases with trade size. Large trades can move market prices.
-              </p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        <span className={buyPriceImpact > 3 ? "text-red-500" : buyPriceImpact > 1.5 ? "text-amber-500" : ""}>
-          {buyPriceImpact.toFixed(2)}%
-        </span>
-        
-        {sellPriceImpact > 0 && (
-          <>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="font-medium flex items-center">
-                    Price Impact (Sell):
-                    {sellPriceImpact > 1.5 && (
-                      <AlertTriangle className="h-3 w-3 ml-1 text-amber-500" />
-                    )}
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-xs" side="bottom">
-                  <p className="text-xs">
-                    Sell price impact shows how the sell transaction may affect market price.
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            <span className={sellPriceImpact > 3 ? "text-red-500" : sellPriceImpact > 1.5 ? "text-amber-500" : ""}>
-              {sellPriceImpact.toFixed(2)}%
-            </span>
-          </>
-        )}
-        
-        <span className="font-medium">Available Liquidity</span>
-        <div className="text-muted-foreground">
-          ${opportunity.liquidity?.toLocaleString() || 'Unknown'}
-        </div>
-        
-        {maxTradeSize > 0 && (
-          <>
-            <span className="font-medium">Recommended Max Size</span>
-            <div className="text-muted-foreground">
-              ${maxTradeSize.toFixed(2)}
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <h3 className="text-sm font-medium mb-2">Buy on {opportunity.buyDex}</h3>
+          <div className="space-y-1 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Price:</span>
+              <span>${formatNumber(opportunity.buyPrice)}</span>
             </div>
-          </>
-        )}
-      </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Price Impact:</span>
+              <span className={buyPriceImpact > 2 ? 'text-red-500' : 'text-green-500'}>
+                {buyPriceImpact.toFixed(2)}%
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Pool Liquidity:</span>
+              <span>${formatNumber(opportunity.liquidity)}</span>
+            </div>
+          </div>
+        </div>
 
-      <Separator />
-      
-      <div className="space-y-3 p-3 bg-muted/50 rounded-md">
-        <div className="flex justify-between items-center text-sm">
-          <span className="text-muted-foreground">Trade Amount</span>
-          <span>${tradeAmount.toFixed(2)}</span>
-        </div>
-        
-        <div className="flex justify-between items-center text-sm">
-          <span className="text-muted-foreground">Trading Fees</span>
-          <span>-${tradingFees.toFixed(2)}</span>
-        </div>
-        
-        <div className="flex justify-between items-center text-sm">
-          <span className="text-muted-foreground">Gas Fee</span>
-          <span>-${gasFees.toFixed(2)}</span>
-        </div>
-        
-        <div className="flex justify-between items-center text-sm">
-          <span className="text-muted-foreground">Platform Fee (0.5%)</span>
-          <span>-${platformFee.toFixed(2)}</span>
-        </div>
-        
-        <Separator />
-        
-        <div className="flex justify-between items-center font-medium">
-          <span>Expected Return</span>
-          <span>${expectedReturn.toFixed(2)}</span>
-        </div>
-      </div>
-      
-      <div className="border rounded-lg p-3">
-        <div className="space-y-2">
-          <div className="font-medium">Expected Profit</div>
-          <div className="flex justify-between text-lg">
-            <span className="text-green-600 font-bold">
-              ${netProfit.toFixed(4)}
-            </span>
-            <span className="text-green-600 font-bold">
-              ({netProfitPercentage.toFixed(2)}%)
-            </span>
+        <div>
+          <h3 className="text-sm font-medium mb-2">Sell on {opportunity.sellDex}</h3>
+          <div className="space-y-1 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Price:</span>
+              <span>${formatNumber(opportunity.sellPrice)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Price Impact:</span>
+              <span className={sellPriceImpact > 2 ? 'text-red-500' : 'text-green-500'}>
+                {sellPriceImpact.toFixed(2)}%
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Pool Liquidity:</span>
+              <span>${formatNumber(opportunity.liquidity)}</span>
+            </div>
           </div>
         </div>
       </div>
-      
-      <div className="flex justify-between text-sm text-muted-foreground">
-        <span>Estimated Token Amount: {estimatedTokenAmount.toFixed(4)}</span>
+
+      <div className="border-t pt-4">
+        <h3 className="text-sm font-medium mb-2">Transaction Details</h3>
+        <div className="space-y-1 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Investment Amount:</span>
+            <span>${formatNumber(tradeAmount)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Estimated {opportunity.token} Amount:</span>
+            <span>{formatNumber(estimatedTokenAmount)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Trading Fees:</span>
+            <span className="text-yellow-500">${formatNumber(tradingFees)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Gas Fees:</span>
+            <span className="text-yellow-500">${formatNumber(gasFees)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Platform Fee (0.5%):</span>
+            <span className="text-yellow-500">${formatNumber(platformFee)}</span>
+          </div>
+          <div className="flex justify-between font-medium mt-2">
+            <span>Net Profit:</span>
+            <span className="text-green-500">${formatNumber(opportunity.netProfit)}</span>
+          </div>
+        </div>
       </div>
 
-      {isPriceImpactHigh && (
-        <p className="text-xs text-amber-500">Price impact is high. Consider reducing trade size.</p>
+      {maxTradeSize && maxTradeSize < tradeAmount && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Warning: Your trade size (${formatNumber(tradeAmount)}) exceeds the recommended maximum of ${formatNumber(maxTradeSize)} based on current liquidity.
+          </AlertDescription>
+        </Alert>
       )}
     </div>
   );
