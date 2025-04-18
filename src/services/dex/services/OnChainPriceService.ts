@@ -126,7 +126,7 @@ export class OnChainPriceService {
         price: quote.price,
         liquidity: quote.liquidityUSD || 100000,
         timestamp: quote.timestamp || Date.now(),
-        source: 'api'
+        source: dex
       };
     });
     
@@ -134,7 +134,7 @@ export class OnChainPriceService {
   }
 
   /**
-   * Fetch prices using Supabase Edge Function
+   * Fetch prices from Edge Function
    */
   private async fetchPricesFromEdgeFunction(
     baseToken: TokenInfo,
@@ -142,22 +142,30 @@ export class OnChainPriceService {
   ): Promise<Record<string, PriceQuote>> {
     try {
       const { data, error } = await supabase.functions.invoke('fetch-prices', {
-        body: { 
-          baseToken, 
-          quoteToken
+        body: {
+          baseToken: {
+            address: baseToken.address,
+            symbol: baseToken.symbol,
+            decimals: baseToken.decimals,
+            chainId: baseToken.chainId
+          },
+          quoteToken: {
+            address: quoteToken.address,
+            symbol: quoteToken.symbol,
+            decimals: quoteToken.decimals,
+            chainId: quoteToken.chainId
+          }
         }
       });
 
       if (error) {
-        console.error('Edge function error:', error);
-        return {};
+        throw error;
       }
 
       if (!data || !data.prices) {
         return {};
       }
 
-      // Convert to PriceQuote format
       const quotes: Record<string, PriceQuote> = {};
       
       for (const dex in data.prices) {
@@ -165,7 +173,7 @@ export class OnChainPriceService {
           dexName: dex,
           price: data.prices[dex].price,
           fees: this.getDexFee(dex),
-          gasEstimate: 0, // Will be calculated separately
+          gasEstimate: this.getGasEstimate(baseToken.chainId, dex),
           liquidityUSD: data.prices[dex].liquidity || 100000,
           timestamp: Date.now()
         };
@@ -179,7 +187,7 @@ export class OnChainPriceService {
   }
 
   /**
-   * Fetch latest prices from the database
+   * Fetch latest prices from Supabase database
    */
   private async fetchLatestPricesFromDatabase(
     baseToken: TokenInfo,
@@ -197,7 +205,10 @@ export class OnChainPriceService {
         .limit(20);
 
       if (error) {
-        console.error('Database query error:', error);
+        throw error;
+      }
+
+      if (!data || data.length === 0) {
         return {};
       }
 
@@ -213,7 +224,7 @@ export class OnChainPriceService {
             dexName: item.dex_name,
             price: item.price,
             fees: this.getDexFee(item.dex_name),
-            gasEstimate: 0, // Will be calculated separately
+            gasEstimate: this.getGasEstimate(baseToken.chainId, item.dex_name),
             liquidityUSD: item.liquidity || 100000,
             timestamp: new Date(item.timestamp).getTime()
           };
@@ -228,7 +239,7 @@ export class OnChainPriceService {
   }
 
   /**
-   * Fetch prices directly from DEX adapters
+   * Fetch prices directly from DEX adapters (last resort)
    */
   private async fetchPricesFromAdapters(
     baseToken: TokenInfo,
@@ -238,36 +249,30 @@ export class OnChainPriceService {
       const adapters = this.dexRegistry.getAdaptersForChain(baseToken.chainId);
       
       if (adapters.length === 0) {
-        console.warn(`No DEX adapters available for chain ${baseToken.chainId}`);
         return {};
       }
-      
-      const quotes: Record<string, PriceQuote> = {};
-      
-      // Fetch quotes from all adapters in parallel
+
       const quotePromises = adapters
         .filter(adapter => adapter.isEnabled())
         .map(async adapter => {
           try {
             const quote = await adapter.fetchQuote(baseToken, quoteToken);
-            
-            if (quote) {
-              quotes[adapter.getSlug()] = {
-                dexName: adapter.getSlug(),
-                price: quote.price,
-                fees: this.getDexFee(adapter.getSlug()),
-                gasEstimate: 0, // Will be calculated separately
-                liquidityUSD: quote.liquidityUSD || 100000,
-                timestamp: Date.now()
-              };
-            }
+            return { [adapter.getSlug()]: quote };
           } catch (error) {
             console.error(`Error fetching quote from ${adapter.getName()}:`, error);
+            return null;
           }
         });
+
+      const results = await Promise.allSettled(quotePromises);
       
-      await Promise.all(quotePromises);
-      return quotes;
+      // Combine successful quotes
+      return results.reduce((acc, result) => {
+        if (result.status === 'fulfilled' && result.value) {
+          return { ...acc, ...result.value };
+        }
+        return acc;
+      }, {});
     } catch (error) {
       console.error('Error fetching prices from adapters:', error);
       return {};
@@ -275,20 +280,50 @@ export class OnChainPriceService {
   }
 
   /**
-   * Get fee percentage for a DEX
+   * Get DEX trading fee percentage
    */
   private getDexFee(dexName: string): number {
     const fees: Record<string, number> = {
-      'uniswap': 0.003, // 0.3%
-      'sushiswap': 0.003, // 0.3%
+      'uniswap': 0.003,     // 0.3%
+      'sushiswap': 0.003,   // 0.3%
       'pancakeswap': 0.0025, // 0.25%
-      'jupiter': 0.0035, // 0.35%
-      'orca': 0.003, // 0.3%
-      'raydium': 0.003, // 0.3%
-      'balancer': 0.002, // 0.2%
-      'curve': 0.0004 // 0.04%
+      'jupiter': 0.0035,    // 0.35%
+      'orca': 0.003,        // 0.3%
+      'raydium': 0.003,     // 0.3%
+      'balancer': 0.002,    // 0.2%
+      'curve': 0.0004       // 0.04%
     };
-  
+
     return fees[dexName.toLowerCase()] || 0.003; // Default to 0.3%
+  }
+
+  /**
+   * Get gas estimate for chain and DEX
+   */
+  private getGasEstimate(chainId: number, dexName: string): number {
+    // Base gas estimates by chain
+    const chainGasBase: Record<number, number> = {
+      1: 0.005,    // Ethereum
+      56: 0.0005,  // BSC
+      137: 0.001,  // Polygon
+      101: 0.00001 // Solana
+    };
+
+    // Multipliers by DEX (relative to base)
+    const dexMultipliers: Record<string, number> = {
+      'uniswap': 1.0,
+      'sushiswap': 1.1,
+      'curve': 0.8,       // More gas efficient
+      'balancer': 1.2,
+      'jupiter': 1.0,
+      'orca': 1.0,
+      'raydium': 1.0,
+      'pancakeswap': 0.9  // Slightly more efficient on BSC
+    };
+
+    const baseGas = chainGasBase[chainId] || 0.003;
+    const multiplier = dexMultipliers[dexName.toLowerCase()] || 1.0;
+
+    return baseGas * multiplier;
   }
 }
