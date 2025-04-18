@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { TokenInfo } from '@/services/tokenListService';
-import { ArbitrageOpportunity } from '@/services/dexService';
+import { ArbitrageOpportunity } from '@/services/arbitrage/types'; // Ensure correct import
 import { OnChainPriceService } from '@/services/dex/services/OnChainPriceService';
 import { ArbitrageOpportunityService } from '@/services/arbitrage/ArbitrageOpportunityService';
 import { FeeService } from '@/services/dex/services/FeeService';
