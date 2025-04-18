@@ -1,12 +1,15 @@
-
 import { BaseAdapter } from './BaseAdapter';
 import { PriceQuote } from '../types';
 import { TokenInfo } from '../../tokenListService';
+import { sushiswapRateLimiter } from '../utils/rateLimiter';
 
 export class SushiswapAdapter extends BaseAdapter {
   public async fetchQuote(baseToken: TokenInfo, quoteToken: TokenInfo, amount: number = 1): Promise<PriceQuote> {
     try {
-      // Native SushiSwap API integration using The Graph Protocol
+      // Respect rate limits
+      await sushiswapRateLimiter.waitForSlot();
+
+      // Get the correct subgraph URL based on chain
       const chainId = baseToken.chainId;
       const SUSHISWAP_SUBGRAPH_URLS: Record<number, string> = {
         1: 'https://api.thegraph.com/subgraphs/name/sushiswap/exchange',
@@ -20,17 +23,18 @@ export class SushiswapAdapter extends BaseAdapter {
         throw new Error(`SushiSwap not supported on chain ${chainId}`);
       }
 
-      // Query for pair data
-      const query = `
-        {
-          pair(id: "${baseToken.address.toLowerCase()}-${quoteToken.address.toLowerCase()}") {
-            token0Price
-            token1Price
-            reserveUSD
-            volumeUSD
-          }
+      // Create pair ID (token addresses in alphabetical order)
+      const pairId = `${baseToken.address.toLowerCase()}-${quoteToken.address.toLowerCase()}`;
+
+      // Query the subgraph for pair data
+      const query = `{
+        pair(id: "${pairId}") {
+          token0Price
+          token1Price
+          reserveUSD
+          volumeUSD
         }
-      `;
+      }`;
 
       const response = await fetch(subgraphUrl, {
         method: 'POST',
@@ -38,25 +42,31 @@ export class SushiswapAdapter extends BaseAdapter {
         body: JSON.stringify({ query })
       });
 
-      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(`SushiSwap API error: ${response.status}`);
+      }
+
+      const { data } = await response.json();
       
-      if (!data.data?.pair) {
+      if (!data?.pair) {
         throw new Error('Pair not found on SushiSwap');
       }
 
-      const pair = data.data.pair;
+      const pair = data.pair;
+      
+      // Determine price based on token order
       const price = baseToken.address.toLowerCase() < quoteToken.address.toLowerCase() 
         ? Number(pair.token0Price) 
         : Number(pair.token1Price);
 
-      // Calculate gas estimate based on chain
-      const gasEstimateGwei = chainId === 1 ? 180000 : 120000; // Higher on Ethereum mainnet
-      const gasPriceGwei = 50;
-      const ethPrice = 3500;
+      // Calculate gas based on chain
+      const gasEstimateGwei = chainId === 1 ? 180000 : 120000; // Higher on ETH mainnet
+      const gasPriceGwei = 50; // Reasonable default
+      const ethPrice = 3500; // Estimated ETH price
       const gasEstimateUSD = (gasEstimateGwei * gasPriceGwei * 1e-18) * ethPrice;
-      
+
       return {
-        source: this.getName(),
+        dexName: this.getName(),
         price: price,
         fees: this.getTradingFeePercentage(),
         gasEstimate: gasEstimateUSD,
@@ -66,13 +76,14 @@ export class SushiswapAdapter extends BaseAdapter {
           volumeUSD: pair.volumeUSD
         }
       };
+
     } catch (error) {
-      console.error(`[SushiswapAdapter] Primary API error:`, error);
-      return this.getFallbackQuote(baseToken, quoteToken, amount);
+      console.error(`[SushiswapAdapter] Error:`, error);
+      return this.getFallbackQuote(baseToken, quoteToken);
     }
   }
 
-  private async getFallbackQuote(baseToken: TokenInfo, quoteToken: TokenInfo, amount: number): Promise<PriceQuote> {
+  private async getFallbackQuote(baseToken: TokenInfo, quoteToken: TokenInfo): Promise<PriceQuote> {
     try {
       // For SushiSwap, we'll use the 1inch API but add a sourcing parameter to prefer SushiSwap
       // This is a workaround until we have direct SushiSwap SDK integration
