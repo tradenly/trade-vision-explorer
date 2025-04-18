@@ -21,6 +21,35 @@ export async function scanArbitrageOpportunities(
   const opportunities: ArbitrageOpportunity[] = [];
 
   try {
+    console.log(`Scanning for arbitrage: ${baseToken.symbol}/${quoteToken.symbol}`);
+
+    // Try direct edge function call first
+    try {
+      const { data, error } = await supabase.functions.invoke('scan-arbitrage', {
+        body: { 
+          baseToken, 
+          quoteToken, 
+          minProfitPercentage,
+          investmentAmount 
+        }
+      });
+
+      if (error) {
+        throw new Error(`Edge function error: ${error.message}`);
+      }
+
+      if (data.opportunities && data.opportunities.length > 0) {
+        console.log(`Found ${data.opportunities.length} opportunities via edge function`);
+        return { opportunities: data.opportunities, errors: [] };
+      } else {
+        console.log('No opportunities found via edge function, falling back to client-side processing');
+      }
+    } catch (edgeFnError) {
+      console.warn('Edge function call failed, falling back to client-side processing:', edgeFnError);
+      // Proceed with client-side processing
+    }
+
+    // Fallback to client-side processing
     // Get DEX registry instance
     const dexRegistry = DexRegistry.getInstance();
     const adapters = dexRegistry.getAdaptersForChain(baseToken.chainId);
@@ -32,7 +61,7 @@ export async function scanArbitrageOpportunities(
       };
     }
 
-    // Use the new price aggregation service
+    // Use the price aggregation service
     const priceAggregationService = PriceAggregationService.getInstance();
     const priceQuotes = await priceAggregationService.aggregatePrices(baseToken, quoteToken);
     
@@ -42,6 +71,8 @@ export async function scanArbitrageOpportunities(
         errors: ['Not enough price quotes available for arbitrage']
       };
     }
+
+    console.log(`Got ${Object.keys(priceQuotes).length} price quotes for comparison`);
 
     // Compare prices between DEXes to find arbitrage opportunities
     const dexNames = Object.keys(priceQuotes);
@@ -106,6 +137,8 @@ export async function scanArbitrageOpportunities(
         }
       }
     }
+
+    console.log(`Processed ${opportunities.length} client-side opportunities`);
 
     // Store opportunities in the database for analysis
     if (opportunities.length > 0) {

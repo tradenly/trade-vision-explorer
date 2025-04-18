@@ -1,6 +1,10 @@
 
 import { PriceData } from './types.ts';
 
+/**
+ * Find price differences between all available DEXes
+ * Returns array of [dex1, dex2, priceDiffPercentage] tuples
+ */
 export function findPriceDifferences(
   pricesByDex: Map<string, PriceData>
 ): Array<[string, string, number]> {
@@ -28,6 +32,10 @@ export function findPriceDifferences(
   return differences;
 }
 
+/**
+ * Get best price pair given two DEXes
+ * Returns [buyDex, sellDex, buyPrice, sellPrice]
+ */
 export function getBestPricePair(
   dex1: string,
   dex2: string,

@@ -2,6 +2,9 @@
 import { calculateTradingFees, calculatePlatformFee, estimateGasFee } from './utils.ts';
 import { ArbitrageOpportunity } from './types.ts';
 
+/**
+ * Calculate profits and fees for an arbitrage opportunity
+ */
 export function calculateArbitrageProfit(
   buyDex: string,
   sellDex: string,

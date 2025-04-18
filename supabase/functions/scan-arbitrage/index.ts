@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "./cors.ts";
 import { scanArbitrageOpportunities } from "./arbitrage-scanner.ts";
+import { calculateRiskLevel } from "./utils.ts";
 import type { ArbitrageRequest } from "./types.ts";
 
 serve(async (req) => {
@@ -25,11 +26,18 @@ serve(async (req) => {
       );
     }
 
+    // Set defaults if not provided
+    request.minProfitPercentage = request.minProfitPercentage || 0.5; // 0.5% minimum profit
+    request.investmentAmount = request.investmentAmount || 1000; // $1000 default investment
+    request.maxAgeSeconds = request.maxAgeSeconds || 30; // 30 seconds max age for price data
+
+    console.log(`Scanning for arbitrage opportunities: ${request.baseToken.symbol}/${request.quoteToken.symbol}`);
     const opportunities = await scanArbitrageOpportunities(supabase, request);
+    console.log(`Found ${opportunities.length} opportunities`);
 
     // Store opportunities in the database if any are found
     if (opportunities.length > 0) {
-      await supabase
+      const { error } = await supabase
         .from('arbitrage_opportunities')
         .insert(opportunities.map(opp => ({
           network: opp.network,
@@ -41,6 +49,10 @@ serve(async (req) => {
           risk: calculateRiskLevel(opp.netProfitPercentage),
           status: 'active'
         })));
+
+      if (error) {
+        console.error('Error storing arbitrage opportunities:', error);
+      }
     }
 
     return new Response(

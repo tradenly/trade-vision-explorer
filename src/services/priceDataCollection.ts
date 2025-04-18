@@ -49,7 +49,7 @@ export async function fetchAndStorePriceData(
         priceQuotes[dexName] = {
           dexName: dexName,
           price: price.price,
-          fees: getDexFee(dexName), // Helper function to get DEX fees
+          fees: getDexFee(dexName),
           gasEstimate: getGasEstimate(baseToken.chainId, dexName),
           liquidityUSD: price.liquidity || 100000,
           timestamp: price.timestamp
@@ -57,6 +57,7 @@ export async function fetchAndStorePriceData(
       });
     }
 
+    console.log(`Fetched ${Object.keys(priceQuotes).length} price quotes for ${baseToken.symbol}/${quoteToken.symbol}`);
     return priceQuotes;
   } catch (error) {
     console.error('Error in fetchAndStorePriceData:', error);
@@ -74,6 +75,8 @@ export async function findArbitrageOpportunities(
   investmentAmount: number = 1000
 ): Promise<any[]> {
   try {
+    console.log(`Scanning for arbitrage: ${baseToken.symbol}/${quoteToken.symbol}, min profit: ${minProfitPercentage}%, investment: $${investmentAmount}`);
+    
     // Call the Supabase Edge Function to scan for arbitrage
     const { data, error } = await supabase.functions.invoke('scan-arbitrage', {
       body: { 
@@ -89,6 +92,7 @@ export async function findArbitrageOpportunities(
       throw new Error(`Failed to scan for arbitrage: ${error.message}`);
     }
 
+    console.log(`Found ${data.opportunities?.length || 0} arbitrage opportunities`);
     return data.opportunities || [];
   } catch (error) {
     console.error('Error in findArbitrageOpportunities:', error);

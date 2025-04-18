@@ -4,11 +4,17 @@ export interface ArbitrageRequest {
     symbol: string;
     address: string;
     chainId: number;
+    decimals: number;
+    name?: string;
+    logoURI?: string;
   };
   quoteToken: {
     symbol: string;
     address: string;
     chainId: number;
+    decimals: number;
+    name?: string;
+    logoURI?: string;
   };
   minProfitPercentage?: number;
   investmentAmount?: number;
@@ -18,8 +24,8 @@ export interface ArbitrageRequest {
 export interface PriceData {
   dex_name: string;
   price: number;
-  liquidity: number;
-  timestamp: string;
+  liquidity?: number;
+  timestamp?: string;
 }
 
 export interface ArbitrageOpportunity {
