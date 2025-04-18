@@ -1,6 +1,6 @@
 
-import { DexAdapter, PriceResult, TokenPair } from './types';
-import { UniswapAdapter } from './dex-adapters/uniswap';
+import { DexAdapter, PriceResult, TokenPair } from './types.ts';
+import { UniswapAdapter } from './dex-adapters/uniswap.ts';
 
 export class PriceAggregator {
   private adapters: DexAdapter[] = [];

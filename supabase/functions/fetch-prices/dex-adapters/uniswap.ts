@@ -1,5 +1,5 @@
 
-import { DexAdapter, PriceResult } from '../types';
+import { DexAdapter, PriceResult } from '../types.ts';
 
 export class UniswapAdapter implements DexAdapter {
   private rateLimit = 3; // Max 3 requests per second
