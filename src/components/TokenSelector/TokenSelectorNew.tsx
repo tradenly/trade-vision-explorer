@@ -28,7 +28,7 @@ interface TokenSelectorProps {
 }
 
 const TokenSelectorNew: React.FC<TokenSelectorProps> = ({
-  tokens,
+  tokens = [], // Ensure tokens is never undefined
   selectedToken,
   onSelectToken,
   placeholder = "Select token",
@@ -40,13 +40,15 @@ const TokenSelectorNew: React.FC<TokenSelectorProps> = ({
 
   // Filter tokens based on search query
   const filteredTokens = useMemo(() => {
-    if (!searchQuery || !tokens || tokens.length === 0) return tokens || [];
+    if (!searchQuery) return tokens || [];
     
     const lowerQuery = searchQuery.toLowerCase();
-    return tokens.filter(token => 
-      token.name?.toLowerCase().includes(lowerQuery) || 
-      token.symbol?.toLowerCase().includes(lowerQuery) ||
-      token.address?.toLowerCase().includes(lowerQuery)
+    return (tokens || []).filter(token => 
+      token && (
+        (token.name?.toLowerCase().includes(lowerQuery)) || 
+        (token.symbol?.toLowerCase().includes(lowerQuery)) ||
+        (token.address?.toLowerCase().includes(lowerQuery))
+      )
     );
   }, [tokens, searchQuery]);
 
@@ -70,6 +72,7 @@ const TokenSelectorNew: React.FC<TokenSelectorProps> = ({
 
   // Generate a unique value for each token
   const getTokenValue = (token: TokenInfo) => {
+    if (!token) return 'undefined-token';
     return `${token.symbol || ''}-${token.address || ''}-${token.chainId || ''}`;
   };
 
@@ -124,15 +127,18 @@ const TokenSelectorNew: React.FC<TokenSelectorProps> = ({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="p-0 w-[300px] bg-popover" align="start">
-        <Command>
-          <CommandInput 
-            placeholder="Search tokens..." 
-            onValueChange={setSearchQuery}
-            value={searchQuery}
-          />
-          {safeTokens.length === 0 ? (
+        {safeTokens.length === 0 ? (
+          <div className="p-4 text-center text-sm text-muted-foreground">
+            No tokens available
+          </div>
+        ) : (
+          <Command>
+            <CommandInput 
+              placeholder="Search tokens..." 
+              onValueChange={setSearchQuery}
+              value={searchQuery}
+            />
             <CommandEmpty>No tokens found</CommandEmpty>
-          ) : (
             <CommandGroup className="max-h-[300px] overflow-auto">
               {safeTokens.map((token, index) => {
                 // Skip any invalid tokens
@@ -177,8 +183,8 @@ const TokenSelectorNew: React.FC<TokenSelectorProps> = ({
                 );
               })}
             </CommandGroup>
-          )}
-        </Command>
+          </Command>
+        )}
       </PopoverContent>
     </Popover>
   );
