@@ -1,4 +1,6 @@
 
+import { supabase } from '@/lib/supabaseClient';
+
 /**
  * Service to calculate transaction fees for trades
  */
@@ -262,7 +264,7 @@ export class FeeService {
       'polygon': 'MATIC',
       'arbitrum': 'ETH',
       'optimism': 'ETH',
-      'base': 'ETH',
+      'base': 'ETH',     
       'solana': 'SOL'
     };
     

@@ -147,3 +147,39 @@ export async function getLatestGasPrice(network: string): Promise<number> {
     return 0;
   }
 }
+
+/**
+ * Calculate risk level based on profit percentage
+ */
+export function calculateRiskLevel(profitPercentage: number): string {
+  if (profitPercentage < 1.0) {
+    return 'low';
+  } else if (profitPercentage < 3.0) {
+    return 'medium';
+  } else {
+    return 'high';
+  }
+}
+
+/**
+ * Format currency for display
+ */
+export function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(amount);
+}
+
+/**
+ * Format percentage for display
+ */
+export function formatPercentage(percentage: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'percent',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(percentage / 100);
+}

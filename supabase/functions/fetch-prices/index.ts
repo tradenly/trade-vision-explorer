@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -69,8 +68,14 @@ serve(async (req) => {
     // Combine fresh prices with database prices (fresh prices take precedence)
     const combinedPrices = { ...dbPrices, ...freshPrices };
     
+    // Add current gas prices for the network
+    const gasPrices = await fetchCurrentGasPrices(chainIdToNetwork[baseToken.chainId] || 'ethereum');
+    
     return new Response(
-      JSON.stringify({ prices: combinedPrices }),
+      JSON.stringify({ 
+        prices: combinedPrices,
+        gasPrices
+      }),
       { 
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       }
@@ -302,5 +307,122 @@ async function fetchLatestPricesFromDB(baseToken, quoteToken) {
   } catch (error) {
     console.error('Error fetching prices from DB:', error);
     return {};
+  }
+}
+
+/**
+ * Fetch current gas prices for a network
+ */
+async function fetchCurrentGasPrices(network) {
+  try {
+    if (network === 'solana') {
+      // For Solana, get from RPC or API
+      const response = await fetch('https://api.mainnet-beta.solana.com', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'getRecentBlockhash'
+        })
+      });
+      
+      const data = await response.json();
+      if (data.result) {
+        // Store in DB
+        await supabase.from('gas_fees').insert({
+          network: 'solana',
+          base_fee: 0.000005, // Typical lamports fee
+          priority_fee: 0,
+          is_lamports: true
+        });
+        
+        return {
+          base_fee: 0.000005,
+          priority_fee: 0,
+          total_gas_estimate_usd: 0.0002
+        };
+      }
+    } else if (network === 'ethereum') {
+      // For Ethereum, get from API
+      const apiKey = Deno.env.get("ALCHEMY_API_KEY");
+      if (apiKey) {
+        const url = `https://eth-mainnet.g.alchemy.com/v2/${apiKey}`;
+        
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'eth_gasPrice'
+          })
+        });
+        
+        const data = await response.json();
+        if (data.result) {
+          const gasPrice = parseInt(data.result, 16) / 1e9; // Convert to Gwei
+          
+          // Store in DB
+          await supabase.from('gas_fees').insert({
+            network: 'ethereum',
+            base_fee: gasPrice,
+            priority_fee: 1.5, // Add priority fee estimate
+            is_lamports: false
+          });
+          
+          return {
+            base_fee: gasPrice,
+            priority_fee: 1.5,
+            total_gas_estimate_usd: 5.0 // Assuming $3500 ETH and 180000 gas units
+          };
+        }
+      }
+    }
+    
+    // Fallback to latest from DB
+    const { data } = await supabase
+      .from('gas_fees')
+      .select('*')
+      .eq('network', network)
+      .order('created_at', { ascending: false })
+      .limit(1);
+      
+    if (data && data.length > 0) {
+      return {
+        base_fee: data[0].base_fee,
+        priority_fee: data[0].priority_fee,
+        total_gas_estimate_usd: data[0].is_lamports ? 0.0002 : 
+          (network === 'ethereum' ? 5.0 : 
+           network === 'bnb' ? 0.2 :
+           network === 'polygon' ? 0.1 : 0.3)
+      };
+    }
+    
+    // Default values if all else fails
+    const defaultGasEstimates = {
+      ethereum: { base: 20, priority: 1.5, usd: 5.0 },
+      bnb: { base: 5, priority: 0.5, usd: 0.2 },
+      polygon: { base: 50, priority: 30, usd: 0.1 },
+      arbitrum: { base: 0.1, priority: 0.05, usd: 0.3 },
+      optimism: { base: 0.001, priority: 0.0005, usd: 0.2 },
+      base: { base: 0.01, priority: 0.005, usd: 0.1 },
+      solana: { base: 0.000005, priority: 0, usd: 0.0002 }
+    };
+    
+    const defaultGas = defaultGasEstimates[network] || defaultGasEstimates.ethereum;
+    
+    return {
+      base_fee: defaultGas.base,
+      priority_fee: defaultGas.priority,
+      total_gas_estimate_usd: defaultGas.usd
+    };
+  } catch (error) {
+    console.error(`Error fetching gas prices for ${network}:`, error);
+    return {
+      base_fee: network === 'solana' ? 0.000005 : 20,
+      priority_fee: network === 'solana' ? 0 : 1.5,
+      total_gas_estimate_usd: network === 'solana' ? 0.0002 : 5.0
+    };
   }
 }
