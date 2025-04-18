@@ -42,6 +42,10 @@ const Dashboard: React.FC = () => {
 
     // Calculate estimated profit percentage
     const estimatedProfitPercentage = opportunity.net_profit_percentage || 0;
+    
+    // Get the buy and sell prices
+    const buyPrice = parseFloat(opportunity.buy_price?.toString() || '0');
+    const sellPrice = parseFloat(opportunity.sell_price?.toString() || '0');
 
     return {
       ...opportunity,
@@ -51,8 +55,8 @@ const Dashboard: React.FC = () => {
       gasFee: opportunity.gas_fee || 0,
       buyDex: opportunity.buy_exchange,
       sellDex: opportunity.sell_exchange,
-      buyPrice: parseFloat(opportunity.buy_price?.toString() || '0'),
-      sellPrice: parseFloat(opportunity.sell_price?.toString() || '0'),
+      buyPrice: buyPrice,
+      sellPrice: sellPrice,
       tokenPair: opportunity.token_pair,
       priceDifferencePercentage: opportunity.price_diff,
       estimatedProfit: parseFloat(opportunity.estimated_profit || '0'),
@@ -67,7 +71,12 @@ const Dashboard: React.FC = () => {
       netProfit: opportunity.net_profit || 0,
       token: baseToken.symbol,
       liquidity: opportunity.liquidity_buy || opportunity.liquidity_sell || 100000,
-      investmentAmount: investmentAmount
+      investmentAmount: investmentAmount,
+      // Add the new required properties
+      buyPriceImpact: 0,
+      sellPriceImpact: 0,
+      adjustedBuyPrice: buyPrice,
+      adjustedSellPrice: sellPrice
     };
   });
 

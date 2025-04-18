@@ -83,7 +83,12 @@ export async function findArbitrageOpportunities(
           sellGasFee: 0,
           tradingFees: 0,
           platformFee: 0,
-          investmentAmount: 0
+          investmentAmount: 0,
+          // Add the missing properties
+          buyPriceImpact: 0,
+          sellPriceImpact: 0,
+          adjustedBuyPrice: buyPrice,
+          adjustedSellPrice: sellPrice
         };
 
         opportunities.push(opportunity);
