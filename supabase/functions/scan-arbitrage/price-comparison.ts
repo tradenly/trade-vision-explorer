@@ -12,8 +12,13 @@ export function findPriceDifferences(
       const [dex1, price1] = priceEntries[i];
       const [dex2, price2] = priceEntries[j];
 
+      // Calculate absolute price difference
       const priceDiff = Math.abs(price1.price - price2.price);
+      
+      // Calculate average price for percentage calculation
       const avgPrice = (price1.price + price2.price) / 2;
+      
+      // Calculate the percentage difference (potential profit percentage)
       const profitPercentage = (priceDiff / avgPrice) * 100;
 
       differences.push([dex1, dex2, profitPercentage]);
@@ -31,6 +36,7 @@ export function getBestPricePair(
   const price1 = pricesByDex.get(dex1)!;
   const price2 = pricesByDex.get(dex2)!;
   
+  // Return [buyDex, sellDex, buyPrice, sellPrice] with the lower price as buyPrice
   return price1.price < price2.price
     ? [dex1, dex2, price1.price, price2.price]
     : [dex2, dex1, price2.price, price1.price];
