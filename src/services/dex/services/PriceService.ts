@@ -2,40 +2,47 @@
 import { TokenInfo } from '@/services/tokenListService';
 import { PriceQuote } from '../types';
 import DexRegistry from '../DexRegistry';
-import { DexPersistenceService } from './dexPersistenceService';
 
 export class PriceService {
-  private persistenceService: DexPersistenceService;
   private dexRegistry: DexRegistry;
-
+  
   constructor(dexRegistry: DexRegistry) {
     this.dexRegistry = dexRegistry;
-    this.persistenceService = new DexPersistenceService();
   }
-
-  public async fetchLatestPricesForPair(baseToken: TokenInfo, quoteToken: TokenInfo): Promise<Record<string, PriceQuote>> {
+  
+  /**
+   * Fetches latest prices for a token pair across all supported DEXs
+   */
+  public async fetchLatestPricesForPair(
+    baseToken: TokenInfo,
+    quoteToken: TokenInfo
+  ): Promise<Record<string, PriceQuote>> {
     try {
       const adapters = this.dexRegistry.getAdaptersForChain(baseToken.chainId);
-      const results: Record<string, PriceQuote> = {};
       
-      const promises = adapters.map(async (adapter) => {
+      // Fetch quotes from all adapters concurrently
+      const quotePromises = adapters.map(async adapter => {
         try {
           const quote = await adapter.fetchQuote(baseToken, quoteToken);
-          if (quote) {
-            results[adapter.getName()] = quote;
-          }
+          return { [adapter.getSlug()]: quote };
         } catch (error) {
-          console.error(`Error fetching price from ${adapter.getName()}:`, error);
+          console.error(`Error fetching quote from ${adapter.getName()}:`, error);
+          return null;
         }
       });
       
-      await Promise.all(promises);
+      const results = await Promise.allSettled(quotePromises);
       
-      await this.persistenceService.storePriceData(baseToken, quoteToken, results);
+      // Combine all successful quotes
+      return results.reduce((acc, result) => {
+        if (result.status === 'fulfilled' && result.value) {
+          return { ...acc, ...result.value };
+        }
+        return acc;
+      }, {});
       
-      return results;
     } catch (error) {
-      console.error('Error fetching latest prices:', error);
+      console.error('Error fetching prices:', error);
       return {};
     }
   }

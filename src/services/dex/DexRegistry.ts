@@ -4,7 +4,7 @@ import { defaultDexConfigs, networkToChainId } from './config/dexConfigs';
 import { DexPersistenceService } from './services/dexPersistenceService';
 import { EVMAdapterRegistry } from './adapters/evm/EVMAdapterRegistry';
 import { SolanaAdapterRegistry } from './adapters/solana/SolanaAdapterRegistry';
-import { PriceService } from './services/PriceService'; // New service for price-related operations
+import { PriceService } from './services/PriceService';
 
 class DexRegistry {
   private static instance: DexRegistry;
@@ -21,11 +21,9 @@ class DexRegistry {
   }
 
   private initializeRegistries() {
-    // Create registries for different chain types
     const evmRegistry = new EVMAdapterRegistry(this.dexConfigs);
     const solanaRegistry = new SolanaAdapterRegistry(this.dexConfigs);
 
-    // Populate registries map
     evmRegistry.getSupportedChains().forEach(chainId => {
       this.registries.set(chainId, evmRegistry.getAdaptersForChain(chainId));
     });
@@ -42,12 +40,10 @@ class DexRegistry {
     return DexRegistry.instance;
   }
 
-  // Simplified method to get adapters for a specific chain
   public getAdaptersForChain(chainId: number): DexAdapter[] {
     return this.registries.get(chainId) || [];
   }
 
-  // Delegate price fetching to a dedicated service
   public async fetchLatestPricesForPair(baseToken: TokenInfo, quoteToken: TokenInfo): Promise<Record<string, PriceQuote>> {
     return this.priceService.fetchLatestPricesForPair(baseToken, quoteToken);
   }
@@ -58,7 +54,6 @@ class DexRegistry {
       
       if (data.length > 0) {
         for (const dexConfig of data) {
-          // Update EVM adapters
           const evmAdapter = this.evmRegistry.getAdapter(dexConfig.slug);
           if (evmAdapter) {
             evmAdapter.setEnabled(dexConfig.enabled);
@@ -68,7 +63,6 @@ class DexRegistry {
             }
           }
           
-          // Update Solana adapters
           const solanaAdapter = this.solanaRegistry.getAdapter(dexConfig.slug);
           if (solanaAdapter) {
             solanaAdapter.setEnabled(dexConfig.enabled);
@@ -100,7 +94,6 @@ class DexRegistry {
   }
 
   public updateDexConfig(slug: string, enabled: boolean): void {
-    // Try to update in both registries
     this.evmRegistry.updateAdapterEnabled(slug, enabled);
     this.solanaRegistry.updateAdapterEnabled(slug, enabled);
     
@@ -120,7 +113,6 @@ class DexRegistry {
   public async checkDexApiStatus(): Promise<Record<string, boolean>> {
     const status: Record<string, boolean> = {};
     
-    // Check EVM adapters
     const evmAdapters = this.evmRegistry.getAllAdapters();
     for (const adapter of evmAdapters) {
       try {
@@ -131,7 +123,6 @@ class DexRegistry {
       }
     }
     
-    // Check Solana adapters
     const solanaAdapters = this.solanaRegistry.getAllAdapters();
     for (const adapter of solanaAdapters) {
       try {
