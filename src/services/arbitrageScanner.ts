@@ -5,6 +5,7 @@ import { ArbitrageOpportunity } from '@/services/dexService';
 import DexRegistry from './dex/DexRegistry';
 import { PriceQuote } from './dex/types';
 import { PriceAggregationService } from './dex/services/PriceAggregationService';
+import { GasEstimationService } from './dex/services/GasEstimationService';
 
 interface ScanResult {
   opportunities: ArbitrageOpportunity[];
@@ -46,11 +47,9 @@ export async function scanArbitrageOpportunities(
       }
     } catch (edgeFnError) {
       console.warn('Edge function call failed, falling back to client-side processing:', edgeFnError);
-      // Proceed with client-side processing
     }
 
     // Fallback to client-side processing
-    // Get DEX registry instance
     const dexRegistry = DexRegistry.getInstance();
     const adapters = dexRegistry.getAdaptersForChain(baseToken.chainId);
 
@@ -63,6 +62,7 @@ export async function scanArbitrageOpportunities(
 
     // Use the price aggregation service
     const priceAggregationService = PriceAggregationService.getInstance();
+    const gasEstimationService = GasEstimationService.getInstance();
     const priceQuotes = await priceAggregationService.aggregatePrices(baseToken, quoteToken);
     
     if (Object.keys(priceQuotes).length < 2) {
@@ -74,6 +74,13 @@ export async function scanArbitrageOpportunities(
 
     console.log(`Got ${Object.keys(priceQuotes).length} price quotes for comparison`);
 
+    // Get network name for gas estimation
+    const networkName = getNetworkName(baseToken.chainId);
+    
+    // Get gas estimate for this network
+    const gasEstimate = await gasEstimationService.getOperationGasEstimate(networkName, 'swap');
+    const approvalGasEstimate = await gasEstimationService.getOperationGasEstimate(networkName, 'approval');
+    
     // Compare prices between DEXes to find arbitrage opportunities
     const dexNames = Object.keys(priceQuotes);
     for (let i = 0; i < dexNames.length; i++) {
@@ -85,60 +92,106 @@ export async function scanArbitrageOpportunities(
 
         if (!quote1 || !quote2) continue;
 
-        const priceDiff = Math.abs(quote1.price - quote2.price);
-        const avgPrice = (quote1.price + quote2.price) / 2;
-        const profitPercentage = (priceDiff / avgPrice) * 100;
+        // Determine buy/sell direction by comparing prices
+        let buyDex, sellDex, buyPrice, sellPrice, buyQuote, sellQuote;
+        
+        if (quote1.price < quote2.price) {
+          buyDex = dex1;
+          sellDex = dex2;
+          buyPrice = quote1.price;
+          sellPrice = quote2.price;
+          buyQuote = quote1;
+          sellQuote = quote2;
+        } else {
+          buyDex = dex2;
+          sellDex = dex1;
+          buyPrice = quote2.price;
+          sellPrice = quote1.price;
+          buyQuote = quote2;
+          sellQuote = quote1;
+        }
 
-        // Check if profit meets minimum threshold
-        if (profitPercentage >= minProfitPercentage) {
-          const [buyDex, sellDex, buyPrice, sellPrice] = 
-            quote1.price < quote2.price 
-              ? [dex1, dex2, quote1.price, quote2.price]
-              : [dex2, dex1, quote2.price, quote1.price];
+        const priceDiff = Math.abs(buyPrice - sellPrice);
+        const avgPrice = (buyPrice + sellPrice) / 2;
+        const priceDifferencePercentage = (priceDiff / avgPrice) * 100;
 
-          // Calculate fees and potential profit
-          const buyFee = (quote1.fees || 0.003) * investmentAmount;
-          const sellFee = (quote2.fees || 0.003) * investmentAmount;
-          const gasFee = (quote1.gasEstimate || 0) + (quote2.gasEstimate || 0);
-          const estimatedProfit = (sellPrice - buyPrice) * investmentAmount / buyPrice;
-          const netProfit = estimatedProfit - buyFee - sellFee - gasFee;
-
+        // Check if price difference meets minimum threshold
+        if (priceDifferencePercentage >= minProfitPercentage) {
+          
+          // Calculate fees and estimate slippage based on available liquidity
+          const buyFee = (buyQuote.fees || 0.003) * investmentAmount;
+          const sellFee = (sellQuote.fees || 0.003) * investmentAmount;
+          
+          // Calculate amount of tokens we'd get from the buy (accounting for slippage)
+          const buyLiquidity = buyQuote.liquidityUSD || 1000000;
+          const sellLiquidity = sellQuote.liquidityUSD || 1000000;
+          
+          // Calculate price impact
+          const buyPriceImpact = Math.min((investmentAmount / buyLiquidity) * 100, 5) / 100;
+          const sellPriceImpact = Math.min((investmentAmount / sellLiquidity) * 100, 5) / 100;
+          
+          // Calculate the effective price with slippage
+          const effectiveBuyPrice = buyPrice * (1 + buyPriceImpact);
+          const effectiveSellPrice = sellPrice * (1 - sellPriceImpact);
+          
+          // Check if the trade is still profitable after slippage
+          const estimatedTokenAmount = investmentAmount / effectiveBuyPrice;
+          const sellAmount = estimatedTokenAmount * effectiveSellPrice;
+          
+          // Calculate estimated profit and fees
+          const estimatedProfit = sellAmount - investmentAmount;
+          const tradingFees = buyFee + sellFee;
+          const totalGasFee = gasEstimate + approvalGasEstimate;
+          
           // Add platform fee (0.5% of investment)
           const platformFee = investmentAmount * 0.005;
-          const finalNetProfit = netProfit - platformFee;
+          
+          // Calculate net profit
+          const netProfit = estimatedProfit - tradingFees - totalGasFee - platformFee;
+          const netProfitPercentage = (netProfit / investmentAmount) * 100;
+          
+          // Check if still profitable
+          if (netProfit > 0) {
+            // Check if there's enough liquidity
+            const minRequiredLiquidity = investmentAmount * 3; // At least 3x the investment
+            
+            if (buyLiquidity >= minRequiredLiquidity && sellLiquidity >= minRequiredLiquidity) {
+              // Create opportunity
+              const opportunity: ArbitrageOpportunity = {
+                id: `${baseToken.symbol}-${quoteToken.symbol}-${buyDex}-${sellDex}-${Date.now()}`,
+                tokenPair: `${baseToken.symbol}/${quoteToken.symbol}`,
+                token: baseToken.symbol,
+                network: networkName,
+                buyDex,
+                sellDex,
+                buyPrice,
+                sellPrice,
+                priceDifferencePercentage,
+                liquidity: Math.min(buyLiquidity, sellLiquidity),
+                estimatedProfit,
+                estimatedProfitPercentage: priceDifferencePercentage,
+                gasFee: totalGasFee,
+                netProfit,
+                netProfitPercentage,
+                baseToken,
+                quoteToken,
+                timestamp: Date.now(),
+                buyGasFee: gasEstimate,
+                sellGasFee: approvalGasEstimate,
+                tradingFees,
+                platformFee,
+                investmentAmount
+              };
 
-          if (finalNetProfit > 0) {
-            opportunities.push({
-              id: `${baseToken.symbol}-${quoteToken.symbol}-${buyDex}-${sellDex}-${Date.now()}`,
-              tokenPair: `${baseToken.symbol}/${quoteToken.symbol}`,
-              token: baseToken.symbol,
-              network: getNetworkName(baseToken.chainId),
-              buyDex,
-              sellDex,
-              buyPrice,
-              sellPrice,
-              priceDifferencePercentage: profitPercentage,
-              liquidity: Math.min(quote1.liquidityUSD || 0, quote2.liquidityUSD || 0),
-              estimatedProfit,
-              estimatedProfitPercentage: profitPercentage,
-              gasFee,
-              netProfit: finalNetProfit,
-              netProfitPercentage: (finalNetProfit / investmentAmount) * 100,
-              baseToken,
-              quoteToken,
-              timestamp: Date.now(),
-              buyGasFee: quote1.gasEstimate || 0,
-              sellGasFee: quote2.gasEstimate || 0,
-              tradingFees: buyFee + sellFee,
-              platformFee,
-              investmentAmount
-            });
+              opportunities.push(opportunity);
+              console.log(`Found opportunity: ${buyDex}->${sellDex}, net profit: $${netProfit.toFixed(2)} (${netProfitPercentage.toFixed(2)}%)`);
+            } else {
+              console.log(`Skipping opportunity due to insufficient liquidity: ${buyDex}->${sellDex}, buyLiq: $${buyLiquidity}, sellLiq: $${sellLiquidity}`);
+            }
           }
         }
       }
     }
-
-    console.log(`Processed ${opportunities.length} client-side opportunities`);
 
     // Store opportunities in the database for analysis
     if (opportunities.length > 0) {

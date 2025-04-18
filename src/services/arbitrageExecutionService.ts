@@ -5,6 +5,7 @@ import { TokenInfo } from '@/services/tokenListService';
 import { TransactionStatus } from '@/services/dex/types';
 import { useEthereumWallet } from '@/context/EthereumWalletContext';
 import { useSolanaWallet } from '@/context/SolanaWalletContext';
+import { GasEstimationService } from './dex/services/GasEstimationService';
 
 export interface ExecutionResult {
   status: TransactionStatus;
@@ -27,15 +28,26 @@ export async function executeArbitrageTrade(
     console.log(`Using wallet: ${walletAddress}`);
     console.log(`Investment amount: $${investmentAmount}, slippage tolerance: ${slippageTolerance}%`);
     
+    // Get current gas estimates
+    const gasService = GasEstimationService.getInstance();
+    const currentGasPrice = await gasService.getGasEstimate(opportunity.network);
+    
+    // Add gas price to the request for better accuracy
+    const executionRequest = {
+      opportunity,
+      walletAddress,
+      investmentAmount,
+      slippageTolerance,
+      network: opportunity.network,
+      currentGasPrice: {
+        baseFee: currentGasPrice.baseFee,
+        priorityFee: currentGasPrice.priorityFee
+      }
+    };
+    
     // Call edge function to execute the trade
     const { data, error } = await supabase.functions.invoke('execute-trade', {
-      body: {
-        opportunity,
-        walletAddress,
-        investmentAmount,
-        slippageTolerance,
-        network: opportunity.network
-      }
+      body: executionRequest
     });
     
     if (error) {
@@ -74,6 +86,15 @@ export async function executeArbitrageTrade(
         };
       }
       
+      // Insufficient liquidity
+      if (data.details?.insufficientLiquidity) {
+        return {
+          status: TransactionStatus.ERROR,
+          error: `Insufficient liquidity: ${data.details.availableLiquidity.toFixed(2)} is less than required ${investmentAmount.toFixed(2)}`,
+          details: data.details
+        };
+      }
+      
       // General execution error
       return {
         status: TransactionStatus.ERROR,
@@ -81,6 +102,15 @@ export async function executeArbitrageTrade(
         details: data.details
       };
     }
+    
+    // Track successful execution
+    await trackTradeExecution(
+      opportunity,
+      walletAddress,
+      investmentAmount,
+      data.txHash,
+      data.details
+    );
     
     // Success case
     return {
@@ -126,6 +156,16 @@ export async function executeTokenApproval(
       };
     }
     
+    // Track approval in database
+    await supabase.from('token_approvals').insert({
+      wallet_address: walletAddress,
+      token_address: token.address,
+      spender_address: spenderAddress,
+      amount: 'unlimited',
+      tx_hash: data.txHash,
+      status: 'completed'
+    });
+    
     return {
       status: TransactionStatus.SUCCESS,
       txHash: data.txHash,
@@ -150,7 +190,22 @@ export async function checkTokenApproval(
   chainId: number
 ): Promise<boolean> {
   try {
-    // Call edge function to check token approval
+    // Check database first for cached approvals
+    const { data: existingApprovals } = await supabase
+      .from('token_approvals')
+      .select('*')
+      .eq('wallet_address', walletAddress)
+      .eq('token_address', token.address)
+      .eq('spender_address', spenderAddress)
+      .eq('status', 'completed')
+      .limit(1);
+      
+    if (existingApprovals && existingApprovals.length > 0) {
+      console.log(`Found existing approval in database for ${token.symbol}`);
+      return true;
+    }
+    
+    // If not found in database, check on-chain
     const { data, error } = await supabase.functions.invoke('check-token-approval', {
       body: {
         tokenAddress: token.address,
@@ -165,10 +220,73 @@ export async function checkTokenApproval(
       return false;
     }
     
+    // If approved, cache the result
+    if (data.isApproved) {
+      await supabase.from('token_approvals').insert({
+        wallet_address: walletAddress,
+        token_address: token.address,
+        spender_address: spenderAddress,
+        amount: 'unlimited',
+        status: 'completed'
+      });
+    }
+    
     return data.isApproved;
   } catch (error) {
     console.error('Error checking token approval:', error);
     return false;
+  }
+}
+
+/**
+ * Track trade execution in the database
+ */
+async function trackTradeExecution(
+  opportunity: ArbitrageOpportunity,
+  walletAddress: string,
+  investmentAmount: number,
+  txHash: string,
+  details: any
+): Promise<void> {
+  try {
+    // Insert record into trading_activity table
+    const { error: tradeError } = await supabase.from('trading_activity').insert({
+      token_pair: opportunity.tokenPair,
+      strategy: 'arbitrage',
+      type: 'buy_sell',
+      status: 'completed',
+      tx_hash: txHash,
+      network_type: opportunity.network,
+      amount: investmentAmount,
+      price: opportunity.buyPrice,
+      fee_amount: opportunity.tradingFees + opportunity.platformFee + opportunity.gasFee,
+      details: {
+        buyDex: opportunity.buyDex,
+        sellDex: opportunity.sellDex,
+        buyPrice: opportunity.buyPrice,
+        sellPrice: opportunity.sellPrice,
+        profit: opportunity.netProfit,
+        profitPercentage: opportunity.netProfitPercentage
+      }
+    });
+    
+    if (tradeError) {
+      console.error('Error recording trade activity:', tradeError);
+    }
+    
+    // Insert metrics for analysis
+    const { error: metricError } = await supabase.from('trade_metrics').insert({
+      success: true,
+      profit_percentage: opportunity.netProfitPercentage,
+      execution_time_ms: details.executionTime || 0,
+      wallet_address: walletAddress
+    });
+    
+    if (metricError) {
+      console.error('Error recording trade metrics:', metricError);
+    }
+  } catch (error) {
+    console.error('Error tracking trade execution:', error);
   }
 }
 
