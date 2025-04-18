@@ -1,25 +1,38 @@
 
-import { supabase } from '@/lib/supabaseClient';
-
-export interface FeeEstimate {
-  tradingFee: number;
-  platformFee: number;
-  gasFee: number;
-  totalFee: number;
-}
-
+/**
+ * Service to calculate transaction fees for trades
+ */
 export class FeeService {
   private static instance: FeeService;
-  private dexFeeCache: Map<string, number>;
-  private gasFeeCache: Map<string, number>;
-  private readonly PLATFORM_FEE_PERCENTAGE = 0.5; // 0.5%
-  private cacheExpiry: number = Date.now();
   
-  private constructor() {
-    this.dexFeeCache = new Map();
-    this.gasFeeCache = new Map();
-    this.refreshCache();
-  }
+  // Platform fee percentage (0.5%)
+  private readonly PLATFORM_FEE_PERCENTAGE = 0.5;
+  
+  // DEX trading fee percentages
+  private readonly tradingFees: Record<string, number> = {
+    'uniswap': 0.3,
+    'sushiswap': 0.3,
+    'pancakeswap': 0.25,
+    'curve': 0.04,
+    'balancer': 0.3,
+    'orca': 0.3,
+    'jupiter': 0.35,
+    'raydium': 0.3,
+    'quickswap': 0.3
+  };
+  
+  // Base gas fees by network in USD
+  private readonly baseGasFees: Record<string, number> = {
+    'ethereum': 5.0,
+    'bnb': 0.1,
+    'polygon': 0.05,
+    'arbitrum': 0.1,
+    'optimism': 0.1,
+    'base': 0.05,
+    'solana': 0.00025
+  };
+
+  private constructor() {}
 
   public static getInstance(): FeeService {
     if (!FeeService.instance) {
@@ -27,139 +40,232 @@ export class FeeService {
     }
     return FeeService.instance;
   }
-  
-  /**
-   * Refresh fee cache from database
-   */
-  private async refreshCache(): Promise<void> {
-    try {
-      // Cache expiry set to 5 minutes
-      if (Date.now() - this.cacheExpiry < 300000) return;
-      
-      // Get DEX fees from database
-      const { data: dexSettings } = await supabase
-        .from('dex_settings')
-        .select('slug, trading_fee_percentage');
-      
-      if (dexSettings) {
-        dexSettings.forEach(dex => {
-          this.dexFeeCache.set(dex.slug.toLowerCase(), dex.trading_fee_percentage / 100);
-        });
-      }
-      
-      // Get gas fees from database
-      const { data: gasFees } = await supabase
-        .from('gas_fees')
-        .select('network, base_fee, priority_fee');
-        
-      if (gasFees) {
-        gasFees.forEach(gas => {
-          this.gasFeeCache.set(gas.network.toLowerCase(), gas.base_fee + (gas.priority_fee || 0));
-        });
-      }
-      
-      this.cacheExpiry = Date.now();
-    } catch (error) {
-      console.error('Error refreshing fee cache:', error);
-    }
-  }
-  
-  /**
-   * Get trading fee percentage for a specific DEX
-   * @param dexName Name of the DEX
-   * @returns Trading fee as a decimal (e.g., 0.003 for 0.3%)
-   */
-  public async getTradingFee(dexName: string): Promise<number> {
-    await this.refreshCache();
-    
-    const normalizedDexName = dexName.toLowerCase();
-    
-    // Return from cache if available
-    if (this.dexFeeCache.has(normalizedDexName)) {
-      return this.dexFeeCache.get(normalizedDexName) || 0.003;
-    }
-    
-    // Default fees for common DEXes if not in database
-    const defaultFees: Record<string, number> = {
-      'uniswap': 0.003,
-      'sushiswap': 0.003,
-      'pancakeswap': 0.0025,
-      'curve': 0.0004,
-      'balancer': 0.002,
-      'jupiter': 0.0035,
-      'orca': 0.003,
-      'raydium': 0.003
-    };
-    
-    return defaultFees[normalizedDexName] || 0.003;
-  }
-  
-  /**
-   * Get gas fee for a specific network
-   * @param network Network name (ethereum, solana, etc.)
-   * @returns Gas fee in USD
-   */
-  public async getGasFee(network: string): Promise<number> {
-    await this.refreshCache();
-    
-    const normalizedNetwork = network.toLowerCase();
-    
-    // Return from cache if available
-    if (this.gasFeeCache.has(normalizedNetwork)) {
-      return this.gasFeeCache.get(normalizedNetwork) || 0.005;
-    }
-    
-    // Default gas fees for common networks if not in database
-    const defaultGasFees: Record<string, number> = {
-      'ethereum': 0.005,
-      'polygon': 0.001,
-      'bnb': 0.0005,
-      'arbitrum': 0.002,
-      'optimism': 0.001,
-      'base': 0.001,
-      'solana': 0.00001
-    };
-    
-    return defaultGasFees[normalizedNetwork] || 0.005;
-  }
-  
-  /**
-   * Calculate platform fee for a trade
-   * @param tradeAmount Amount being traded in USD
-   * @returns Platform fee in USD
-   */
-  public calculatePlatformFee(tradeAmount: number): number {
-    return (this.PLATFORM_FEE_PERCENTAGE / 100) * tradeAmount;
-  }
-  
+
   /**
    * Calculate all fees for a trade
-   * @param tradeAmount Amount being traded in USD
-   * @param dexName1 First DEX name
-   * @param dexName2 Second DEX name (for arbitrage)
+   * @param tradeAmount Trade amount in USD
+   * @param buyDex Buy DEX name
+   * @param sellDex Sell DEX name
    * @param network Blockchain network
-   * @returns Object with fee breakdowns
+   * @returns Object containing all fee components
    */
   public async calculateAllFees(
     tradeAmount: number,
-    dexName1: string,
-    dexName2: string,
+    buyDex: string,
+    sellDex: string,
     network: string
-  ): Promise<FeeEstimate> {
-    const [dex1Fee, dex2Fee, gasFee] = await Promise.all([
-      this.getTradingFee(dexName1),
-      this.getTradingFee(dexName2),
-      this.getGasFee(network)
-    ]);
-    
-    const tradingFee = (dex1Fee * tradeAmount) + (dex2Fee * tradeAmount);
+  ): Promise<{
+    tradingFee: number;
+    platformFee: number;
+    gasFee: number;
+    totalFees: number;
+  }> {
+    const tradingFee = this.calculateTradingFees(tradeAmount, buyDex, sellDex);
     const platformFee = this.calculatePlatformFee(tradeAmount);
+    const gasFee = await this.estimateGasFee(network, buyDex, sellDex);
+    
+    const totalFees = tradingFee + platformFee + gasFee;
     
     return {
       tradingFee,
       platformFee,
       gasFee,
-      totalFee: tradingFee + platformFee + gasFee
+      totalFees
     };
+  }
+
+  /**
+   * Calculate trading fees for a trade
+   * @param tradeAmount Trade amount in USD
+   * @param buyDex Buy DEX name
+   * @param sellDex Sell DEX name
+   * @returns Combined trading fees in USD
+   */
+  public calculateTradingFees(
+    tradeAmount: number,
+    buyDex: string,
+    sellDex: string
+  ): number {
+    const buyDexFeePercentage = this.getDexFeePercentage(buyDex);
+    const sellDexFeePercentage = this.getDexFeePercentage(sellDex);
+    
+    // Calculate fees (buy fee is on input amount, sell fee is on output amount)
+    const buyFee = (buyDexFeePercentage / 100) * tradeAmount;
+    
+    // Approximate sell amount (after buying)
+    const approxSellAmount = tradeAmount - buyFee;
+    const sellFee = (sellDexFeePercentage / 100) * approxSellAmount;
+    
+    return buyFee + sellFee;
+  }
+
+  /**
+   * Calculate platform fee
+   * @param tradeAmount Trade amount in USD
+   * @returns Platform fee in USD
+   */
+  public calculatePlatformFee(tradeAmount: number): number {
+    return (this.PLATFORM_FEE_PERCENTAGE / 100) * tradeAmount;
+  }
+
+  /**
+   * Estimate gas fees for a trade
+   * @param network Blockchain network
+   * @param buyDex Buy DEX name
+   * @param sellDex Sell DEX name
+   * @returns Estimated gas fee in USD
+   */
+  public async estimateGasFee(
+    network: string,
+    buyDex: string,
+    sellDex: string
+  ): Promise<number> {
+    try {
+      // Try to get latest gas prices from database
+      const { data: gasPriceData } = await supabase
+        .from('gas_fees')
+        .select('*')
+        .eq('network', network)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      if (gasPriceData && gasPriceData.length > 0) {
+        const gasData = gasPriceData[0];
+        
+        if (network === 'solana') {
+          // Solana uses a different fee structure
+          return (gasData.base_fee + gasData.priority_fee) / 1000000000 * this.getSolanaPrice();
+        } else {
+          // EVM chains
+          const baseGas = gasData.base_fee;
+          const priorityFee = gasData.priority_fee || 0;
+          const gasPrice = baseGas + priorityFee;
+          
+          // Standard gas units for swap operations
+          const gasUnits = this.getSwapGasUnits(buyDex, sellDex);
+          
+          // Get native token price and calculate fee
+          const tokenPrice = await this.getNativeTokenPrice(network);
+          return (gasPrice * gasUnits) / 1e9 * tokenPrice;
+        }
+      }
+      
+      // Fallback to base estimates
+      return this.getBaseGasFee(network);
+    } catch (error) {
+      console.error('Error estimating gas fee:', error);
+      return this.getBaseGasFee(network);
+    }
+  }
+
+  /**
+   * Get the trading fee percentage for a DEX
+   * @param dexName Name of the DEX
+   * @returns Fee percentage (0.3 = 0.3%)
+   */
+  public getDexFeePercentage(dexName: string): number {
+    const dexLower = dexName.toLowerCase();
+    return this.tradingFees[dexLower] || 0.3; // Default to 0.3% if unknown
+  }
+  
+  /**
+   * Get base gas fee estimate for a network
+   * @param network Blockchain network
+   * @returns Base gas fee in USD
+   */
+  private getBaseGasFee(network: string): number {
+    const networkLower = network.toLowerCase();
+    return this.baseGasFees[networkLower] || 0.1; // Default to $0.1 if unknown
+  }
+  
+  /**
+   * Get estimated gas units for swap operations
+   * @param buyDex Buy DEX name
+   * @param sellDex Sell DEX name
+   * @returns Estimated gas units
+   */
+  private getSwapGasUnits(buyDex: string, sellDex: string): number {
+    // Base gas units for different DEXes (approximate)
+    const gasUnitsMap: Record<string, number> = {
+      'uniswap': 180000,
+      'sushiswap': 190000,
+      'pancakeswap': 160000,
+      'curve': 350000,
+      'balancer': 250000,
+      'quickswap': 160000
+    };
+    
+    const buyGas = gasUnitsMap[buyDex.toLowerCase()] || 200000;
+    const sellGas = gasUnitsMap[sellDex.toLowerCase()] || 200000;
+    
+    return buyGas + sellGas;
+  }
+  
+  /**
+   * Get current price of SOL token
+   * @returns SOL price in USD
+   */
+  private getSolanaPrice(): number {
+    // In a real-world scenario, we would fetch this from an API
+    // Hard-coding to $150 for now
+    return 150;
+  }
+  
+  /**
+   * Get native token price for a network
+   * @param network Blockchain network
+   * @returns Native token price in USD
+   */
+  private async getNativeTokenPrice(network: string): Promise<number> {
+    try {
+      const tokenSymbol = this.getNetworkNativeToken(network);
+      
+      // Try to get the price from our database
+      const { data } = await supabase
+        .from('token_prices')
+        .select('price_usd')
+        .eq('source', 'coingecko')
+        .eq('token_id', tokenSymbol)
+        .order('timestamp', { ascending: false })
+        .limit(1);
+      
+      if (data && data.length > 0 && data[0].price_usd) {
+        return data[0].price_usd;
+      }
+      
+      // Fallback prices if database query fails
+      const fallbackPrices: Record<string, number> = {
+        'ETH': 3000,
+        'BNB': 500,
+        'MATIC': 1.5,
+        'ARB': 1,
+        'OP': 2,
+        'SOL': 150
+      };
+      
+      return fallbackPrices[tokenSymbol] || 1;
+    } catch (error) {
+      console.error('Error getting native token price:', error);
+      return 1; // Default to $1 as a fallback
+    }
+  }
+  
+  /**
+   * Get native token symbol for a network
+   * @param network Blockchain network
+   * @returns Native token symbol
+   */
+  private getNetworkNativeToken(network: string): string {
+    const networkTokens: Record<string, string> = {
+      'ethereum': 'ETH',
+      'bnb': 'BNB',
+      'polygon': 'MATIC',
+      'arbitrum': 'ETH',
+      'optimism': 'ETH',
+      'base': 'ETH',
+      'solana': 'SOL'
+    };
+    
+    return networkTokens[network.toLowerCase()] || 'ETH';
   }
 }
