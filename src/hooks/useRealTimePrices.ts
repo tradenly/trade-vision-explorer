@@ -11,6 +11,7 @@ export function useRealTimePrices(baseToken: TokenInfo | null, quoteToken: Token
   const [prices, setPrices] = useState<Record<string, PriceQuote>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   useEffect(() => {
     if (!baseToken || !quoteToken) return;
@@ -22,15 +23,28 @@ export function useRealTimePrices(baseToken: TokenInfo | null, quoteToken: Token
     const priceService = new PriceService(dexRegistry);
     const monitor = RealTimePriceMonitor.getInstance(priceService);
 
+    // Generate pair key
+    const pairKey = `${baseToken.symbol}-${quoteToken.symbol}-${baseToken.chainId}`;
+
     // Start monitoring this pair
     monitor.startMonitoring(baseToken, quoteToken);
 
     // Subscribe to real-time updates
     const channel = supabase.channel('price-updates')
       .on('broadcast', { event: 'price-update' }, (payload) => {
-        const pairKey = `${baseToken.symbol}-${quoteToken.symbol}-${baseToken.chainId}`;
         if (payload.payload.pairKey === pairKey) {
-          setPrices(payload.payload.quotes);
+          // Add timestamp to each price quote
+          const quotesWithTimestamp = { ...payload.payload.quotes };
+          Object.entries(quotesWithTimestamp).forEach(([key, quote]: [string, any]) => {
+            quotesWithTimestamp[key] = {
+              ...quote,
+              timestamp: Date.now(),
+              dexName: key
+            };
+          });
+          
+          setPrices(quotesWithTimestamp);
+          setLastUpdated(new Date());
           setLoading(false);
         }
       })
@@ -39,7 +53,18 @@ export function useRealTimePrices(baseToken: TokenInfo | null, quoteToken: Token
     // Initial price fetch
     priceService.fetchLatestPricesForPair(baseToken, quoteToken)
       .then(quotes => {
-        setPrices(quotes);
+        // Add timestamp to each price quote
+        const quotesWithTimestamp = { ...quotes };
+        Object.entries(quotesWithTimestamp).forEach(([key, quote]: [string, any]) => {
+          quotesWithTimestamp[key] = {
+            ...quote,
+            timestamp: Date.now(),
+            dexName: key
+          };
+        });
+        
+        setPrices(quotesWithTimestamp);
+        setLastUpdated(new Date());
         setLoading(false);
       })
       .catch(err => {
@@ -54,5 +79,10 @@ export function useRealTimePrices(baseToken: TokenInfo | null, quoteToken: Token
     };
   }, [baseToken, quoteToken]);
 
-  return { prices, loading, error };
+  return { 
+    prices, 
+    loading, 
+    error, 
+    lastUpdated 
+  };
 }

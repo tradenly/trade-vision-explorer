@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { ArbitrageOpportunity } from '@/services/dexService';
@@ -10,6 +11,7 @@ import { ScannerHeader } from './ScannerHeader';
 import { ScannerContent } from './ScannerContent';
 import TradeConfirmDialog from './TradeConfirmDialog';
 import { useRealTimePrices } from '@/hooks/useRealTimePrices';
+import { executeArbitrageTrade, useWalletForArbitrage } from '@/services/arbitrageExecutionService';
 
 const ArbitrageScanner: React.FC = () => {
   const { toast } = useToast();
@@ -33,6 +35,11 @@ const ArbitrageScanner: React.FC = () => {
   } = useArbitrageScanner(baseToken, quoteToken, investmentAmount, minProfitPercentage, autoScan);
 
   const { prices: realTimePrices, loading: pricesLoading } = useRealTimePrices(baseToken, quoteToken);
+  
+  // Get the appropriate wallet based on the network of selectedOpportunity
+  const { address: walletAddress, isConnected } = useWalletForArbitrage(
+    selectedOpportunity?.network || 'ethereum'
+  );
 
   const handleTokenPairSelect = (base: TokenInfo, quote: TokenInfo) => {
     setBaseToken(base);
@@ -69,17 +76,46 @@ const ArbitrageScanner: React.FC = () => {
 
   const handleExecuteTrade = async () => {
     if (!selectedOpportunity) return;
+    
+    if (!isConnected) {
+      toast({
+        title: "Wallet Not Connected",
+        description: `Please connect your ${selectedOpportunity.network === 'solana' ? 'Solana' : 'EVM'} wallet first`,
+        variant: "destructive"
+      });
+      setDialogOpen(false);
+      return;
+    }
 
     setExecuting(selectedOpportunity.id);
     setTransactionStatus(TransactionStatus.PENDING);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      setTransactionStatus(TransactionStatus.SUCCESS);
-      toast({
-        title: "Trade Executed",
-        description: `Successfully executed arbitrage trade with ${selectedOpportunity.estimatedProfit.toFixed(2)} profit`,
-      });
+      const result = await executeArbitrageTrade(
+        selectedOpportunity,
+        walletAddress!,
+        investmentAmount
+      );
+      
+      setTransactionStatus(result.status);
+      
+      if (result.status === TransactionStatus.SUCCESS) {
+        toast({
+          title: "Trade Executed",
+          description: `Successfully executed arbitrage trade with ${selectedOpportunity.netProfit.toFixed(2)} profit`,
+        });
+      } else if (result.status === TransactionStatus.NEEDS_APPROVAL) {
+        toast({
+          title: "Token Approval Required",
+          description: "Please approve token spending before executing this trade",
+        });
+      } else {
+        toast({
+          title: "Trade Failed",
+          description: result.error || "Failed to execute arbitrage trade",
+          variant: "destructive"
+        });
+      }
     } catch (err) {
       console.error('Error executing trade:', err);
       setTransactionStatus(TransactionStatus.ERROR);
@@ -90,10 +126,13 @@ const ArbitrageScanner: React.FC = () => {
       });
     } finally {
       setTimeout(() => {
-        setExecuting(null);
-        setDialogOpen(false);
-        setTransactionStatus(TransactionStatus.IDLE);
-        scanForOpportunities();
+        // Only close dialog on success or error, not on "needs approval"
+        if (transactionStatus !== TransactionStatus.NEEDS_APPROVAL) {
+          setExecuting(null);
+          setDialogOpen(false);
+          setTransactionStatus(TransactionStatus.IDLE);
+          scanForOpportunities();
+        }
       }, 2000);
     }
   };

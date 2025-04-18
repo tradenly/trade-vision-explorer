@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { CardContent } from '@/components/ui/card';
 import TokenPairSelector from '@/components/TokenSelector/TokenPairSelector';
@@ -5,7 +6,7 @@ import { ScanControls } from './ScanControls';
 import { OpportunityTabs } from './OpportunityTabs';
 import { TokenInfo } from '@/services/tokenListService';
 import { AlertTriangle } from 'lucide-react';
-import { Alert } from '@/components/ui/alert';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArbitrageOpportunity } from '@/services/dexService';
 import { ChainId } from '@/services/tokenListService';
 import { PriceQuote } from '@/services/dex/types';
@@ -43,6 +44,24 @@ export const ScannerContent: React.FC<ScannerContentProps> = ({
   onOpportunitySelect,
   realTimePrices = {},
 }) => {
+  // Format price update time
+  const formatUpdateTime = (timestamp?: number) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString();
+  };
+  
+  // Calculate time since last update
+  const getTimeSinceUpdate = (timestamp?: number) => {
+    if (!timestamp) return '';
+    const secondsAgo = Math.floor((Date.now() - timestamp) / 1000);
+    
+    if (secondsAgo < 10) return 'just now';
+    if (secondsAgo < 60) return `${secondsAgo} seconds ago`;
+    if (secondsAgo < 120) return '1 minute ago';
+    return `${Math.floor(secondsAgo / 60)} minutes ago`;
+  };
+
   return (
     <div>
       <CardContent>
@@ -65,7 +84,7 @@ export const ScannerContent: React.FC<ScannerContentProps> = ({
           {error && (
             <Alert variant="destructive">
               <AlertTriangle className="h-5 w-5 text-destructive" />
-              <span className="ml-2">{error}</span>
+              <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
 
@@ -79,13 +98,19 @@ export const ScannerContent: React.FC<ScannerContentProps> = ({
       {Object.keys(realTimePrices).length > 0 && (
         <div className="mt-4 p-4 border rounded-lg">
           <h3 className="text-lg font-semibold mb-2">Real-Time Prices</h3>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {Object.entries(realTimePrices).map(([dexName, quote]) => (
-              <div key={dexName} className="p-2 bg-muted rounded">
+              <div key={dexName} className="p-3 bg-muted rounded-lg">
                 <div className="font-medium">{dexName}</div>
-                <div className="text-sm text-muted-foreground">
-                  Price: ${quote.price.toFixed(4)}
+                <div className="text-lg font-bold">${quote.price.toFixed(6)}</div>
+                <div className="text-xs text-muted-foreground">
+                  Updated: {getTimeSinceUpdate(quote.timestamp)}
                 </div>
+                {quote.liquidityUSD && (
+                  <div className="text-xs text-muted-foreground">
+                    Liquidity: ${(quote.liquidityUSD / 1000).toFixed(1)}k
+                  </div>
+                )}
               </div>
             ))}
           </div>

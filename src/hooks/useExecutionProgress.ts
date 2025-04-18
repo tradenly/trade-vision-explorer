@@ -48,12 +48,14 @@ export function useExecutionProgress(
     }
     
     const steps: ExecutionStep[] = [
-      { progress: 15, message: 'Connecting to wallet...' },
-      { progress: 30, message: 'Checking token allowance...' },
-      { progress: 45, message: 'Preparing transaction...' },
-      { progress: 60, message: `Sending to ${opportunity.buyDex || ''}...` },
-      { progress: 75, message: 'Transaction submitted...' },
-      { progress: 90, message: 'Confirming transaction...' },
+      { progress: 10, message: 'Connecting to wallet...' },
+      { progress: 20, message: 'Checking token allowance...' },
+      { progress: 30, message: 'Preparing transaction...' },
+      { progress: 45, message: `Simulating trade on ${opportunity.buyDex || ''}...` },
+      { progress: 60, message: `Sending buy transaction...` },
+      { progress: 75, message: 'Buy transaction submitted...' },
+      { progress: 85, message: `Sending sell transaction...` },
+      { progress: 95, message: 'Waiting for confirmation...' },
     ];
     
     // Clear any existing interval
@@ -86,11 +88,27 @@ export function useExecutionProgress(
       };
     }
     
+    // Handle special status cases
+    if (transactionStatus === TransactionStatus.NEEDS_APPROVAL) {
+      setState({
+        progress: 25,
+        step: 'Waiting for token approval...',
+      });
+    }
+    
     // Handle success status
     if (transactionStatus === TransactionStatus.SUCCESS) {
       setState({
         progress: 100,
         step: 'Transaction complete!',
+      });
+    }
+    
+    // Handle error status
+    if (transactionStatus === TransactionStatus.ERROR) {
+      setState({
+        progress: 100,
+        step: 'Transaction failed',
       });
     }
     
