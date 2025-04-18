@@ -1,9 +1,27 @@
 
-import { calculateTradingFees, calculatePlatformFee, estimateGasFee } from './utils.ts';
-import { ArbitrageOpportunity } from './types.ts';
+import { TokenInfo } from './types.ts';
+import { getDexTradingFee, calculatePlatformFee } from './utils.ts';
+
+interface ProfitDetails {
+  buyDex: string;
+  sellDex: string;
+  buyPrice: number;
+  sellPrice: number;
+  priceGap: number;
+  priceGapPercentage: number;
+  estimatedProfit: number;
+  estimatedProfitPercentage: number;
+  tradingFees: number;
+  networkFees: number;
+  platformFee: number;
+  totalFees: number;
+  netProfit: number;
+  netProfitPercentage: number;
+  investmentAmount: number;
+}
 
 /**
- * Calculate profits and fees for an arbitrage opportunity
+ * Calculate detailed arbitrage profit information
  */
 export function calculateArbitrageProfit(
   buyDex: string,
@@ -12,29 +30,55 @@ export function calculateArbitrageProfit(
   sellPrice: number,
   investmentAmount: number,
   chainId: number,
-  baseToken: any,
-  quoteToken: any
-): Omit<ArbitrageOpportunity, 'id' | 'tokenPair' | 'token' | 'network'> {
-  // Calculate trading fees more precisely based on DEX-specific rates
-  const tradingFees = calculateTradingFees(investmentAmount, buyDex, sellDex);
+  baseToken: TokenInfo,
+  quoteToken: TokenInfo,
+  gasPrice: number = 0.001
+): ProfitDetails {
+  // Calculate the price gap
+  const priceGap = sellPrice - buyPrice;
+  const priceGapPercentage = (priceGap / buyPrice) * 100;
   
-  // Platform fee (Tradenly's service fee)
+  // Calculate the amount of tokens that can be bought with the investment
+  const tokenAmount = investmentAmount / buyPrice;
+  
+  // Calculate the sell value
+  const sellValue = tokenAmount * sellPrice;
+  
+  // Calculate the raw profit (before fees)
+  const rawProfit = sellValue - investmentAmount;
+  const rawProfitPercentage = (rawProfit / investmentAmount) * 100;
+  
+  // Calculate fees
+  const buyFeePercentage = getDexTradingFee(buyDex);
+  const sellFeePercentage = getDexTradingFee(sellDex);
+  
+  const buyTradingFee = investmentAmount * buyFeePercentage;
+  const sellTradingFee = sellValue * sellFeePercentage;
+  
+  // Calculate network fees (gas)
+  // For Solana, adjust since gas is much cheaper
+  let networkFees = gasPrice * 2; // Two transactions (buy and sell)
+  
+  // Extra logic for Solana specific gas calculation
+  if (chainId === 101) {
+    const priorityFeeInLamports = 10000; // Priority fee in lamports
+    const signaturesRequired = 2; // Typically 2 for a swap
+    const baseFeeInLamports = 5000 * signaturesRequired; // Base fee per signature
+    const totalLamports = baseFeeInLamports + priorityFeeInLamports;
+    const solInUsd = 150; // Estimated SOL price in USD
+    
+    // Convert lamports to SOL to USD (1 SOL = 1e9 lamports)
+    networkFees = (totalLamports / 1e9) * solInUsd;
+  }
+  
+  // Calculate platform fee
   const platformFee = calculatePlatformFee(investmentAmount);
   
-  // Get estimated gas fees for the chain
-  const gasFee = estimateGasFee(chainId);
+  // Total fees
+  const totalFees = buyTradingFee + sellTradingFee + networkFees + platformFee;
   
-  // Split gas fee estimates for buy and sell operations
-  const buyGasFee = gasFee * 0.6;  // Buy operations typically use more gas (~60%)
-  const sellGasFee = gasFee * 0.4;  // Sell operations (~40%)
-  
-  // Calculate gross profit (before fees)
-  const estimatedProfit = investmentAmount * (sellPrice - buyPrice) / buyPrice;
-  
-  // Calculate net profit after all fees
-  const netProfit = estimatedProfit - tradingFees - platformFee - buyGasFee - sellGasFee;
-  
-  // Calculate net profit percentage relative to investment
+  // Net profit after fees
+  const netProfit = rawProfit - totalFees;
   const netProfitPercentage = (netProfit / investmentAmount) * 100;
   
   return {
@@ -42,20 +86,16 @@ export function calculateArbitrageProfit(
     sellDex,
     buyPrice,
     sellPrice,
-    priceDifferencePercentage: ((sellPrice - buyPrice) / buyPrice) * 100,
-    liquidity: 0, // This will be set by the caller
-    estimatedProfit,
-    estimatedProfitPercentage: ((sellPrice - buyPrice) / buyPrice) * 100,
-    gasFee,
+    priceGap,
+    priceGapPercentage,
+    estimatedProfit: rawProfit,
+    estimatedProfitPercentage: rawProfitPercentage,
+    tradingFees: buyTradingFee + sellTradingFee,
+    networkFees,
+    platformFee,
+    totalFees,
     netProfit,
     netProfitPercentage,
-    baseToken,
-    quoteToken,
-    timestamp: Date.now(),
-    buyGasFee,
-    sellGasFee,
-    tradingFees,
-    platformFee,
     investmentAmount
   };
 }

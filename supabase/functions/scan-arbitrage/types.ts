@@ -1,21 +1,16 @@
 
+export interface TokenInfo {
+  address: string;
+  symbol: string;
+  name: string;
+  decimals: number;
+  chainId: number;
+  logoURI?: string;
+}
+
 export interface ArbitrageRequest {
-  baseToken: {
-    symbol: string;
-    address: string;
-    chainId: number;
-    decimals: number;
-    name?: string;
-    logoURI?: string;
-  };
-  quoteToken: {
-    symbol: string;
-    address: string;
-    chainId: number;
-    decimals: number;
-    name?: string;
-    logoURI?: string;
-  };
+  baseToken: TokenInfo;
+  quoteToken: TokenInfo;
   minProfitPercentage?: number;
   investmentAmount?: number;
   maxAgeSeconds?: number;
@@ -23,33 +18,36 @@ export interface ArbitrageRequest {
 
 export interface PriceData {
   dex_name: string;
+  token_pair: string;
   price: number;
+  chain_id: number;
+  timestamp: string;
   liquidity?: number;
-  timestamp?: string;
 }
 
 export interface ArbitrageOpportunity {
   id: string;
   tokenPair: string;
   token: string;
+  baseToken?: TokenInfo;
+  quoteToken?: TokenInfo;
   network: string;
   buyDex: string;
   sellDex: string;
   buyPrice: number;
   sellPrice: number;
-  priceDifferencePercentage: number;
-  liquidity: number;
+  priceGap: number;
+  priceGapPercentage: number;
   estimatedProfit: number;
   estimatedProfitPercentage: number;
-  gasFee: number;
+  tradingFees: number;
+  networkFees: number;
+  platformFee: number;
+  totalFees: number;
   netProfit: number;
   netProfitPercentage: number;
-  baseToken: any;
-  quoteToken: any;
-  timestamp: number;
-  buyGasFee: number;
-  sellGasFee: number;
-  tradingFees: number;
-  platformFee: number;
   investmentAmount: number;
+  liquidity: number;
+  buyDexPriceData?: PriceData;
+  sellDexPriceData?: PriceData;
 }

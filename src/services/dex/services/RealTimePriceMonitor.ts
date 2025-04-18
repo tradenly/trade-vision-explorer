@@ -3,6 +3,7 @@ import { TokenInfo } from '@/services/tokenListService';
 import { supabase } from '@/lib/supabaseClient';
 import { PriceService } from './PriceService';
 import { PriceQuote } from '../types';
+import { toast } from '@/hooks/use-toast';
 
 /**
  * Service to monitor price changes in real-time
@@ -13,6 +14,8 @@ export class RealTimePriceMonitor {
   private monitoredPairs: Map<string, { lastFetched: number, interval: NodeJS.Timeout }> = new Map();
   private pollingInterval: number = 15000; // 15 seconds between polls
   private subscriberCount: Map<string, number> = new Map();
+  private webSocketConnections: Map<string, any> = new Map();
+  private connectionStatus: Map<string, boolean> = new Map();
   
   private constructor(priceService: PriceService) {
     this.priceService = priceService;
@@ -44,7 +47,10 @@ export class RealTimePriceMonitor {
     
     console.log(`Starting price monitoring for ${pairKey}`);
     
-    // Set up interval to fetch prices
+    // Try to establish WebSocket connection for real-time updates
+    this.setupWebSocketConnection(baseToken, quoteToken);
+    
+    // Set up interval to fetch prices as backup
     const interval = setInterval(async () => {
       try {
         await this.fetchAndBroadcastPrices(baseToken, quoteToken);
@@ -61,6 +67,12 @@ export class RealTimePriceMonitor {
     
     // Fetch immediately for first time
     this.fetchAndBroadcastPrices(baseToken, quoteToken);
+    
+    // Notify user
+    toast({
+      title: "Price Monitoring Started",
+      description: `Monitoring ${baseToken.symbol}/${quoteToken.symbol} prices`,
+    });
   }
   
   /**
@@ -92,6 +104,16 @@ export class RealTimePriceMonitor {
     const { interval } = this.monitoredPairs.get(pairKey)!;
     clearInterval(interval);
     
+    // Close WebSocket connection if exists
+    if (this.webSocketConnections.has(pairKey)) {
+      const connection = this.webSocketConnections.get(pairKey);
+      if (connection && connection.close) {
+        connection.close();
+      }
+      this.webSocketConnections.delete(pairKey);
+      this.connectionStatus.delete(pairKey);
+    }
+    
     // Remove from monitored pairs
     this.monitoredPairs.delete(pairKey);
   }
@@ -105,10 +127,46 @@ export class RealTimePriceMonitor {
       return ['jupiter', 'orca', 'raydium'];
     } else if (baseToken.chainId === 56) {
       // BSC
-      return ['1inch', 'pancakeswap'];
+      return ['pancakeswap', '1inch'];
     } else {
       // Ethereum and others
       return ['uniswap', 'sushiswap', '1inch', 'curve'];
+    }
+  }
+  
+  /**
+   * Set up WebSocket connection for real-time price updates
+   */
+  private setupWebSocketConnection(baseToken: TokenInfo, quoteToken: TokenInfo): void {
+    const pairKey = this.getPairKey(baseToken, quoteToken);
+    
+    // For now we'll use Supabase Realtime as a proxy
+    try {
+      const channel = supabase.channel(`price-updates-${pairKey}`)
+        .on('broadcast', { event: 'price-update' }, (payload) => {
+          if (payload.payload.pairKey === pairKey) {
+            // Update connection status
+            this.connectionStatus.set(pairKey, true);
+            
+            // Process and broadcast the prices
+            this.broadcastPrices(pairKey, payload.payload.quotes);
+          }
+        })
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log(`WebSocket connected for ${pairKey}`);
+            this.connectionStatus.set(pairKey, true);
+          } else {
+            console.log(`WebSocket status for ${pairKey}: ${status}`);
+          }
+        });
+        
+      // Store the connection
+      this.webSocketConnections.set(pairKey, channel);
+      
+    } catch (error) {
+      console.error(`Error setting up WebSocket for ${pairKey}:`, error);
+      this.connectionStatus.set(pairKey, false);
     }
   }
   
@@ -133,23 +191,44 @@ export class RealTimePriceMonitor {
       // Get DEXes to monitor for this chain
       const dexNames = this.getDexesToMonitor(baseToken);
       
-      // Use the Edge Function for real-time prices
-      const { data, error } = await supabase.functions.invoke('real-time-prices', {
-        body: { 
-          baseToken,
-          quoteToken,
-          dexNames
+      // Check if WebSocket is working, if not use the Edge Function for real-time prices
+      if (!this.connectionStatus.get(pairKey)) {
+        const { data, error } = await supabase.functions.invoke('real-time-prices', {
+          body: { 
+            baseToken,
+            quoteToken,
+            dexNames
+          }
+        });
+        
+        if (error) {
+          throw new Error(`Edge function error: ${error.message}`);
         }
-      });
-      
-      if (error) {
-        throw new Error(`Edge function error: ${error.message}`);
+        
+        if (data && data.prices) {
+          // Broadcast the prices to the price-updates channel
+          this.broadcastPrices(pairKey, data.prices);
+        }
       }
-      
-      // The edge function will broadcast the prices to the channel
     } catch (error) {
       console.error('Error fetching and broadcasting prices:', error);
     }
+  }
+  
+  /**
+   * Broadcast prices to subscribers
+   */
+  private broadcastPrices(pairKey: string, prices: Record<string, PriceQuote>): void {
+    // The channel will broadcast to all subscribers
+    supabase.channel('price-updates').send({
+      type: 'broadcast',
+      event: 'price-update',
+      payload: {
+        pairKey,
+        quotes: prices,
+        timestamp: Date.now()
+      }
+    });
   }
   
   /**
@@ -157,5 +236,21 @@ export class RealTimePriceMonitor {
    */
   private getPairKey(baseToken: TokenInfo, quoteToken: TokenInfo): string {
     return `${baseToken.symbol}-${quoteToken.symbol}-${baseToken.chainId}`;
+  }
+  
+  /**
+   * Check if a pair is being monitored
+   */
+  public isMonitoring(baseToken: TokenInfo, quoteToken: TokenInfo): boolean {
+    const pairKey = this.getPairKey(baseToken, quoteToken);
+    return this.monitoredPairs.has(pairKey);
+  }
+  
+  /**
+   * Get connection status for a pair
+   */
+  public getConnectionStatus(baseToken: TokenInfo, quoteToken: TokenInfo): boolean {
+    const pairKey = this.getPairKey(baseToken, quoteToken);
+    return this.connectionStatus.get(pairKey) || false;
   }
 }

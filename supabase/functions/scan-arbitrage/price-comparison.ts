@@ -2,50 +2,52 @@
 import { PriceData } from './types.ts';
 
 /**
- * Find price differences between all available DEXes
- * Returns array of [dex1, dex2, priceDiffPercentage] tuples
+ * Find price differences between DEXes
+ * @returns Array of [dex1, dex2, profitPercentage] tuples
  */
 export function findPriceDifferences(
   pricesByDex: Map<string, PriceData>
-): Array<[string, string, number]> {
-  const priceEntries = Array.from(pricesByDex.entries());
-  const differences: Array<[string, string, number]> = [];
-
-  for (let i = 0; i < priceEntries.length; i++) {
-    for (let j = i + 1; j < priceEntries.length; j++) {
-      const [dex1, price1] = priceEntries[i];
-      const [dex2, price2] = priceEntries[j];
-
-      // Calculate absolute price difference
-      const priceDiff = Math.abs(price1.price - price2.price);
+): [string, string, number][] {
+  const results: [string, string, number][] = [];
+  const dexes = Array.from(pricesByDex.keys());
+  
+  // Compare each pair of DEXes
+  for (let i = 0; i < dexes.length; i++) {
+    for (let j = i + 1; j < dexes.length; j++) {
+      const dex1 = dexes[i];
+      const dex2 = dexes[j];
+      const price1 = pricesByDex.get(dex1)!.price;
+      const price2 = pricesByDex.get(dex2)!.price;
       
-      // Calculate average price for percentage calculation
-      const avgPrice = (price1.price + price2.price) / 2;
+      // Calculate price difference percentage
+      const priceDiff = Math.abs(price1 - price2);
+      const minPrice = Math.min(price1, price2);
+      const profitPercentage = (priceDiff / minPrice) * 100;
       
-      // Calculate the percentage difference (potential profit percentage)
-      const profitPercentage = (priceDiff / avgPrice) * 100;
-
-      differences.push([dex1, dex2, profitPercentage]);
+      results.push([dex1, dex2, profitPercentage]);
     }
   }
-
-  return differences;
+  
+  // Sort by profit percentage (highest to lowest)
+  return results.sort((a, b) => b[2] - a[2]);
 }
 
 /**
- * Get best price pair given two DEXes
- * Returns [buyDex, sellDex, buyPrice, sellPrice]
+ * Determine which DEX should be used for buying and which for selling
+ * @returns [buyDex, sellDex, buyPrice, sellPrice]
  */
 export function getBestPricePair(
   dex1: string,
   dex2: string,
   pricesByDex: Map<string, PriceData>
 ): [string, string, number, number] {
-  const price1 = pricesByDex.get(dex1)!;
-  const price2 = pricesByDex.get(dex2)!;
+  const price1 = pricesByDex.get(dex1)!.price;
+  const price2 = pricesByDex.get(dex2)!.price;
   
-  // Return [buyDex, sellDex, buyPrice, sellPrice] with the lower price as buyPrice
-  return price1.price < price2.price
-    ? [dex1, dex2, price1.price, price2.price]
-    : [dex2, dex1, price2.price, price1.price];
+  // For arbitrage, we want to buy at the lower price and sell at the higher price
+  if (price1 < price2) {
+    return [dex1, dex2, price1, price2];
+  } else {
+    return [dex2, dex1, price2, price1];
+  }
 }

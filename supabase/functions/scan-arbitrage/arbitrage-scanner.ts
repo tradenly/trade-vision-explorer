@@ -70,6 +70,9 @@ export async function scanArbitrageOpportunities(
     // Get buy/sell prices and DEXes
     const [buyDex, sellDex, buyPrice, sellPrice] = getBestPricePair(dex1, dex2, latestPricesByDex);
     
+    // Get gas price estimate based on chain
+    const gasPrice = getGasPriceEstimate(baseToken.chainId);
+    
     // Calculate detailed profit and fee information
     const profitDetails = calculateArbitrageProfit(
       buyDex,
@@ -79,7 +82,8 @@ export async function scanArbitrageOpportunities(
       investmentAmount,
       baseToken.chainId,
       baseToken,
-      quoteToken
+      quoteToken,
+      gasPrice
     );
 
     // Get liquidity info
@@ -96,9 +100,13 @@ export async function scanArbitrageOpportunities(
         id: `${baseToken.symbol}-${quoteToken.symbol}-${buyDex}-${sellDex}-${Date.now()}`,
         tokenPair,
         token: baseToken.symbol,
+        baseToken,
+        quoteToken,
         network: getNetworkName(baseToken.chainId),
         ...profitDetails,
-        liquidity
+        liquidity,
+        buyDexPriceData: buyDexData,
+        sellDexPriceData: sellDexData
       };
       
       opportunities.push(opportunity);
@@ -107,4 +115,30 @@ export async function scanArbitrageOpportunities(
   }
 
   return opportunities.sort((a, b) => b.netProfitPercentage - a.netProfitPercentage);
+}
+
+/**
+ * Get gas price estimate for a chain
+ */
+function getGasPriceEstimate(chainId: number): number {
+  switch (chainId) {
+    case 1: // Ethereum
+      return 0.005; // $5 per transaction
+    case 56: // BSC
+      return 0.0005; // $0.50 per transaction
+    case 137: // Polygon
+      return 0.001; // $1 per transaction
+    case 42161: // Arbitrum
+      return 0.002; // $2 per transaction
+    case 10: // Optimism
+      return 0.001; // $1 per transaction
+    case 43114: // Avalanche
+      return 0.001; // $1 per transaction
+    case 8453: // Base
+      return 0.0005; // $0.50 per transaction
+    case 101: // Solana
+      return 0.00001; // $0.01 per transaction
+    default:
+      return 0.002; // Default to $2 per transaction
+  }
 }
