@@ -7,6 +7,7 @@ import ArbitrageOpportunities from '@/components/Dashboard/ArbitrageOpportunitie
 import PriceMonitoringSection from '@/components/Dashboard/PriceMonitoringSection';
 import { useArbitrageOpportunities } from '@/hooks/useArbitrageOpportunities';
 import { ArbitrageOpportunity as DexServiceArbitrageOpportunity } from '@/services/dexService';
+import { TokenInfo } from '@/services/tokenListService';
 
 const Dashboard: React.FC = () => {
   const [investmentAmount, setInvestmentAmount] = useState<number>(1000);
@@ -21,21 +22,54 @@ const Dashboard: React.FC = () => {
   };
 
   // Convert opportunities to the format expected by the ArbitrageOpportunities component
-  const mappedOpportunities: DexServiceArbitrageOpportunity[] = opportunities.map(opportunity => ({
-    ...opportunity,
-    // Add required properties from ArbitrageOpportunity interface
-    tradingFees: opportunity.trading_fees || 0,
-    platformFee: opportunity.platform_fee || 0,
-    gasFee: opportunity.gas_fee || 0,
-    buyDex: opportunity.buy_exchange,
-    sellDex: opportunity.sell_exchange,
-    buyPrice: parseFloat(opportunity.buy_price?.toString() || '0'),
-    sellPrice: parseFloat(opportunity.sell_price?.toString() || '0'),
-    tokenPair: opportunity.token_pair,
-    priceDifferencePercentage: opportunity.price_diff,
-    estimatedProfit: parseFloat(opportunity.estimated_profit || '0'),
-    netProfitPercentage: opportunity.net_profit_percentage || 0,
-  }));
+  const mappedOpportunities: DexServiceArbitrageOpportunity[] = opportunities.map(opportunity => {
+    // Create dummy baseToken and quoteToken objects for the interface requirement
+    const baseToken: TokenInfo = {
+      name: opportunity.token_pair?.split('/')[0] || 'Unknown',
+      symbol: opportunity.token_pair?.split('/')[0] || 'UNK',
+      address: '0x',
+      chainId: opportunity.network === 'ethereum' ? 1 : opportunity.network === 'bnb' ? 56 : opportunity.network === 'solana' ? 101 : 1,
+      decimals: 18
+    };
+    
+    const quoteToken: TokenInfo = {
+      name: opportunity.token_pair?.split('/')[1] || 'USD',
+      symbol: opportunity.token_pair?.split('/')[1] || 'USD',
+      address: '0x',
+      chainId: baseToken.chainId,
+      decimals: 18
+    };
+
+    // Calculate estimated profit percentage
+    const estimatedProfitPercentage = opportunity.net_profit_percentage || 0;
+
+    return {
+      ...opportunity,
+      // Add required properties from ArbitrageOpportunity interface
+      tradingFees: opportunity.trading_fees || 0,
+      platformFee: opportunity.platform_fee || 0,
+      gasFee: opportunity.gas_fee || 0,
+      buyDex: opportunity.buy_exchange,
+      sellDex: opportunity.sell_exchange,
+      buyPrice: parseFloat(opportunity.buy_price?.toString() || '0'),
+      sellPrice: parseFloat(opportunity.sell_price?.toString() || '0'),
+      tokenPair: opportunity.token_pair,
+      priceDifferencePercentage: opportunity.price_diff,
+      estimatedProfit: parseFloat(opportunity.estimated_profit || '0'),
+      netProfitPercentage: opportunity.net_profit_percentage || 0,
+      // Add the missing properties
+      estimatedProfitPercentage: estimatedProfitPercentage,
+      baseToken: baseToken,
+      quoteToken: quoteToken,
+      timestamp: Date.now(),
+      buyGasFee: (opportunity.gas_fee || 0) / 2,
+      sellGasFee: (opportunity.gas_fee || 0) / 2,
+      netProfit: opportunity.net_profit || 0,
+      token: baseToken.symbol,
+      liquidity: opportunity.liquidity_buy || opportunity.liquidity_sell || 100000,
+      investmentAmount: investmentAmount
+    };
+  });
 
   return (
     <div className="container mx-auto py-8">
