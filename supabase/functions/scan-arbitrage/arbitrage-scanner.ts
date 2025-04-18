@@ -1,13 +1,9 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { ArbitrageRequest, PriceData, ArbitrageOpportunity } from './types.ts';
-import { 
-  getNetworkName, 
-  estimateGasFee, 
-  calculateTradingFees, 
-  calculatePlatformFee, 
-  calculateRiskLevel 
-} from './utils.ts';
+import { getNetworkName } from './utils.ts';
+import { findPriceDifferences, getBestPricePair } from './price-comparison.ts';
+import { calculateArbitrageProfit } from './profit-calculator.ts';
 
 export async function scanArbitrageOpportunities(
   supabase: ReturnType<typeof createClient>,
@@ -34,6 +30,7 @@ export async function scanArbitrageOpportunities(
     return [];
   }
 
+  // Group latest prices by DEX
   const latestPricesByDex = new Map<string, PriceData>();
   prices.forEach(price => {
     if (!latestPricesByDex.has(price.dex_name)) {
@@ -42,61 +39,34 @@ export async function scanArbitrageOpportunities(
   });
 
   const opportunities: ArbitrageOpportunity[] = [];
-  const priceEntries = Array.from(latestPricesByDex.entries());
+  
+  // Find price differences between DEXes
+  const priceDifferences = findPriceDifferences(latestPricesByDex);
 
-  for (let i = 0; i < priceEntries.length; i++) {
-    for (let j = i + 1; j < priceEntries.length; j++) {
-      const [dex1, price1] = priceEntries[i];
-      const [dex2, price2] = priceEntries[j];
+  // Calculate opportunities for profitable differences
+  for (const [dex1, dex2, profitPercentage] of priceDifferences) {
+    if (profitPercentage >= minProfitPercentage) {
+      const [buyDex, sellDex, buyPrice, sellPrice] = getBestPricePair(dex1, dex2, latestPricesByDex);
+      
+      const profitDetails = calculateArbitrageProfit(
+        buyDex,
+        sellDex,
+        buyPrice,
+        sellPrice,
+        investmentAmount,
+        baseToken.chainId,
+        baseToken,
+        quoteToken
+      );
 
-      const priceDiff = Math.abs(price1.price - price2.price);
-      const avgPrice = (price1.price + price2.price) / 2;
-      const profitPercentage = (priceDiff / avgPrice) * 100;
-
-      if (profitPercentage >= minProfitPercentage) {
-        const [buyDex, sellDex, buyPrice, sellPrice] = 
-          price1.price < price2.price 
-            ? [dex1, dex2, price1.price, price2.price]
-            : [dex2, dex1, price2.price, price1.price];
-
-        const tradingFees = calculateTradingFees(investmentAmount, buyDex, sellDex);
-        const platformFee = calculatePlatformFee(investmentAmount);
-        const gasFee = estimateGasFee(baseToken.chainId);
-        
-        const buyGasFee = gasFee * 0.6;
-        const sellGasFee = gasFee * 0.4;
-        
-        const estimatedProfit = investmentAmount * (sellPrice - buyPrice) / buyPrice;
-        const netProfit = estimatedProfit - tradingFees - platformFee - buyGasFee - sellGasFee;
-        const netProfitPercentage = (netProfit / investmentAmount) * 100;
-
-        if (netProfit > 0) {
-          opportunities.push({
-            id: `${baseToken.symbol}-${quoteToken.symbol}-${buyDex}-${sellDex}-${Date.now()}`,
-            tokenPair,
-            token: baseToken.symbol,
-            network: getNetworkName(baseToken.chainId),
-            buyDex,
-            sellDex,
-            buyPrice,
-            sellPrice,
-            priceDifferencePercentage: profitPercentage,
-            liquidity: Math.min(price1.liquidity || 0, price2.liquidity || 0),
-            estimatedProfit,
-            estimatedProfitPercentage: profitPercentage,
-            gasFee,
-            netProfit,
-            netProfitPercentage,
-            baseToken,
-            quoteToken,
-            timestamp: Date.now(),
-            buyGasFee,
-            sellGasFee,
-            tradingFees,
-            platformFee,
-            investmentAmount
-          });
-        }
+      if (profitDetails.netProfit > 0) {
+        opportunities.push({
+          id: `${baseToken.symbol}-${quoteToken.symbol}-${buyDex}-${sellDex}-${Date.now()}`,
+          tokenPair,
+          token: baseToken.symbol,
+          network: getNetworkName(baseToken.chainId),
+          ...profitDetails
+        });
       }
     }
   }
