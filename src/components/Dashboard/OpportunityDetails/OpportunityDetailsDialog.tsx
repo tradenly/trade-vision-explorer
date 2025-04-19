@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader } from '@/components/ui/dialog';
 import { ArbitrageOpportunity } from '@/services/arbitrage/types';
 import { TransactionStatus } from '@/services/dex/types';
 import TradeSummary from './TradeSummary';
@@ -41,10 +41,10 @@ const OpportunityDetailsDialog: React.FC<OpportunityDetailsDialogProps> = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Execute Arbitrage Trade</DialogTitle>
-          <DialogDescription>
+          <h2 className="text-lg font-bold">Execute Arbitrage Trade</h2>
+          <p className="text-sm text-muted-foreground">
             Review and confirm this arbitrage opportunity
-          </DialogDescription>
+          </p>
         </DialogHeader>
 
         <div className="space-y-4">

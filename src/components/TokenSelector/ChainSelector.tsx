@@ -1,7 +1,14 @@
 
 import React from 'react';
 import { ChainId } from '@/services/tokenListService';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from '@/components/ui/select';
+import { 
+  Select, 
+  SelectContent, 
+  SelectGroup, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select';
 
 // Supported chains
 const SUPPORTED_CHAINS: Record<number, string> = {
@@ -41,7 +48,7 @@ const ChainSelector: React.FC<ChainSelectorProps> = ({ selectedChain, onChainCha
                 }}
               />
             )}
-            <SelectValue placeholder="Select Blockchain">{SUPPORTED_CHAINS[selectedChain]}</SelectValue>
+            <SelectValue>{SUPPORTED_CHAINS[selectedChain]}</SelectValue>
           </div>
         </SelectTrigger>
         <SelectContent>
