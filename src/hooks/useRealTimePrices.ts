@@ -18,6 +18,7 @@ export function useRealTimePrices(
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
   
   useEffect(() => {
+    // Initialize the RealTimePriceService without parameters
     priceServiceRef.current = RealTimePriceService.getInstance();
     return () => {
       if (intervalRef.current) {
