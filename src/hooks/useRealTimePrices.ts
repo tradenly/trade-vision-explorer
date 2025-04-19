@@ -14,7 +14,7 @@ export function useRealTimePrices(
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   
-  const priceService = RealTimePriceService.getInstance();
+  const priceService = useRef(RealTimePriceService.getInstance());
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
   
   const fetchPrices = async () => {
@@ -26,7 +26,7 @@ export function useRealTimePrices(
       setLoading(true);
       setError(null);
       
-      const newPrices = await priceService.getPrices(baseToken, quoteToken);
+      const newPrices = await priceService.current.getPrices(baseToken, quoteToken);
       
       setPrices(newPrices);
       setLastUpdated(new Date());
@@ -61,7 +61,7 @@ export function useRealTimePrices(
   }, [baseToken, quoteToken, refreshInterval]);
   
   const refreshPrices = () => {
-    priceService.clearCache();
+    priceService.current.clearCache();
     fetchPrices();
   };
   

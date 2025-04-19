@@ -21,7 +21,7 @@ const PriceMonitor: React.FC<PriceMonitorProps> = ({
   isActive
 }) => {
   // Use our new real-time price hook instead of the old one
-  const { prices: realTimePrices, loading, error, refetch } = useRealTimePrices(
+  const { prices: realTimePrices, loading, error, refreshPrices } = useRealTimePrices(
     baseToken, 
     quoteToken, 
     isActive ? 10000 : 0 // Only poll if active
@@ -44,7 +44,7 @@ const PriceMonitor: React.FC<PriceMonitorProps> = ({
 
   // Handler to manually refresh prices
   const handleRefresh = () => {
-    refetch();
+    refreshPrices(); // Changed from refetch to refreshPrices
   };
 
   return (

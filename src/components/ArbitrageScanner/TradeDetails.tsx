@@ -158,7 +158,7 @@ const TradeDetails: React.FC<TradeDetailsProps> = ({
       </div>
 
       {maxTradeSize && maxTradeSize < tradeAmount && (
-        <Alert variant="warning">
+        <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
             Warning: Your trade size (${formatNumber(tradeAmount)}) exceeds the recommended maximum of ${formatNumber(maxTradeSize)} based on current liquidity.
