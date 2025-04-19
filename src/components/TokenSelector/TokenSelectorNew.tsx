@@ -1,165 +1,137 @@
 
-import React, { useState, useEffect } from 'react';
-import { ChainId, TokenInfo } from '@/services/tokenListService';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
-import { useTokensSimple } from '@/hooks/useTokensSimple';
-import ChainSelector from './ChainSelector';
-import TokenPairControls from './TokenPairControls';
-import InvestmentAmountInput from './InvestmentAmountInput';
-import TokenPairDisplay from './TokenPairDisplay';
+import React, { useState } from 'react';
+import { TokenInfo } from '@/services/tokenListService';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Search, X } from 'lucide-react';
 
-interface TokenPairSelectorProps {
-  onSelectTokenPair: (baseToken: TokenInfo, quoteToken: TokenInfo) => void;
-  selectedChain?: ChainId;
-  onSelectChain?: (chainId: ChainId) => void;
-  investmentAmount?: number;
-  onInvestmentAmountChange?: (amount: number) => void;
+interface TokenSelectorNewProps {
+  tokens: TokenInfo[];
+  selectedToken: TokenInfo | null;
+  onSelectToken: (token: TokenInfo) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  loading?: boolean;
 }
 
-const TokenPairSelectorNew: React.FC<TokenPairSelectorProps> = ({ 
-  onSelectTokenPair, 
-  selectedChain = ChainId.ETHEREUM,
-  onSelectChain,
-  investmentAmount = 1000,
-  onInvestmentAmountChange
+const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
+  tokens = [],
+  selectedToken,
+  onSelectToken,
+  placeholder = 'Select token',
+  disabled = false,
+  loading = false
 }) => {
-  const {
-    loading,
-    error,
-    selectedChain: hookSelectedChain,
-    allChainTokens,
-    quoteTokens,
-    popularTokens,
-    handleChainChange: hookHandleChainChange,
-    ensureValidAddress,
-  } = useTokensSimple(selectedChain);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isOpen, setIsOpen] = useState<boolean>(false);
   
-  const [baseToken, setBaseToken] = useState<TokenInfo | null>(null);
-  const [quoteToken, setQuoteToken] = useState<TokenInfo | null>(null);
+  const filteredTokens = React.useMemo(() => {
+    if (!searchQuery) return tokens;
+    
+    const query = searchQuery.toLowerCase();
+    return tokens.filter(token => 
+      token.symbol.toLowerCase().includes(query) ||
+      token.name.toLowerCase().includes(query) ||
+      token.address?.toLowerCase().includes(query)
+    );
+  }, [tokens, searchQuery]);
   
-  useEffect(() => {
-    // Reset tokens when chain changes
-    setBaseToken(null);
-    setQuoteToken(null);
-  }, [hookSelectedChain]);
-  
-  const handleChainChange = (chainId: ChainId) => {
-    try {
-      hookHandleChainChange(chainId);
-      if (onSelectChain) {
-        onSelectChain(chainId);
-      }
-    } catch (error) {
-      console.error('Error changing chain:', error);
-    }
+  const handleSelectToken = (token: TokenInfo) => {
+    onSelectToken(token);
+    setIsOpen(false);
+    setSearchQuery('');
   };
   
-  useEffect(() => {
-    if (baseToken && quoteToken) {
-      try {
-        onSelectTokenPair(baseToken, quoteToken);
-      } catch (error) {
-        console.error('Error in onSelectTokenPair:', error);
-      }
-    }
-  }, [baseToken, quoteToken, onSelectTokenPair]);
-  
-  const handleBaseTokenSelect = (token: TokenInfo) => {
-    if (!token) return;
-    try {
-      const validToken = ensureValidAddress(token);
-      setBaseToken(validToken);
-    } catch (error) {
-      console.error('Error selecting base token:', error);
-    }
+  const clearSelection = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onSelectToken(null as unknown as TokenInfo);
   };
-  
-  const handleQuoteTokenSelect = (token: TokenInfo) => {
-    if (!token) return;
-    try {
-      const validToken = ensureValidAddress(token);
-      setQuoteToken(validToken);
-    } catch (error) {
-      console.error('Error selecting quote token:', error);
-    }
-  };
-  
-  const handleSwapTokens = () => {
-    if (baseToken && quoteToken) {
-      try {
-        const temp = baseToken;
-        setBaseToken(quoteToken);
-        setQuoteToken(temp);
-      } catch (error) {
-        console.error('Error swapping tokens:', error);
-      }
-    }
-  };
-  
-  const handleInvestmentAmountChange = (amount: number) => {
-    try {
-      if (onInvestmentAmountChange) {
-        onInvestmentAmountChange(amount);
-      }
-    } catch (error) {
-      console.error('Error changing investment amount:', error);
-    }
-  };
-
-  // Make sure we have default tokens loaded even if API fails
-  const effectivePopularTokens = popularTokens.length > 0 ? popularTokens : [];
-  const effectiveQuoteTokens = quoteTokens.length > 0 ? quoteTokens : [];
-  const effectiveAllTokens = allChainTokens.length > 0 ? allChainTokens : [];
   
   return (
-    <Card className="w-full">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-lg font-semibold">Select Token Pair</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <ChainSelector
-          selectedChain={hookSelectedChain}
-          onChainChange={handleChainChange}
-        />
-        
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              {error}. Using fallback token list.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        <TokenPairControls
-          baseToken={baseToken}
-          quoteToken={quoteToken}
-          onBaseTokenSelect={handleBaseTokenSelect}
-          onQuoteTokenSelect={handleQuoteTokenSelect}
-          onSwapTokens={handleSwapTokens}
-          popularTokens={effectivePopularTokens}
-          quoteTokens={effectiveQuoteTokens}
-          allChainTokens={effectiveAllTokens}
-          loading={loading}
-        />
-
-        <InvestmentAmountInput
-          amount={investmentAmount}
-          onChange={handleInvestmentAmountChange}
-        />
-      </CardContent>
-      <CardFooter>
-        <div className="w-full">
-          <TokenPairDisplay
-            baseToken={baseToken}
-            quoteToken={quoteToken}
-          />
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          className="w-full justify-between"
+          disabled={disabled || loading}
+        >
+          {selectedToken ? (
+            <div className="flex items-center gap-2">
+              {selectedToken.logoURI && (
+                <img
+                  src={selectedToken.logoURI}
+                  alt={selectedToken.symbol}
+                  className="w-5 h-5 rounded-full"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              )}
+              <span>{selectedToken.symbol}</span>
+              <button 
+                className="ml-2 p-1 hover:bg-gray-100 rounded-full" 
+                onClick={clearSelection}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ) : (
+            <span className="text-muted-foreground">{placeholder}</span>
+          )}
+        </Button>
+      </PopoverTrigger>
+      
+      <PopoverContent className="w-64 p-0" align="start">
+        <div className="p-2 border-b">
+          <div className="relative">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search tokens..."
+              className="pl-8"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
         </div>
-      </CardFooter>
-    </Card>
+        
+        <ScrollArea className="h-[300px] p-2">
+          {filteredTokens.length > 0 ? (
+            filteredTokens.map((token) => (
+              <Button
+                key={token.address || token.symbol}
+                variant="ghost"
+                className="w-full justify-start mb-1 px-2"
+                onClick={() => handleSelectToken(token)}
+              >
+                <div className="flex items-center gap-2">
+                  {token.logoURI && (
+                    <img
+                      src={token.logoURI}
+                      alt={token.symbol}
+                      className="w-5 h-5 rounded-full"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  )}
+                  <div className="text-left">
+                    <div>{token.symbol}</div>
+                    <div className="text-xs text-muted-foreground">{token.name}</div>
+                  </div>
+                </div>
+              </Button>
+            ))
+          ) : (
+            <div className="py-6 text-center text-sm text-muted-foreground">
+              No tokens found
+            </div>
+          )}
+        </ScrollArea>
+      </PopoverContent>
+    </Popover>
   );
 };
 
-export default TokenPairSelectorNew;
+export default TokenSelectorNew;

@@ -49,7 +49,7 @@ const ChainSelector: React.FC<ChainSelectorProps> = ({ selectedChain, onChainCha
                 }}
               />
             )}
-            <SelectValue/>
+            <SelectValue />
           </div>
         </SelectTrigger>
         <SelectContent>
