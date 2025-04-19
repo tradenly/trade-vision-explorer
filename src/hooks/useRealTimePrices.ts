@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { TokenInfo } from '@/services/tokenListService';
 import { PriceQuote } from '@/services/dex/types';
@@ -17,6 +18,7 @@ export function useRealTimePrices(
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
   
   useEffect(() => {
+    // Make sure we're calling getInstance without arguments as per its definition
     priceServiceRef.current = RealTimePriceService.getInstance();
     return () => {
       if (intervalRef.current) {
