@@ -14,8 +14,8 @@ export function useRealTimePrices(
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   
-  // Fix: RealTimePriceService.getInstance() doesn't need arguments
-  const priceService = useRef(RealTimePriceService.getInstance());
+  // Explicitly type the priceService ref
+  const priceService = useRef<RealTimePriceService>(RealTimePriceService.getInstance());
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
   
   const fetchPrices = async () => {
