@@ -3,61 +3,62 @@ import { PriceResult } from '../types.ts';
 
 export class PriceValidation {
   /**
-   * Validate that a price quote is reasonable
+   * Validates that a price quote is reasonable
    */
-  static validateQuote(quote: { dexName: string; price: number; liquidityUSD?: number; timestamp: number }): boolean {
-    // Price should be positive
+  static validateQuote(quote: { 
+    dexName: string; 
+    price: number; 
+    liquidityUSD?: number;
+    timestamp?: number;
+  }): boolean {
+    // Check for undefined or null price
+    if (quote.price === undefined || quote.price === null) {
+      return false;
+    }
+    
+    // Check for positive price
     if (quote.price <= 0) {
-      console.warn(`Invalid price: ${quote.price} from ${quote.dexName}`);
       return false;
     }
     
-    // Price should not be absurdly high
-    if (quote.price > 1e10) {
-      console.warn(`Suspiciously high price: ${quote.price} from ${quote.dexName}`);
+    // Check for reasonable price range based on token
+    // This is a simple check - expand as needed
+    if (quote.dexName.includes('eth') && (quote.price < 500 || quote.price > 100000)) {
       return false;
     }
     
-    // Check for reasonable liquidity
-    if (quote.liquidityUSD && quote.liquidityUSD < 100) {
-      console.warn(`Very low liquidity: $${quote.liquidityUSD} from ${quote.dexName}`);
+    if (quote.dexName.includes('sol') && (quote.price < 10 || quote.price > 10000)) {
       return false;
     }
     
-    // Check for stale data
-    const now = Date.now();
-    const maxAge = 5 * 60 * 1000; // 5 minutes
-    if (now - quote.timestamp > maxAge) {
-      console.warn(`Stale price data from ${quote.dexName}, age: ${(now - quote.timestamp) / 1000} seconds`);
-      return false;
+    // Check for stale data (if timestamp provided)
+    if (quote.timestamp) {
+      const now = Date.now();
+      const maxAge = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+      
+      if (now - quote.timestamp > maxAge) {
+        return false;
+      }
     }
     
     return true;
   }
   
   /**
-   * Validate that prices across sources are consistent
+   * Validates price consistency across multiple sources
    */
   static validatePriceConsistency(quotes: PriceResult[]): boolean {
-    if (quotes.length <= 1) {
-      return true; // Not enough quotes to compare
+    if (quotes.length < 2) {
+      return true; // Not enough sources to compare
     }
     
     const prices = quotes.map(q => q.price);
-    const avgPrice = prices.reduce((sum, price) => sum + price, 0) / prices.length;
+    const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
     
-    // Check if any price deviates by more than 15% from the average
-    const maxDeviation = 0.15;
-    
-    for (let i = 0; i < prices.length; i++) {
-      const deviation = Math.abs(prices[i] - avgPrice) / avgPrice;
-      
-      if (deviation > maxDeviation) {
-        console.warn(`Price inconsistency detected: ${quotes[i].source} price ${prices[i]} deviates from avg ${avgPrice} by ${deviation * 100}%`);
-        return false;
-      }
-    }
-    
-    return true;
+    // Check if any price deviates more than 10% from average
+    return prices.every(price => {
+      const deviation = Math.abs(price - avgPrice) / avgPrice;
+      return deviation <= 0.10; // 10% tolerance
+    });
   }
 }

@@ -2,22 +2,23 @@
 export interface PriceResult {
   source: string;
   price: number;
-  liquidity: number;
   timestamp: number;
-  tradingFee?: number;
+  liquidity: number;
+  tradingFee: number;
+  isFallback?: boolean;
 }
 
 export interface TokenPair {
   baseToken: {
     address: string;
     symbol: string;
-    decimals: number;
+    decimals?: number;
     chainId: number;
   };
   quoteToken: {
-    address: string;  
+    address: string;
     symbol: string;
-    decimals: number;
+    decimals?: number;
     chainId: number;
   };
 }

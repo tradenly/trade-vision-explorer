@@ -39,14 +39,28 @@ export function useRealTimePrices(
             setPrices(onChainPrices);
             setError(null);
           } else {
-            // Don't update state if no prices returned, but don't set error
+            // Don't update state if no prices returned, but set a warning
             console.log('No prices returned from price service');
+            
+            // Show toast notification for user feedback
+            toast({
+              title: "Price Data Unavailable",
+              description: `Could not fetch current prices for ${baseToken.symbol}/${quoteToken.symbol}. Using historical data if available.`,
+              variant: "warning"
+            });
           }
         }
       } catch (err) {
         console.error('Error fetching real-time prices:', err);
         if (isMounted) {
           setError('Failed to fetch real-time prices');
+          
+          // Show toast notification for user feedback
+          toast({
+            title: "Error Fetching Price Data",
+            description: `There was an error getting price data for ${baseToken.symbol}/${quoteToken.symbol}.`,
+            variant: "destructive"
+          });
         }
       } finally {
         if (isMounted) {
@@ -66,7 +80,7 @@ export function useRealTimePrices(
       isMounted = false;
       clearInterval(intervalId);
     };
-  }, [baseToken, quoteToken, refreshInterval]);
+  }, [baseToken, quoteToken, refreshInterval, toast]);
 
   // Return states
   return {
@@ -80,9 +94,21 @@ export function useRealTimePrices(
         if (baseToken && quoteToken) {
           const refreshedPrices = await priceService.getOnChainPrices(baseToken, quoteToken);
           setPrices(refreshedPrices);
+          
+          // Show success toast
+          toast({
+            title: "Prices Updated",
+            description: `Successfully refreshed ${baseToken.symbol}/${quoteToken.symbol} price data.`,
+            variant: "default"
+          });
         }
       } catch (err) {
         console.error('Error refreshing prices:', err);
+        toast({
+          title: "Refresh Failed",
+          description: "Failed to refresh price data. Please try again.",
+          variant: "destructive"
+        });
       } finally {
         setLoading(false);
       }

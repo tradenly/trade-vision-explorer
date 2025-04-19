@@ -1,58 +1,58 @@
 
-/**
- * Simple rate limiter to prevent hitting API rate limits
- */
 class RateLimiter {
-  private queue: (() => void)[] = [];
+  private queue: Array<() => Promise<void>> = [];
   private processing = false;
-  private requestsPerSecond: number;
+  private rateLimit: number;
   private lastRequestTime = 0;
-  
-  constructor(requestsPerSecond = 3) {
-    this.requestsPerSecond = requestsPerSecond;
+
+  constructor(requestsPerSecond: number = 1) {
+    this.rateLimit = 1000 / requestsPerSecond;
   }
-  
-  /**
-   * Wait for a slot before making an API request
-   */
-  async waitForSlot(): Promise<void> {
+
+  public async waitForSlot(): Promise<void> {
     return new Promise<void>((resolve) => {
-      this.queue.push(resolve);
-      this.processQueue();
+      // Add to queue
+      this.queue.push(async () => {
+        // Calculate time to wait
+        const now = Date.now();
+        const timeToWait = Math.max(0, this.lastRequestTime + this.rateLimit - now);
+        
+        if (timeToWait > 0) {
+          await new Promise(r => setTimeout(r, timeToWait));
+        }
+        
+        // Update last request time
+        this.lastRequestTime = Date.now();
+        
+        // Resolve the original promise
+        resolve();
+      });
+      
+      // Process queue if not already processing
+      if (!this.processing) {
+        this.processQueue();
+      }
     });
   }
-  
-  private async processQueue() {
-    if (this.processing || this.queue.length === 0) return;
+
+  private async processQueue(): Promise<void> {
+    if (this.queue.length === 0) {
+      this.processing = false;
+      return;
+    }
     
     this.processing = true;
     
-    // Calculate time since last request
-    const now = Date.now();
-    const elapsed = now - this.lastRequestTime;
-    const minInterval = 1000 / this.requestsPerSecond;
-    
-    // If we need to wait to respect the rate limit
-    if (elapsed < minInterval) {
-      const delay = minInterval - elapsed;
-      await new Promise(resolve => setTimeout(resolve, delay));
+    // Get next item and process
+    const nextRequest = this.queue.shift();
+    if (nextRequest) {
+      await nextRequest();
     }
     
-    // Process the next item in the queue
-    const resolve = this.queue.shift();
-    this.lastRequestTime = Date.now();
-    
-    if (resolve) {
-      resolve();
-    }
-    
-    this.processing = false;
-    
-    // Continue processing if there are more items
-    if (this.queue.length > 0) {
-      this.processQueue();
-    }
+    // Process next item
+    this.processQueue();
   }
 }
 
-export const rateLimiter = new RateLimiter(5); // 5 requests per second
+// Create shared rate limiter
+export const rateLimiter = new RateLimiter(2); // 2 requests per second

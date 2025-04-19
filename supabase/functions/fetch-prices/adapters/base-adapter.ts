@@ -2,101 +2,100 @@
 import { PriceResult } from '../types.ts';
 
 export abstract class BaseAdapter {
-  protected MAX_RETRIES = 3;
-  protected RETRY_DELAY = 1000;
-  protected name: string;
-
+  private name: string;
+  private maxRetries = 3;
+  
   constructor(name: string) {
     this.name = name;
   }
-
-  getName(): string {
+  
+  public getName(): string {
     return this.name;
   }
-
+  
   abstract getPrice(baseTokenAddress: string, quoteTokenAddress: string, chainId: number): Promise<PriceResult | null>;
-
+  
   protected async fetchWithRetry(url: string, options: RequestInit = {}): Promise<Response> {
-    let lastError: Error | null = null;
+    let attempt = 1;
     
-    for (let i = 0; i < this.MAX_RETRIES; i++) {
+    while (attempt <= this.maxRetries) {
       try {
-        const response = await fetch(url, {
-          ...options,
-          headers: {
-            'Accept': 'application/json',
-            ...options.headers,
-          },
-        });
+        const response = await fetch(url, options);
         
-        if (!response.ok) {
+        if (response.ok) {
+          return response;
+        }
+        
+        if (response.status === 429) { // Rate limit
+          const retryAfter = response.headers.get('Retry-After');
+          const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : attempt * 1000;
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        } else if (response.status >= 500) {
+          // Server error, retry
+          await new Promise(resolve => setTimeout(resolve, attempt * 500));
+        } else {
+          // Client error, don't retry
           throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
-        return response;
       } catch (error) {
-        console.error(`Attempt ${i + 1} failed for ${url}:`, error);
-        lastError = error as Error;
-        
-        if (i < this.MAX_RETRIES - 1) {
-          await new Promise(resolve => setTimeout(resolve, this.RETRY_DELAY * Math.pow(2, i)));
+        if (attempt === this.maxRetries) {
+          throw error;
         }
+        await new Promise(resolve => setTimeout(resolve, attempt * 500));
       }
+      
+      console.error(`Attempt ${attempt} failed for ${url}: ${error}`);
+      attempt++;
     }
     
-    throw lastError || new Error('Failed to fetch after retries');
+    throw new Error(`Failed after ${this.maxRetries} attempts`);
   }
-
+  
+  protected getTradingFee(dexName: string): number {
+    const fees: Record<string, number> = {
+      '1inch': 0.003, // 0.3%
+      'uniswap': 0.003, // 0.3%
+      'jupiter': 0.0035, // 0.35%
+      'orca': 0.003, // 0.3%
+      'raydium': 0.003, // 0.3%
+      'sushiswap': 0.003, // 0.3%
+      'pancakeswap': 0.0025, // 0.25%
+      'curve': 0.0004 // 0.04%
+    };
+    
+    return fees[dexName.toLowerCase()] || 0.003; // Default to 0.3%
+  }
+  
   protected estimateLiquidity(tokenSymbol: string, dexName: string): number {
-    // Base liquidity estimation for different tokens
     const baseEstimates: Record<string, number> = {
       'ETH': 10000000,
-      'WETH': 10000000,
-      'BTC': 15000000,
-      'WBTC': 15000000,
       'SOL': 5000000,
       'BNB': 3000000,
+      'MATIC': 1000000,
       'USDC': 20000000,
       'USDT': 20000000,
       'DAI': 8000000
     };
     
-    const baseLiquidity = baseEstimates[tokenSymbol] || 500000;
-    
-    // DEX-specific modifier
     const dexMultipliers: Record<string, number> = {
+      '1inch': 1.0,
       'uniswap': 1.0,
-      'sushiswap': 0.7,
-      'pancakeswap': 0.9,
-      'curve': 1.2,
-      'balancer': 0.8,
       'jupiter': 1.0,
       'orca': 0.8,
-      'raydium': 0.75
+      'raydium': 0.7,
+      'sushiswap': 0.7,
+      'pancakeswap': 0.9,
+      'curve': 1.2
     };
     
-    const dexModifier = dexMultipliers[dexName.toLowerCase()] || 0.5;
+    const baseLiquidity = baseEstimates[tokenSymbol] || 500000; // Default value
+    const multiplier = dexMultipliers[dexName.toLowerCase()] || 1.0;
     
-    return baseLiquidity * dexModifier;
-  }
-
-  protected getTradingFee(dexName: string): number {
-    const fees: Record<string, number> = {
-      'uniswap': 0.003,     // 0.3%
-      'sushiswap': 0.003,   // 0.3%
-      'pancakeswap': 0.0025, // 0.25%
-      'jupiter': 0.0035,    // 0.35%
-      'orca': 0.003,        // 0.3%
-      'raydium': 0.003,     // 0.3%
-      'balancer': 0.002,    // 0.2%
-      'curve': 0.0004       // 0.04%
-    };
-    
-    return fees[dexName.toLowerCase()] || 0.003;
+    return baseLiquidity * multiplier;
   }
   
-  protected handleError(error: unknown, dexName: string): null {
-    console.error(`Error in ${dexName} adapter:`, error);
+  protected handleError(error: unknown, sourceName: string): PriceResult | null {
+    console.error(`Error in ${sourceName} adapter:`, error);
     return null;
   }
 }

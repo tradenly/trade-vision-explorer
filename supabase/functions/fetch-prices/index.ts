@@ -37,13 +37,31 @@ serve(async (req) => {
       });
     }
 
-    // Initialize price adapters based on chain
+    // Initialize adapters with properly configured API keys
     const adapters = [];
+    
+    // Use chainId to determine which adapters to use
     if (baseToken.chainId === 101) { // Solana
       adapters.push(new JupiterAdapter());
     } else { // EVM chains
-      adapters.push(new OneInchAdapter());
+      // Get API key from environment variable
+      const oneInchApiKey = Deno.env.get('ONEINCH_API_KEY');
+      if (oneInchApiKey) {
+        const oneInchAdapter = new OneInchAdapter();
+        oneInchAdapter.setApiKey(oneInchApiKey);
+        adapters.push(oneInchAdapter);
+      } else {
+        console.warn("ONEINCH_API_KEY not found in environment variables");
+      }
+      
+      // Add additional EVM adapters here as needed
     }
+
+    if (adapters.length === 0) {
+      throw new Error(`No compatible price adapters available for chain ${baseToken.chainId}`);
+    }
+
+    console.log(`Fetching prices for ${baseToken.symbol}/${quoteToken.symbol} on chain ${baseToken.chainId}`);
 
     // Fetch prices from all adapters
     const pricePromises = adapters.map(adapter => 
@@ -71,23 +89,53 @@ serve(async (req) => {
       }
     });
 
-    // Store results in Supabase for historical data
+    // Add fallback price from database if no live prices are available
+    if (Object.keys(prices).length === 0) {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      );
+      
+      const { data } = await supabase
+        .from('dex_price_history')
+        .select('*')
+        .eq('token_pair', `${baseToken.symbol}/${quoteToken.symbol}`)
+        .eq('chain_id', baseToken.chainId)
+        .order('timestamp', { ascending: false })
+        .limit(1);
+        
+      if (data && data.length > 0) {
+        prices['historical'] = {
+          source: 'historical',
+          price: data[0].price,
+          timestamp: new Date(data[0].timestamp).getTime(),
+          liquidity: data[0].liquidity || 100000,
+          isFallback: true
+        };
+      }
+    }
+
+    // Store new results in Supabase for historical data
     if (Object.keys(prices).length > 0) {
       const supabase = createClient(
         Deno.env.get('SUPABASE_URL')!,
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
       );
 
-      const records = Object.entries(prices).map(([dexName, data]) => ({
-        token_pair: `${baseToken.symbol}/${quoteToken.symbol}`,
-        dex_name: dexName,
-        price: data.price,
-        chain_id: baseToken.chainId,
-        liquidity: data.liquidity,
-        timestamp: new Date().toISOString()
-      }));
+      const records = Object.entries(prices)
+        .filter(([_, data]) => !data.isFallback) // Don't record fallback data
+        .map(([dexName, data]) => ({
+          token_pair: `${baseToken.symbol}/${quoteToken.symbol}`,
+          dex_name: dexName,
+          price: data.price,
+          chain_id: baseToken.chainId,
+          liquidity: data.liquidity,
+          timestamp: new Date().toISOString()
+        }));
 
-      await supabase.from('dex_price_history').insert(records);
+      if (records.length > 0) {
+        await supabase.from('dex_price_history').insert(records);
+      }
     }
 
     // Update cache

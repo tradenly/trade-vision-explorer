@@ -1,4 +1,3 @@
-
 import { TokenInfo } from '@/services/tokenListService';
 import { PriceQuote } from '../types';
 import { supabase } from '@/lib/supabaseClient';
@@ -142,7 +141,7 @@ export class OnChainPriceService {
   ): Promise<Record<string, PriceQuote>> {
     try {
       const { data, error } = await supabase.functions.invoke('fetch-prices', {
-        body: {
+        body: { 
           baseToken: {
             address: baseToken.address,
             symbol: baseToken.symbol,
@@ -159,23 +158,27 @@ export class OnChainPriceService {
       });
 
       if (error) {
-        throw error;
+        console.error('Edge function error:', error);
+        return {};
       }
 
       if (!data || !data.prices) {
         return {};
       }
 
+      // Convert to PriceQuote format
       const quotes: Record<string, PriceQuote> = {};
       
       for (const dex in data.prices) {
+        const priceData = data.prices[dex];
         quotes[dex] = {
           dexName: dex,
-          price: data.prices[dex].price,
+          price: priceData.price,
           fees: this.getDexFee(dex),
           gasEstimate: this.getGasEstimate(baseToken.chainId, dex),
-          liquidityUSD: data.prices[dex].liquidity || 100000,
-          timestamp: Date.now()
+          liquidityUSD: priceData.liquidity || 100000,
+          timestamp: priceData.timestamp || Date.now(),
+          isFallback: !!priceData.isFallback
         };
       }
 
