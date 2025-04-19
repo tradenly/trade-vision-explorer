@@ -1,19 +1,20 @@
-
 import { TokenInfo } from '@/services/tokenListService';
 import { PriceQuote } from '@/services/dex/types';
 import { supabase } from '@/lib/supabaseClient';
 
-/**
- * Service for fetching real-time price data from DEXes
- */
 export class RealTimePriceService {
   private static instance: RealTimePriceService;
-  private cache: Map<string, { data: Record<string, PriceQuote>, timestamp: number }> = new Map();
-  private cacheDuration = 20000; // 20 seconds
-  private retryDelay = 2000; // 2 seconds
-  private maxRetries = 2;
+  private cache: Map<string, { data: Record<string, PriceQuote>, timestamp: number }>;
+  private cacheDuration: number;
+  private retryDelay: number;
+  private maxRetries: number;
   
-  private constructor() {}
+  private constructor() {
+    this.cache = new Map();
+    this.cacheDuration = 20000; // 20 seconds
+    this.retryDelay = 2000; // 2 seconds
+    this.maxRetries = 2;
+  }
   
   public static getInstance(): RealTimePriceService {
     if (!RealTimePriceService.instance) {

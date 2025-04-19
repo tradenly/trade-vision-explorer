@@ -1,7 +1,8 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { TokenInfo } from '@/services/tokenListService';
 import { PriceQuote } from '@/services/dex/types';
-import { RealTimePriceService } from '@/services/dex/services/RealTimePriceService';
+import RealTimePriceService from '@/services/dex/services/RealTimePriceService';
 
 export function useRealTimePrices(
   baseToken: TokenInfo | null, 
@@ -13,8 +14,7 @@ export function useRealTimePrices(
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   
-  // Explicitly type the ref and ensure correct method call
-  const priceService = useRef<RealTimePriceService | null>(null);
+  const priceService = useRef<RealTimePriceService>(RealTimePriceService.getInstance());
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
   
   const fetchPrices = async () => {
@@ -26,7 +26,7 @@ export function useRealTimePrices(
       setLoading(true);
       setError(null);
       
-      const newPrices = await priceService.current!.getPrices(baseToken, quoteToken);
+      const newPrices = await priceService.current.getPrices(baseToken, quoteToken);
       
       setPrices(newPrices);
       setLastUpdated(new Date());
@@ -61,16 +61,9 @@ export function useRealTimePrices(
   }, [baseToken, quoteToken, refreshInterval]);
   
   const refreshPrices = () => {
-    priceService.current!.clearCache();
+    priceService.current.clearCache();
     fetchPrices();
   };
-  
-  useEffect(() => {
-    // Initialize the service only once
-    if (!priceService.current) {
-      priceService.current = RealTimePriceService.getInstance();
-    }
-  }, []);
   
   return {
     prices,
