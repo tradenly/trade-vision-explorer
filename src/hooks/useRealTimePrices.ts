@@ -19,6 +19,7 @@ export function useRealTimePrices(
   
   // Initialize the price service
   useEffect(() => {
+    // Get the singleton instance with no arguments
     priceServiceRef.current = RealTimePriceService.getInstance();
     return () => {
       // Cleanup if needed
