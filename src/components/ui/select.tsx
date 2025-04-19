@@ -9,19 +9,7 @@ const Select = SelectPrimitive.Root
 
 const SelectGroup = SelectPrimitive.Group
 
-const SelectValue = React.forwardRef<
-  React.ElementRef<typeof SelectPrimitive.Value>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Value>
->(({ className, children, ...props }, ref) => (
-  <SelectPrimitive.Value
-    ref={ref}
-    className={className}
-    {...props}
-  >
-    {children}
-  </SelectPrimitive.Value>
-))
-SelectValue.displayName = SelectPrimitive.Value.displayName
+const SelectValue = SelectPrimitive.Value
 
 const SelectTrigger = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Trigger>,
@@ -113,14 +101,12 @@ SelectContent.displayName = SelectPrimitive.Content.displayName
 const SelectLabel = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Label>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Label>
->(({ className, children, ...props }, ref) => (
+>(({ className, ...props }, ref) => (
   <SelectPrimitive.Label
     ref={ref}
     className={cn("py-1.5 pl-8 pr-2 text-sm font-semibold", className)}
     {...props}
-  >
-    {children}
-  </SelectPrimitive.Label>
+  />
 ))
 SelectLabel.displayName = SelectPrimitive.Label.displayName
 

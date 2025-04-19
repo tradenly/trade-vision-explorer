@@ -56,7 +56,7 @@ const ChainSelector: React.FC<ChainSelectorProps> = ({ selectedChain, onChainCha
         <SelectContent>
           <SelectGroup>
             {Object.entries(SUPPORTED_CHAINS).map(([id, name]) => (
-              <SelectItem key={id} value={id} className="cursor-pointer">
+              <SelectItem key={id} value={id}>
                 <div className="flex items-center gap-2">
                   <img 
                     src={chainLogos[Number(id)]} 
