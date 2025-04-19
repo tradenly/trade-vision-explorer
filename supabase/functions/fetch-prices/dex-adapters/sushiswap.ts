@@ -6,6 +6,8 @@ import { PriceResult } from '../types.ts';
  * Adapter for Sushiswap DEX
  */
 export class SushiswapAdapter extends BaseAdapter {
+  private readonly SUBGRAPH_URL = 'https://api.thegraph.com/subgraphs/name/sushiswap/exchange';
+  
   constructor() {
     super('Sushiswap');
   }
@@ -16,46 +18,58 @@ export class SushiswapAdapter extends BaseAdapter {
     chainId: number
   ): Promise<PriceResult | null> {
     try {
-      // Note: These IDs are based on chain ID mapping
-      const chainMap: Record<number, { id: string, name: string }> = {
-        1: { id: '1', name: 'ethereum' },
-        137: { id: '137', name: 'polygon' },
-        42161: { id: '42161', name: 'arbitrum' },
-        8453: { id: '8453', name: 'base' },
-      };
+      // SushiSwap supports these chains
+      const supportedChains = [1, 137, 42161, 8453, 10]; // Ethereum, Polygon, Arbitrum, Base, Optimism
+      if (!supportedChains.includes(chainId)) {
+        return null;
+      }
+
+      // Handle ETH address (replace with WETH)
+      if (baseTokenAddress.toLowerCase() === '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee') {
+        baseTokenAddress = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'; // WETH
+      }
+      if (quoteTokenAddress.toLowerCase() === '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee') {
+        quoteTokenAddress = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'; // WETH
+      }
       
-      // Skip if chain not supported by this adapter
-      if (!chainMap[chainId]) {
+      // Create pair ID (SushiSwap uses token addresses concatenated with "-")
+      const pairId = [baseTokenAddress, quoteTokenAddress].sort().join('-').toLowerCase();
+      
+      // Query SushiSwap's subgraph for pair data
+      const query = `{
+        pair(id: "${pairId}") {
+          token0Price
+          token1Price
+          reserveUSD
+          volumeUSD
+          token0 { id }
+          token1 { id }
+        }
+      }`;
+      
+      const response = await this.fetchWithRetry(this.SUBGRAPH_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query })
+      });
+      
+      const data = await response.json();
+      const pair = data.data?.pair;
+      
+      if (!pair) {
         return null;
       }
       
-      // Use 1inch API to get price data for Sushiswap
-      const url = `https://api.1inch.io/v5.0/${chainId}/quote?` + 
-        `fromTokenAddress=${baseTokenAddress}&` +
-        `toTokenAddress=${quoteTokenAddress}&` + 
-        `amount=1000000000000000000&protocols=SUSHISWAP`; // 1 token in wei
+      // Determine which token is which in the pair
+      const isBaseToken0 = pair.token0.id.toLowerCase() === baseTokenAddress.toLowerCase();
       
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`1inch API error: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      // Calculate price from response data
-      const fromAmount = parseInt(data.fromTokenAmount) / 10 ** 18; // Assuming 18 decimals
-      const toAmount = parseInt(data.toTokenAmount) / 10 ** 18;     // Assuming 18 decimals
-      const price = toAmount / fromAmount;
-      
-      // Extract liquidity data if available
-      const liquidity = data.protocols?.[0]?.[0]?.liquidity || 
-                       this.estimateLiquidity('ETH', this.getName());
+      // Calculate price depending on token positions
+      const price = isBaseToken0 ? parseFloat(pair.token0Price) : parseFloat(pair.token1Price);
       
       return {
         source: this.getName().toLowerCase(),
         price: price,
-        liquidity: liquidity,
+        liquidity: parseFloat(pair.reserveUSD) || this.estimateLiquidity('ETH', this.getName()),
         timestamp: Date.now(),
         tradingFee: this.getTradingFee(this.getName())
       };

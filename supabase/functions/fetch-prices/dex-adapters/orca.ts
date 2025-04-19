@@ -4,8 +4,11 @@ import { PriceResult } from '../types.ts';
 
 /**
  * Adapter for Orca (Solana DEX)
+ * Also uses Jupiter's API to get Orca-specific quotes
  */
 export class OrcaAdapter extends BaseAdapter {
+  private readonly JUPITER_QUOTE_API = 'https://quote-api.jup.ag/v6/quote';
+  
   constructor() {
     super('Orca');
   }
@@ -22,9 +25,15 @@ export class OrcaAdapter extends BaseAdapter {
       }
       
       // Use Jupiter's API but filter for Orca routes
-      const jupiterUrl = `https://quote-api.jup.ag/v4/quote?inputMint=${baseTokenAddress}&outputMint=${quoteTokenAddress}&amount=1000000&slippageBps=50`;
+      const jupiterUrl = `${this.JUPITER_QUOTE_API}?` +
+        `inputMint=${baseTokenAddress}` +
+        `&outputMint=${quoteTokenAddress}` +
+        `&amount=1000000&slippageBps=50` +
+        `&onlyDirectRoutes=true` +
+        `&restrictIntermediateTokens=true` +
+        `&platformFeeBps=0`;
       
-      const response = await fetch(jupiterUrl);
+      const response = await this.fetchWithRetry(jupiterUrl);
       
       if (!response.ok) {
         throw new Error(`Jupiter API error: ${response.status}`);

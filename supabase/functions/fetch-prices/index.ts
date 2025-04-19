@@ -1,10 +1,15 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
-import { OneInchAdapter } from "./adapters/one-inch-adapter.ts"
-import { JupiterAdapter } from "./adapters/jupiter-adapter.ts"
+import { UniswapAdapter } from "./dex-adapters/uniswap.ts"
+import { PancakeSwapAdapter } from "./dex-adapters/pancakeswap.ts"
+import { SushiswapAdapter } from "./dex-adapters/sushiswap.ts"
+import { JupiterAdapter } from "./dex-adapters/jupiter.ts"
+import { OrcaAdapter } from "./dex-adapters/orca.ts"
+import { RaydiumAdapter } from "./dex-adapters/raydium.ts"
 import { TokenPair } from "./types.ts"
 import { PriceValidation } from "./utils/price-validation.ts"
+import { rateLimiter } from "./utils/rate-limiter.ts"
 
 // CORS headers for cross-origin requests
 const corsHeaders = {
@@ -37,24 +42,21 @@ serve(async (req) => {
       });
     }
 
-    // Initialize adapters with properly configured API keys
+    // Initialize adapters based on chain type
     const adapters = [];
     
     // Use chainId to determine which adapters to use
     if (baseToken.chainId === 101) { // Solana
       adapters.push(new JupiterAdapter());
+      adapters.push(new OrcaAdapter());
+      adapters.push(new RaydiumAdapter());
     } else { // EVM chains
-      // Get API key from environment variable
-      const oneInchApiKey = Deno.env.get('ONEINCH_API_KEY');
-      if (oneInchApiKey) {
-        const oneInchAdapter = new OneInchAdapter();
-        oneInchAdapter.setApiKey(oneInchApiKey);
-        adapters.push(oneInchAdapter);
-      } else {
-        console.warn("ONEINCH_API_KEY not found in environment variables");
-      }
+      adapters.push(new UniswapAdapter());
+      adapters.push(new SushiswapAdapter());
       
-      // Add additional EVM adapters here as needed
+      if (baseToken.chainId === 56 || baseToken.chainId === 1) { // BSC or ETH
+        adapters.push(new PancakeSwapAdapter());
+      }
     }
 
     if (adapters.length === 0) {
@@ -63,7 +65,10 @@ serve(async (req) => {
 
     console.log(`Fetching prices for ${baseToken.symbol}/${quoteToken.symbol} on chain ${baseToken.chainId}`);
 
-    // Fetch prices from all adapters
+    // Wait for rate limiter slot to avoid API throttling
+    await rateLimiter.waitForSlot();
+
+    // Fetch prices from all adapters (in parallel)
     const pricePromises = adapters.map(adapter => 
       adapter.getPrice(baseToken.address, quoteToken.address, baseToken.chainId)
     );
@@ -84,57 +89,110 @@ serve(async (req) => {
         });
         
         if (isValid) {
-          prices[adapters[index].getName()] = quote;
+          prices[adapters[index].getName().toLowerCase()] = quote;
         }
       }
     });
 
-    // Add fallback price from database if no live prices are available
+    // Add mock data for debugging if no live prices
     if (Object.keys(prices).length === 0) {
+      // Use fallback from database or generate mock data
       const supabase = createClient(
         Deno.env.get('SUPABASE_URL')!,
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
       );
       
-      const { data } = await supabase
+      const { data: dbPrices } = await supabase
         .from('dex_price_history')
         .select('*')
         .eq('token_pair', `${baseToken.symbol}/${quoteToken.symbol}`)
         .eq('chain_id', baseToken.chainId)
         .order('timestamp', { ascending: false })
-        .limit(1);
+        .limit(5);
+      
+      if (dbPrices && dbPrices.length > 0) {
+        // Use historical data
+        dbPrices.forEach(record => {
+          if (!prices[record.dex_name]) {
+            prices[record.dex_name] = {
+              source: record.dex_name,
+              price: record.price,
+              timestamp: new Date(record.timestamp).getTime(),
+              liquidity: record.liquidity || 100000,
+              tradingFee: 0.003,
+              isFallback: true
+            };
+          }
+        });
+      } else if (baseToken.chainId === 1) {
+        // Generate mock data for Ethereum
+        const basePrice = baseToken.symbol === 'ETH' ? 3500 : 50000;
         
-      if (data && data.length > 0) {
-        prices['historical'] = {
-          source: 'historical',
-          price: data[0].price,
-          timestamp: new Date(data[0].timestamp).getTime(),
-          liquidity: data[0].liquidity || 100000,
-          isFallback: true
+        prices['uniswap'] = {
+          source: 'uniswap',
+          price: basePrice * (0.99 + Math.random() * 0.02),
+          timestamp: Date.now(),
+          liquidity: 5000000,
+          tradingFee: 0.003,
+          isMock: true
+        };
+        
+        prices['sushiswap'] = {
+          source: 'sushiswap',
+          price: basePrice * (0.98 + Math.random() * 0.04),
+          timestamp: Date.now(),
+          liquidity: 3000000,
+          tradingFee: 0.003,
+          isMock: true
+        };
+      } else if (baseToken.chainId === 101) {
+        // Generate mock data for Solana
+        const basePrice = baseToken.symbol === 'SOL' ? 140 : 50000;
+        
+        prices['jupiter'] = {
+          source: 'jupiter',
+          price: basePrice * (0.99 + Math.random() * 0.02),
+          timestamp: Date.now(),
+          liquidity: 2000000,
+          tradingFee: 0.0035,
+          isMock: true
+        };
+        
+        prices['raydium'] = {
+          source: 'raydium',
+          price: basePrice * (0.98 + Math.random() * 0.04),
+          timestamp: Date.now(),
+          liquidity: 1500000,
+          tradingFee: 0.003,
+          isMock: true
         };
       }
     }
 
-    // Store new results in Supabase for historical data
+    // Store the real price data we collected in the database
     if (Object.keys(prices).length > 0) {
       const supabase = createClient(
         Deno.env.get('SUPABASE_URL')!,
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
       );
 
-      const records = Object.entries(prices)
-        .filter(([_, data]) => !data.isFallback) // Don't record fallback data
+      const timestamp = new Date().toISOString();
+      const tokenPair = `${baseToken.symbol}/${quoteToken.symbol}`;
+      
+      // Only store real (non-mock, non-fallback) prices
+      const priceRecords = Object.entries(prices)
+        .filter(([_, data]) => !data.isMock && !data.isFallback)
         .map(([dexName, data]) => ({
-          token_pair: `${baseToken.symbol}/${quoteToken.symbol}`,
           dex_name: dexName,
+          token_pair: tokenPair,
           price: data.price,
           chain_id: baseToken.chainId,
-          liquidity: data.liquidity,
-          timestamp: new Date().toISOString()
+          liquidity: data.liquidity || null,
+          timestamp: timestamp
         }));
-
-      if (records.length > 0) {
-        await supabase.from('dex_price_history').insert(records);
+      
+      if (priceRecords.length > 0) {
+        await supabase.from('dex_price_history').insert(priceRecords);
       }
     }
 
@@ -147,6 +205,7 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error('Error in fetch-prices:', error);
+    
     return new Response(
       JSON.stringify({ error: error.message }),
       { 

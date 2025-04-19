@@ -1,58 +1,38 @@
 
+/**
+ * Simple rate limiter for API calls
+ */
 class RateLimiter {
-  private queue: Array<() => Promise<void>> = [];
+  private queue: Array<() => void> = [];
   private processing = false;
-  private rateLimit: number;
-  private lastRequestTime = 0;
+  private interval: number;
 
-  constructor(requestsPerSecond: number = 1) {
-    this.rateLimit = 1000 / requestsPerSecond;
+  constructor(requestsPerSecond = 2) {
+    this.interval = 1000 / requestsPerSecond;
   }
 
-  public async waitForSlot(): Promise<void> {
-    return new Promise<void>((resolve) => {
-      // Add to queue
-      this.queue.push(async () => {
-        // Calculate time to wait
-        const now = Date.now();
-        const timeToWait = Math.max(0, this.lastRequestTime + this.rateLimit - now);
-        
-        if (timeToWait > 0) {
-          await new Promise(r => setTimeout(r, timeToWait));
-        }
-        
-        // Update last request time
-        this.lastRequestTime = Date.now();
-        
-        // Resolve the original promise
-        resolve();
-      });
-      
-      // Process queue if not already processing
-      if (!this.processing) {
-        this.processQueue();
-      }
+  async waitForSlot(): Promise<void> {
+    return new Promise<void>(resolve => {
+      this.queue.push(resolve);
+      this.processQueue();
     });
   }
 
-  private async processQueue(): Promise<void> {
-    if (this.queue.length === 0) {
-      this.processing = false;
-      return;
-    }
+  private async processQueue() {
+    if (this.processing || this.queue.length === 0) return;
     
     this.processing = true;
     
-    // Get next item and process
-    const nextRequest = this.queue.shift();
-    if (nextRequest) {
-      await nextRequest();
-    }
+    // Process first item in queue
+    const next = this.queue.shift();
+    if (next) next();
     
-    // Process next item
+    // Wait for rate limit interval
+    await new Promise(resolve => setTimeout(resolve, this.interval));
+    
+    this.processing = false;
     this.processQueue();
   }
 }
 
-// Create shared rate limiter
-export const rateLimiter = new RateLimiter(2); // 2 requests per second
+export const rateLimiter = new RateLimiter(3); // 3 requests per second

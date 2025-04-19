@@ -1,11 +1,12 @@
 
 export interface PriceResult {
-  source: string;
-  price: number;
-  timestamp: number;
-  liquidity: number;
-  tradingFee: number;
-  isFallback?: boolean;
+  source: string;        // Name of DEX/source
+  price: number;         // Token price
+  timestamp: number;     // Timestamp when price was fetched
+  liquidity: number;     // Liquidity in USD
+  tradingFee: number;    // Trading fee as decimal (e.g., 0.003 = 0.3%)
+  isFallback?: boolean;  // Flag for fallback data
+  isMock?: boolean;      // Flag for mock data
 }
 
 export interface TokenPair {

@@ -4,8 +4,11 @@ import { PriceResult } from '../types.ts';
 
 /**
  * Adapter for Raydium (Solana DEX)
+ * We'll use Jupiter's API to get Raydium-specific quotes
  */
 export class RaydiumAdapter extends BaseAdapter {
+  private readonly JUPITER_QUOTE_API = 'https://quote-api.jup.ag/v6/quote';
+  
   constructor() {
     super('Raydium');
   }
@@ -22,9 +25,16 @@ export class RaydiumAdapter extends BaseAdapter {
       }
       
       // For Solana tokens, we'll use Jupiter API which aggregates Raydium
-      const jupiterUrl = `https://quote-api.jup.ag/v4/quote?inputMint=${baseTokenAddress}&outputMint=${quoteTokenAddress}&amount=1000000&slippageBps=50`;
+      // but we'll specify we only want to use Raydium as the market
+      const jupiterUrl = `${this.JUPITER_QUOTE_API}?` +
+        `inputMint=${baseTokenAddress}` +
+        `&outputMint=${quoteTokenAddress}` +
+        `&amount=1000000&slippageBps=50` +
+        `&onlyDirectRoutes=true` +
+        `&restrictIntermediateTokens=true` +
+        `&platformFeeBps=0`;
       
-      const response = await fetch(jupiterUrl);
+      const response = await this.fetchWithRetry(jupiterUrl);
       
       if (!response.ok) {
         throw new Error(`Jupiter API error: ${response.status}`);

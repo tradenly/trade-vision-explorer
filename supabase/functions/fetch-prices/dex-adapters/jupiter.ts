@@ -6,6 +6,8 @@ import { PriceResult } from '../types.ts';
  * Adapter for Jupiter (Solana DEX aggregator)
  */
 export class JupiterAdapter extends BaseAdapter {
+  private readonly PRICE_API_URL = 'https://price.jup.ag/v4/price';
+  
   constructor() {
     super('Jupiter');
   }
@@ -22,8 +24,8 @@ export class JupiterAdapter extends BaseAdapter {
       }
       
       // Use Jupiter price API
-      const url = `https://price.jup.ag/v4/price?ids=${baseTokenAddress},${quoteTokenAddress}`;
-      const response = await fetch(url);
+      const url = `${this.PRICE_API_URL}?ids=${baseTokenAddress},${quoteTokenAddress}`;
+      const response = await this.fetchWithRetry(url);
       
       if (!response.ok) {
         throw new Error(`Jupiter API error: ${response.status}`);
