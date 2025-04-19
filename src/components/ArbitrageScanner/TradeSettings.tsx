@@ -51,7 +51,7 @@ const TradeSettings: React.FC<TradeSettingsProps> = ({
                     Max: ${maxTradeSize.toFixed(2)}
                   </span>
                 </TooltipTrigger>
-                <TooltipContent side="top">
+                <TooltipContent>
                   Maximum recommended trade size based on available liquidity and price impact.
                 </TooltipContent>
               </Tooltip>

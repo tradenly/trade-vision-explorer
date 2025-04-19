@@ -152,21 +152,19 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
           disabled={disabled}
         >
           <SelectTrigger className="w-full bg-background">
-            <SelectValue placeholder="Select a chain">
+            <div className="flex items-center gap-2">
               {selectedChain && (
-                <div className="flex items-center gap-2">
-                  <img 
-                    src={chainLogos[selectedChain]} 
-                    alt={CHAIN_NAMES[selectedChain]} 
-                    className="w-5 h-5 rounded-full" 
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
-                  <span>{CHAIN_NAMES[selectedChain]}</span>
-                </div>
+                <img 
+                  src={chainLogos[selectedChain]} 
+                  alt={CHAIN_NAMES[selectedChain]} 
+                  className="w-5 h-5 rounded-full" 
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
               )}
-            </SelectValue>
+              <SelectValue placeholder={CHAIN_NAMES[selectedChain]} />
+            </div>
           </SelectTrigger>
           <SelectContent className="bg-background">
             <SelectGroup>
@@ -196,7 +194,7 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
           Select Token
         </label>
         <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
+          <PopoverTrigger>
             <Button
               variant="outline"
               role="combobox"
@@ -248,7 +246,7 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
                 
                 {!search && currentPopularTokens.length > 0 && (
                   <CommandGroup heading="Popular Tokens">
-                    <ScrollArea className="h-[200px]">
+                    <ScrollArea>
                       {currentPopularTokens.map((token, index) => {
                         // Ensure we have a valid token with a symbol
                         if (!token || !token.symbol) return null;
@@ -290,7 +288,7 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
                 )}
                 
                 <CommandGroup heading={search ? "Search Results" : "All Tokens"}>
-                  <ScrollArea className="h-[300px]">
+                  <ScrollArea>
                     {loading && search ? (
                       <div className="flex items-center justify-center p-4">
                         <Loader2 className="h-5 w-5 animate-spin mr-2" />

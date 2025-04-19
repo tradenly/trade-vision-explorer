@@ -103,10 +103,9 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
         />
         
         <div className="space-y-2">
-          <Label id="investment-amount-label">Investment Amount ($)</Label>
+          <Label htmlFor="investment-amount">Investment Amount ($)</Label>
           <Input
             id="investment-amount"
-            aria-labelledby="investment-amount-label"
             type="number"
             min="1"
             step="10"

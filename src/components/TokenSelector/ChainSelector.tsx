@@ -49,7 +49,7 @@ const ChainSelector: React.FC<ChainSelectorProps> = ({ selectedChain, onChainCha
                 }}
               />
             )}
-            <SelectValue placeholder={SUPPORTED_CHAINS[selectedChain]} />
+            <SelectValue/>
           </div>
         </SelectTrigger>
         <SelectContent>
