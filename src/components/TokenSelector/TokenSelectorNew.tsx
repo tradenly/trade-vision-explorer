@@ -126,7 +126,7 @@ const TokenSelectorNew: React.FC<TokenSelectorProps> = ({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="p-0 w-[300px] bg-popover" align="start">
+      <PopoverContent className="p-0 w-[300px] bg-popover">
         {safeTokens.length === 0 ? (
           <div className="p-4 text-center text-sm text-muted-foreground">
             No tokens available
