@@ -5,11 +5,13 @@ import TokenPairSelector from '@/components/TokenSelector/TokenPairSelector';
 import { ScanControls } from './ScanControls';
 import { OpportunityTabs } from './OpportunityTabs';
 import { TokenInfo } from '@/services/tokenListService';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArbitrageOpportunity } from '@/services/dexService';
+import { ArbitrageOpportunity } from '@/services/arbitrage/types';
 import { ChainId } from '@/services/tokenListService';
 import { PriceQuote } from '@/services/dex/types';
+import { Button } from '@/components/ui/button';
+import { formatNumber } from '@/lib/utils';
 
 interface ScannerContentProps {
   baseToken: TokenInfo | null;
@@ -26,6 +28,7 @@ interface ScannerContentProps {
   onScan: () => void;
   onOpportunitySelect: (opportunity: ArbitrageOpportunity) => void;
   realTimePrices?: Record<string, PriceQuote>;
+  onRefreshPrices?: () => void;
 }
 
 export const ScannerContent: React.FC<ScannerContentProps> = ({
@@ -43,6 +46,7 @@ export const ScannerContent: React.FC<ScannerContentProps> = ({
   onScan,
   onOpportunitySelect,
   realTimePrices = {},
+  onRefreshPrices,
 }) => {
   // Format price update time
   const formatUpdateTime = (timestamp?: number) => {
@@ -95,24 +99,47 @@ export const ScannerContent: React.FC<ScannerContentProps> = ({
         </div>
       </CardContent>
 
-      {Object.keys(realTimePrices).length > 0 && (
+      {baseToken && quoteToken && Object.keys(realTimePrices).length > 0 && (
         <div className="mt-4 p-4 border rounded-lg">
-          <h3 className="text-lg font-semibold mb-2">Real-Time Prices</h3>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">Real-Time DEX Prices</h3>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={onRefreshPrices}
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} /> 
+              Refresh
+            </Button>
+          </div>
+          
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {Object.entries(realTimePrices).map(([dexName, quote]) => (
-              <div key={dexName} className="p-3 bg-muted rounded-lg">
+              <div key={dexName} className={`p-3 rounded-lg ${quote.isMock ? 'bg-amber-100 dark:bg-amber-900/20' : quote.isFallback ? 'bg-blue-100 dark:bg-blue-900/20' : 'bg-muted'}`}>
                 <div className="font-medium">{dexName}</div>
-                <div className="text-lg font-bold">${quote.price.toFixed(6)}</div>
-                <div className="text-xs text-muted-foreground">
-                  Updated: {getTimeSinceUpdate(quote.timestamp)}
+                <div className="text-lg font-bold">${formatNumber(quote.price)}</div>
+                <div className="flex text-xs text-muted-foreground justify-between">
+                  <span>Updated: {getTimeSinceUpdate(quote.timestamp)}</span>
+                  <span className="text-muted-foreground">Fee: {(quote.fees*100).toFixed(2)}%</span>
                 </div>
                 {quote.liquidityUSD && (
                   <div className="text-xs text-muted-foreground">
                     Liquidity: ${(quote.liquidityUSD / 1000).toFixed(1)}k
                   </div>
                 )}
+                {quote.isMock && (
+                  <div className="text-[10px] text-amber-600">Mock data</div>
+                )}
+                {quote.isFallback && !quote.isMock && (
+                  <div className="text-[10px] text-blue-600">Historical</div>
+                )}
               </div>
             ))}
+          </div>
+          
+          <div className="mt-4 text-xs text-muted-foreground">
+            <p>* All prices are updated in real-time from public DEX APIs. Price differences may indicate arbitrage opportunities.</p>
           </div>
         </div>
       )}

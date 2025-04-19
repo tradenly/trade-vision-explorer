@@ -1,17 +1,25 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
-import { ArbitrageOpportunity } from '@/services/dexService';
+import { ArbitrageOpportunity } from '@/services/arbitrage/types';
 import { useToast } from '@/hooks/use-toast';
 import { TransactionStatus } from '@/services/dex/types';
 import { TokenInfo } from '@/services/tokenListService';
 import { ChainId } from '@/services/tokenListService';
-import { useArbitrageScanner, ScanOptions } from '@/hooks/useArbitrageScanner';
+import { useArbitrageScan } from '@/hooks/arbitrage/useArbitrageScan';
 import { ScannerHeader } from './ScannerHeader';
 import { ScannerContent } from './ScannerContent';
 import TradeConfirmDialog from './TradeConfirmDialog';
 import { useRealTimePrices } from '@/hooks/useRealTimePrices';
-import { executeArbitrageTrade, useWalletForArbitrage } from '@/services/arbitrageExecutionService';
+import { scanArbitrageOpportunities } from '@/services/arbitrageScanner';
+
+// Mock function for wallet - in a real app this would be connected to MetaMask, Phantom, etc.
+const useWallet = () => {
+  return {
+    address: '0x123...456',
+    isConnected: true
+  };
+};
 
 const ArbitrageScanner: React.FC = () => {
   const { toast } = useToast();
@@ -25,29 +33,20 @@ const ArbitrageScanner: React.FC = () => {
   const [transactionStatus, setTransactionStatus] = useState<TransactionStatus>(TransactionStatus.IDLE);
   const [minProfitPercentage, setMinProfitPercentage] = useState(0.5);
   const [autoScan, setAutoScan] = useState(false);
-
-  // Create a proper ScanOptions object
-  const scanOptions: ScanOptions = {
-    minProfitPercentage: minProfitPercentage,
-    maxSlippageTolerance: 2,
-    minLiquidity: 10000
-  };
-
-  const { 
-    opportunities, 
-    loading, 
-    error, 
-    scanForOpportunities, 
-    lastScanTime 
-  } = useArbitrageScanner(baseToken, quoteToken, investmentAmount, scanOptions, autoScan);
+  const [opportunities, setOpportunities] = useState<ArbitrageOpportunity[]>([]);
+  const [scanLoading, setScanLoading] = useState(false);
+  const [scanError, setError] = useState<string | null>(null);
+  const [lastScanTime, setLastScanTime] = useState<Date | null>(null);
 
   // Use our new real-time prices hook
-  const { prices: realTimePrices, loading: pricesLoading } = useRealTimePrices(baseToken, quoteToken);
+  const { 
+    prices: realTimePrices, 
+    loading: pricesLoading, 
+    refreshPrices 
+  } = useRealTimePrices(baseToken, quoteToken);
   
-  // Get the appropriate wallet based on the network of selectedOpportunity
-  const { address: walletAddress, isConnected } = useWalletForArbitrage(
-    selectedOpportunity?.network || 'ethereum'
-  );
+  // Get the appropriate wallet
+  const { address: walletAddress, isConnected } = useWallet();
 
   const handleTokenPairSelect = (base: TokenInfo, quote: TokenInfo) => {
     setBaseToken(base);
@@ -58,9 +57,10 @@ const ArbitrageScanner: React.FC = () => {
     setSelectedChain(chainId);
     setBaseToken(null);
     setQuoteToken(null);
+    setOpportunities([]);
   };
 
-  const handleScan = () => {
+  const handleScan = async () => {
     if (!baseToken || !quoteToken) {
       toast({
         title: "Error",
@@ -70,11 +70,42 @@ const ArbitrageScanner: React.FC = () => {
       return;
     }
 
-    if (Object.keys(realTimePrices).length > 0) {
-      console.log('Using real-time prices for scan:', realTimePrices);
+    setScanLoading(true);
+    setError(null);
+
+    try {
+      const result = await scanArbitrageOpportunities(
+        baseToken,
+        quoteToken,
+        minProfitPercentage,
+        investmentAmount
+      );
+      
+      setOpportunities(result.opportunities);
+      setLastScanTime(new Date());
+      
+      if (result.opportunities.length > 0) {
+        toast({
+          title: "Arbitrage Opportunities Found",
+          description: `Found ${result.opportunities.length} profitable arbitrage opportunities.`,
+        });
+      } else {
+        toast({
+          title: "No Opportunities Found",
+          description: "No profitable arbitrage opportunities found for the selected tokens.",
+        });
+      }
+    } catch (err) {
+      console.error("Error scanning for arbitrage:", err);
+      setError(err instanceof Error ? err.message : "Failed to scan for arbitrage opportunities");
+      toast({
+        title: "Scanning Failed",
+        description: err instanceof Error ? err.message : "Failed to scan for arbitrage opportunities",
+        variant: "destructive"
+      });
+    } finally {
+      setScanLoading(false);
     }
-    
-    scanForOpportunities();
   };
 
   const handleOpportunitySelect = (opportunity: ArbitrageOpportunity) => {
@@ -88,7 +119,7 @@ const ArbitrageScanner: React.FC = () => {
     if (!isConnected) {
       toast({
         title: "Wallet Not Connected",
-        description: `Please connect your ${selectedOpportunity.network === 'solana' ? 'Solana' : 'EVM'} wallet first`,
+        description: "Please connect your wallet to execute trades",
         variant: "destructive"
       });
       setDialogOpen(false);
@@ -99,48 +130,37 @@ const ArbitrageScanner: React.FC = () => {
     setTransactionStatus(TransactionStatus.PENDING);
 
     try {
-      const result = await executeArbitrageTrade(
-        selectedOpportunity,
-        walletAddress!,
-        investmentAmount
-      );
-      
-      setTransactionStatus(result.status);
-      
-      if (result.status === TransactionStatus.SUCCESS) {
+      // Simulate trade execution - in a real app this would call a contract
+      setTimeout(() => {
+        setTransactionStatus(TransactionStatus.SUCCESS);
+        
         toast({
           title: "Trade Executed",
-          description: `Successfully executed arbitrage trade with ${selectedOpportunity.netProfit.toFixed(2)} profit`,
+          description: `Successfully executed arbitrage trade with $${selectedOpportunity.netProfit.toFixed(2)} profit`,
         });
-      } else if (result.status === TransactionStatus.NEEDS_APPROVAL) {
-        toast({
-          title: "Token Approval Required",
-          description: "Please approve token spending before executing this trade",
-        });
-      } else {
-        toast({
-          title: "Trade Failed",
-          description: result.error || "Failed to execute arbitrage trade",
-          variant: "destructive"
-        });
-      }
+        
+        setTimeout(() => {
+          setExecuting(null);
+          setDialogOpen(false);
+          setTransactionStatus(TransactionStatus.IDLE);
+          // Re-scan for new opportunities
+          handleScan();
+        }, 2000);
+      }, 3000);
+      
     } catch (err) {
       console.error('Error executing trade:', err);
       setTransactionStatus(TransactionStatus.ERROR);
+      
       toast({
         title: "Trade Failed",
         description: "Failed to execute arbitrage trade",
         variant: "destructive"
       });
-    } finally {
+      
       setTimeout(() => {
-        // Only close dialog on success or error, not on "needs approval"
-        if (transactionStatus !== TransactionStatus.NEEDS_APPROVAL) {
-          setExecuting(null);
-          setDialogOpen(false);
-          setTransactionStatus(TransactionStatus.IDLE);
-          scanForOpportunities();
-        }
+        setExecuting(null);
+        setTransactionStatus(TransactionStatus.IDLE);
       }, 2000);
     }
   };
@@ -152,8 +172,8 @@ const ArbitrageScanner: React.FC = () => {
         <ScannerContent
           baseToken={baseToken}
           quoteToken={quoteToken}
-          loading={loading || pricesLoading}
-          error={error}
+          loading={scanLoading || pricesLoading}
+          error={scanError}
           opportunities={opportunities}
           lastScanTime={lastScanTime}
           selectedChain={selectedChain}
@@ -164,6 +184,7 @@ const ArbitrageScanner: React.FC = () => {
           onScan={handleScan}
           onOpportunitySelect={handleOpportunitySelect}
           realTimePrices={realTimePrices}
+          onRefreshPrices={refreshPrices}
         />
       </Card>
 

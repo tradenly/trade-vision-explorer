@@ -34,11 +34,21 @@ export const CHAIN_NAMES: Record<number, string> = {
   [ChainId.AVALANCHE]: 'Avalanche'
 };
 
+const TOKEN_LISTS: Record<number, string> = {
+  [ChainId.ETHEREUM]: 'https://tokens.coingecko.com/uniswap/all.json',
+  [ChainId.BNB]: 'https://tokens.pancakeswap.finance/pancakeswap-extended.json',
+  [ChainId.BASE]: 'https://raw.githubusercontent.com/base-org/tokenlists/main/lists/base.tokenlist.json',
+  [ChainId.SOLANA]: 'https://cdn.jsdelivr.net/gh/solana-labs/token-list@main/src/tokens/solana.tokenlist.json'
+};
+
 /**
- * Load tokens from Supabase database
+ * Load tokens from Supabase database or remote source
  */
 export async function loadTokensFromDb(chainId: number): Promise<TokenInfo[]> {
   try {
+    console.log(`Loading tokens for chain ${chainId}`);
+    
+    // First try to fetch from Supabase
     const { data, error } = await supabase
       .from('tokens')
       .select('*')
@@ -47,17 +57,106 @@ export async function loadTokensFromDb(chainId: number): Promise<TokenInfo[]> {
     
     if (error) throw error;
     
-    return data || [];
+    if (data && data.length > 0) {
+      console.log(`Found ${data.length} tokens in database for chain ${chainId}`);
+      return data;
+    }
+    
+    // If no tokens in database, fetch from remote source
+    console.log(`No tokens found in database for chain ${chainId}, fetching from remote source`);
+    return await fetchTokensFromRemoteSource(chainId);
   } catch (error) {
     console.error(`Failed to load tokens for chain ${chainId}:`, error);
+    
+    // Try remote source as fallback
+    try {
+      return await fetchTokensFromRemoteSource(chainId);
+    } catch (fetchError) {
+      console.error(`Failed to fetch tokens from remote source for chain ${chainId}:`, fetchError);
+      return loadFallbackTokens(chainId);
+    }
+  }
+}
+
+/**
+ * Fetch tokens from remote source
+ */
+async function fetchTokensFromRemoteSource(chainId: number): Promise<TokenInfo[]> {
+  const tokenListUrl = TOKEN_LISTS[chainId];
+  
+  if (!tokenListUrl) {
+    console.warn(`No token list URL configured for chain ${chainId}`);
+    return loadFallbackTokens(chainId);
+  }
+  
+  try {
+    console.log(`Fetching tokens from ${tokenListUrl}`);
+    const response = await fetch(tokenListUrl);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch token list: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    // Handle different token list formats
+    let tokens: TokenInfo[] = [];
+    
+    if (chainId === ChainId.SOLANA) {
+      // Solana token list format
+      tokens = (data.tokens || [])
+        .filter((token: any) => token.chainId === chainId)
+        .map((token: any) => ({
+          address: token.address,
+          chainId: token.chainId,
+          decimals: token.decimals,
+          name: token.name,
+          symbol: token.symbol,
+          logoURI: token.logoURI
+        }));
+    } else {
+      // EVM token list format
+      tokens = (data.tokens || [])
+        .filter((token: any) => token.chainId === chainId)
+        .map((token: any) => ({
+          address: token.address,
+          chainId: token.chainId,
+          decimals: token.decimals,
+          name: token.name,
+          symbol: token.symbol,
+          logoURI: token.logoURI || token.logo
+        }));
+    }
+    
+    console.log(`Fetched ${tokens.length} tokens for chain ${chainId}`);
+    
+    // Cache tokens in Supabase for future use
+    if (tokens.length > 0) {
+      try {
+        // Batch insert tokens in chunks to avoid request size limits
+        const chunkSize = 100;
+        for (let i = 0; i < tokens.length; i += chunkSize) {
+          const chunk = tokens.slice(i, i + chunkSize);
+          await supabase.from('tokens').upsert(chunk, { onConflict: 'address,chain_id' });
+        }
+        console.log(`Cached ${tokens.length} tokens in database for chain ${chainId}`);
+      } catch (cacheError) {
+        console.error('Failed to cache tokens in database:', cacheError);
+      }
+    }
+    
+    return tokens;
+  } catch (error) {
+    console.error(`Failed to fetch tokens from remote source for chain ${chainId}:`, error);
     return loadFallbackTokens(chainId);
   }
 }
 
 /**
- * Fallback token data if database isn't available
+ * Fallback token data if database and remote sources aren't available
  */
 export function loadFallbackTokens(chainId: number): TokenInfo[] {
+  console.log(`Using fallback tokens for chain ${chainId}`);
   // Basic tokens for each chain
   switch (chainId) {
     case ChainId.ETHEREUM:
@@ -100,19 +199,15 @@ export function useTokensByChain(chainId: ChainId) {
       setLoading(true);
       
       try {
-        // Try fetch from database first
-        const dbTokens = await loadTokensFromDb(chainId);
+        console.log(`Loading tokens for chain ${chainId}`);
+        // Try fetch from database or remote source
+        const fetchedTokens = await loadTokensFromDb(chainId);
         
-        if (dbTokens.length > 0) {
-          setTokens(dbTokens);
+        if (fetchedTokens.length > 0) {
+          setTokens(fetchedTokens);
         } else {
           // If that fails, use fallbacks
           setTokens(loadFallbackTokens(chainId));
-          
-          // Try to sync tokens in background
-          supabase.functions.invoke('sync-tokens', {
-            body: { chainId }
-          }).catch(e => console.error('Error syncing tokens:', e));
         }
       } catch (error) {
         console.error('Error loading tokens:', error);
