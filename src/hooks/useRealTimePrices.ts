@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { TokenInfo } from '@/services/tokenListService';
 import { PriceQuote } from '@/services/dex/types';
@@ -19,7 +18,7 @@ export function useRealTimePrices(
   
   // Initialize the price service
   useEffect(() => {
-    // Get the singleton instance with no arguments
+    // Correct way to get singleton instance
     priceServiceRef.current = RealTimePriceService.getInstance();
     return () => {
       // Cleanup if needed
