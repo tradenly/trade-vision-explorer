@@ -103,7 +103,7 @@ const TokenPairSelector: React.FC<TokenPairSelectorProps> = ({
         />
         
         <div className="space-y-2">
-          <Label htmlFor="investment-amount">Investment Amount ($)</Label>
+          <Label>Investment Amount ($)</Label>
           <Input
             id="investment-amount"
             type="number"

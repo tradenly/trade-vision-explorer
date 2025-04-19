@@ -51,7 +51,7 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
   
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
+      <PopoverTrigger>
         <Button
           variant="outline"
           className="w-full justify-between"
@@ -96,38 +96,40 @@ const TokenSelectorNew: React.FC<TokenSelectorNewProps> = ({
           </div>
         </div>
         
-        <ScrollArea className="h-[300px] p-2">
-          {filteredTokens.length > 0 ? (
-            filteredTokens.map((token) => (
-              <Button
-                key={token.address || token.symbol}
-                variant="ghost"
-                className="w-full justify-start mb-1 px-2"
-                onClick={() => handleSelectToken(token)}
-              >
-                <div className="flex items-center gap-2">
-                  {token.logoURI && (
-                    <img
-                      src={token.logoURI}
-                      alt={token.symbol}
-                      className="w-5 h-5 rounded-full"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                  )}
-                  <div className="text-left">
-                    <div>{token.symbol}</div>
-                    <div className="text-xs text-muted-foreground">{token.name}</div>
+        <ScrollArea className="h-[300px]">
+          <div className="p-2">
+            {filteredTokens.length > 0 ? (
+              filteredTokens.map((token) => (
+                <Button
+                  key={token.address || token.symbol}
+                  variant="ghost"
+                  className="w-full justify-start mb-1 px-2"
+                  onClick={() => handleSelectToken(token)}
+                >
+                  <div className="flex items-center gap-2">
+                    {token.logoURI && (
+                      <img
+                        src={token.logoURI}
+                        alt={token.symbol}
+                        className="w-5 h-5 rounded-full"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    )}
+                    <div className="text-left">
+                      <div>{token.symbol}</div>
+                      <div className="text-xs text-muted-foreground">{token.name}</div>
+                    </div>
                   </div>
-                </div>
-              </Button>
-            ))
-          ) : (
-            <div className="py-6 text-center text-sm text-muted-foreground">
-              No tokens found
-            </div>
-          )}
+                </Button>
+              ))
+            ) : (
+              <div className="py-6 text-center text-sm text-muted-foreground">
+                No tokens found
+              </div>
+            )}
+          </div>
         </ScrollArea>
       </PopoverContent>
     </Popover>
