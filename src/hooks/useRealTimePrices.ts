@@ -18,7 +18,7 @@ export function useRealTimePrices(
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
   
   useEffect(() => {
-    // Make sure we're calling getInstance without arguments as per its definition
+    // Get singleton instance with no arguments
     priceServiceRef.current = RealTimePriceService.getInstance();
     return () => {
       if (intervalRef.current) {
