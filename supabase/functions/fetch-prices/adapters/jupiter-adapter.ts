@@ -1,6 +1,6 @@
 
-import { BaseAdapter } from './base-adapter';
-import { PriceResult } from '../types';
+import { BaseAdapter } from './base-adapter.ts';
+import { PriceResult } from '../types.ts';
 
 export class JupiterAdapter extends BaseAdapter {
   private readonly BASE_URL = 'https://price.jup.ag/v4/price';

@@ -1,6 +1,6 @@
 
-import { BaseAdapter } from './base-adapter';
-import { PriceResult } from '../types';
+import { BaseAdapter } from './base-adapter.ts';
+import { PriceResult } from '../types.ts';
 
 export class OneInchAdapter extends BaseAdapter {
   private readonly API_KEY = Deno.env.get('ONEINCH_API_KEY');
