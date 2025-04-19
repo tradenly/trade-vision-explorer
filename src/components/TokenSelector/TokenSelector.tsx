@@ -163,7 +163,7 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
                   }}
                 />
               )}
-              <SelectValue placeholder={CHAIN_NAMES[selectedChain]} />
+              <SelectValue placeholder={CHAIN_NAMES[selectedChain] || "Select Chain"} />
             </div>
           </SelectTrigger>
           <SelectContent className="bg-background">
@@ -173,7 +173,7 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({
                   <div className="flex items-center gap-2">
                     <img 
                       src={chainLogos[Number(id)]} 
-                      alt={name} 
+                      alt={String(name)} 
                       className="w-5 h-5 rounded-full" 
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = 'none';

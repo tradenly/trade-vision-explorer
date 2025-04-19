@@ -29,7 +29,8 @@ export interface PriceQuote {
   liquidityInfo?: any;
   isFallback?: boolean;
   error?: string;
-  isBuy?: boolean; // Add this property to fix the type error
+  isMock?: boolean; // Added this property
+  isBuy?: boolean;
 }
 
 export interface DexAdapter {

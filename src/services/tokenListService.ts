@@ -23,7 +23,7 @@ export enum ChainId {
   AVALANCHE = 43114
 }
 
-const CHAIN_NAMES: Record<number, string> = {
+export const CHAIN_NAMES: Record<number, string> = {
   [ChainId.ETHEREUM]: 'Ethereum',
   [ChainId.BNB]: 'BNB Chain',
   [ChainId.SOLANA]: 'Solana',
