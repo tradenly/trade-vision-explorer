@@ -1,4 +1,3 @@
-
 import { PriceResult } from '../types.ts';
 
 export class PriceValidation {
@@ -11,13 +10,21 @@ export class PriceValidation {
     liquidityUSD?: number;
     timestamp?: number;
   }): boolean {
-    // Check for undefined or null price
-    if (quote.price === undefined || quote.price === null) {
+    if (quote.price === undefined || quote.price === null || quote.price <= 0) {
       return false;
     }
     
-    // Check for positive price
-    if (quote.price <= 0) {
+    // Check for stale data (if timestamp provided)
+    if (quote.timestamp) {
+      const now = Date.now();
+      const maxAge = 5 * 60 * 1000; // 5 minutes in milliseconds
+      if (now - quote.timestamp > maxAge) {
+        return false;
+      }
+    }
+    
+    // Minimum liquidity check (if provided)
+    if (quote.liquidityUSD !== undefined && quote.liquidityUSD < 10000) { // $10k min liquidity
       return false;
     }
     
@@ -29,16 +36,6 @@ export class PriceValidation {
     
     if (quote.dexName.includes('sol') && (quote.price < 10 || quote.price > 10000)) {
       return false;
-    }
-    
-    // Check for stale data (if timestamp provided)
-    if (quote.timestamp) {
-      const now = Date.now();
-      const maxAge = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-      
-      if (now - quote.timestamp > maxAge) {
-        return false;
-      }
     }
     
     return true;
