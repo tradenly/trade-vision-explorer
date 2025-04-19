@@ -37,19 +37,21 @@ const ChainSelector: React.FC<ChainSelectorProps> = ({ selectedChain, onChainCha
         onValueChange={(value) => onChainChange(parseInt(value) as ChainId)}
       >
         <SelectTrigger>
-          <div className="flex items-center gap-2">
-            {selectedChain && (
-              <img 
-                src={chainLogos[selectedChain]} 
-                alt={SUPPORTED_CHAINS[selectedChain]} 
-                className="w-5 h-5 rounded-full"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
-            )}
-            <SelectValue>{SUPPORTED_CHAINS[selectedChain]}</SelectValue>
-          </div>
+          <SelectValue>
+            <div className="flex items-center gap-2">
+              {selectedChain && (
+                <img 
+                  src={chainLogos[selectedChain]} 
+                  alt={SUPPORTED_CHAINS[selectedChain]} 
+                  className="w-5 h-5 rounded-full"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              )}
+              {SUPPORTED_CHAINS[selectedChain]}
+            </div>
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectGroup>

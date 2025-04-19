@@ -1,7 +1,8 @@
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Routes } from "react-router-dom";
+import { Route } from "react-router-dom"; // Proper import
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Dashboard from "./views/Dashboard";
