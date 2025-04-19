@@ -185,7 +185,7 @@ export function useArbitrageScanner(
   useEffect(() => {
     if (!autoScan || !baseToken || !quoteToken) return;
 
-    let intervalId: NodeJS.Timeout;
+    let intervalId: ReturnType<typeof setTimeout>;
     
     const startScanning = () => {
       const baseDelay = 30000; // 30 seconds base interval
@@ -195,7 +195,7 @@ export function useArbitrageScanner(
       
       const delay = baseDelay + errorBackoff;
 
-      intervalId = setInterval(scanForOpportunities, delay);
+      intervalId = setTimeout(scanForOpportunities, delay);
       
       scanForOpportunities();
     };
@@ -204,7 +204,7 @@ export function useArbitrageScanner(
 
     return () => {
       if (intervalId) {
-        clearInterval(intervalId);
+        clearTimeout(intervalId);
       }
     };
   }, [autoScan, baseToken, quoteToken, consecutiveErrors, scanForOpportunities]);

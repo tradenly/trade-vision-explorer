@@ -70,8 +70,8 @@ export function useWalletForArbitrage(network: string) {
   
   // For Solana
   const {
-    publicKey: solAddress,
-    connected: isSolConnected
+    address: solAddress,
+    isConnected: isSolConnected
   } = useSolanaWallet();
   
   const [address, setAddress] = useState<string | null>(null);
@@ -79,7 +79,7 @@ export function useWalletForArbitrage(network: string) {
   
   useEffect(() => {
     if (network === 'solana') {
-      setAddress(solAddress?.toString() || null);
+      setAddress(solAddress || null);
       setIsConnected(isSolConnected);
     } else {
       // Default to EVM wallet for all other networks
