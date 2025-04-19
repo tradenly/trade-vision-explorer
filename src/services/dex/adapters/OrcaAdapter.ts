@@ -1,12 +1,16 @@
+
 import { BaseAdapter } from './BaseAdapter';
 import { PriceQuote } from '../types';
 import { TokenInfo } from '../../tokenListService';
 import { orcaRateLimiter } from '../utils/rateLimiter';
 
 export class OrcaAdapter extends BaseAdapter {
+  constructor(config: DexConfig) {
+    super(config);
+  }
+
   public async fetchQuote(baseToken: TokenInfo, quoteToken: TokenInfo, amount: number = 1): Promise<PriceQuote> {
     try {
-      // Enforce rate limits
       await orcaRateLimiter.waitForSlot();
 
       if (baseToken.chainId !== 101) {

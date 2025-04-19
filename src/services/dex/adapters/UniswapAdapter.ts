@@ -1,3 +1,4 @@
+
 import { BaseAdapter } from './BaseAdapter';
 import { PriceQuote } from '../types';
 import { TokenInfo } from '../../tokenListService';
@@ -10,6 +11,10 @@ export class UniswapAdapter extends BaseAdapter {
     10: 'https://api.thegraph.com/subgraphs/name/ianlapham/optimism-post-regenesis',
     8453: 'https://api.studio.thegraph.com/query/48211/uniswap-v3-base/version/latest'
   };
+
+  constructor(config: DexConfig) {
+    super(config);
+  }
 
   public async fetchQuote(baseToken: TokenInfo, quoteToken: TokenInfo, amount: number = 1): Promise<PriceQuote> {
     try {
@@ -56,19 +61,18 @@ export class UniswapAdapter extends BaseAdapter {
       const isBaseToken0 = baseToken.address.toLowerCase() === pool.token0.id;
       const price = isBaseToken0 ? Number(pool.token0Price) : Number(pool.token1Price);
 
-      const gasEstimate = this.calculateGasEstimate(baseToken.chainId);
-
       return {
         dexName: this.getName(),
         price: price,
         fees: this.getTradingFeePercentage(),
-        gasEstimate,
+        gasEstimate: this.calculateGasEstimate(baseToken.chainId),
         liquidityUSD: Number(pool.totalValueLockedUSD),
         liquidityInfo: {
           feeTier: pool.feeTier,
           liquidity: pool.liquidity,
           poolId: pool.id
-        }
+        },
+        timestamp: Date.now()
       };
     } catch (error) {
       console.error(`[UniswapAdapter] Error:`, error);
@@ -113,7 +117,8 @@ export class UniswapAdapter extends BaseAdapter {
         fees: this.getTradingFeePercentage(),
         gasEstimate: 0.005,
         liquidityUSD: 1000000,
-        isFallback: true
+        isFallback: true,
+        timestamp: Date.now()
       };
     } catch (error) {
       console.error('[UniswapAdapter] Fallback error:', error);
@@ -124,7 +129,8 @@ export class UniswapAdapter extends BaseAdapter {
         fees: this.getTradingFeePercentage(),
         gasEstimate: 0.005,
         liquidityUSD: 1000000,
-        isFallback: true
+        isFallback: true,
+        timestamp: Date.now()
       };
     }
   }
