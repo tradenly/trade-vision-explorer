@@ -13,8 +13,8 @@ export function useRealTimePrices(
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   
-  // Use the singleton method without additional parameters
-  const priceService = useRef(RealTimePriceService.getInstance());
+  // Explicitly type the ref and ensure correct method call
+  const priceService = useRef<RealTimePriceService | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
   
   const fetchPrices = async () => {
@@ -26,7 +26,7 @@ export function useRealTimePrices(
       setLoading(true);
       setError(null);
       
-      const newPrices = await priceService.current.getPrices(baseToken, quoteToken);
+      const newPrices = await priceService.current!.getPrices(baseToken, quoteToken);
       
       setPrices(newPrices);
       setLastUpdated(new Date());
@@ -61,9 +61,16 @@ export function useRealTimePrices(
   }, [baseToken, quoteToken, refreshInterval]);
   
   const refreshPrices = () => {
-    priceService.current.clearCache();
+    priceService.current!.clearCache();
     fetchPrices();
   };
+  
+  useEffect(() => {
+    // Initialize the service only once
+    if (!priceService.current) {
+      priceService.current = RealTimePriceService.getInstance();
+    }
+  }, []);
   
   return {
     prices,
