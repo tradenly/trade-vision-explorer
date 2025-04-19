@@ -1,6 +1,6 @@
 
 import { BaseAdapter } from './BaseAdapter';
-import { PriceQuote } from '../types';
+import { PriceQuote, DexConfig } from '../types';
 import { TokenInfo } from '../../tokenListService';
 import { orcaRateLimiter } from '../utils/rateLimiter';
 
