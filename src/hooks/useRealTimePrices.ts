@@ -19,6 +19,7 @@ export function useRealTimePrices(
   
   // Initialize the price service
   useEffect(() => {
+    // Fixed this line - getInstance() doesn't require parameters
     priceServiceRef.current = RealTimePriceService.getInstance();
     return () => {
       // Cleanup if needed
