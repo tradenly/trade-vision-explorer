@@ -14,6 +14,7 @@ export function useRealTimePrices(
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   
+  // Fix: RealTimePriceService.getInstance() doesn't need arguments
   const priceService = useRef(RealTimePriceService.getInstance());
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
   
