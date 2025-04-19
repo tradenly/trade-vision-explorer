@@ -1,4 +1,5 @@
-import { DexAdapter, DexConfig } from './types';
+
+import { DexAdapter, DexConfig, PriceQuote } from './types';
 import { TokenInfo } from '@/services/tokenListService';
 import { defaultDexConfigs, networkToChainId } from './config/dexConfigs';
 import { DexPersistenceService } from './services/dexPersistenceService';
