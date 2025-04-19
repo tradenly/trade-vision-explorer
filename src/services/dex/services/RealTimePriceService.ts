@@ -17,6 +17,9 @@ export class RealTimePriceService {
     this.maxRetries = 2;
   }
   
+  /**
+   * Get singleton instance of RealTimePriceService
+   */
   public static getInstance(): RealTimePriceService {
     if (!RealTimePriceService.instance) {
       RealTimePriceService.instance = new RealTimePriceService();
