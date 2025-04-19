@@ -6,7 +6,7 @@ import RealTimePriceService from '@/services/dex/services/RealTimePriceService';
 export function useRealTimePrices(
   baseToken: TokenInfo | null, 
   quoteToken: TokenInfo | null,
-  refreshInterval = 15000 // 15 seconds
+  refreshInterval = 15000
 ) {
   const [prices, setPrices] = useState<Record<string, PriceQuote>>({});
   const [loading, setLoading] = useState(false);
@@ -16,15 +16,15 @@ export function useRealTimePrices(
   const priceServiceRef = useRef<RealTimePriceService | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
   
-  // Initialize the price service
   useEffect(() => {
-    // Correct way to get singleton instance
     priceServiceRef.current = RealTimePriceService.getInstance();
     return () => {
-      // Cleanup if needed
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
     };
   }, []);
-  
+
   const fetchPrices = async () => {
     if (!baseToken || !quoteToken || !priceServiceRef.current) {
       return;
@@ -45,38 +45,34 @@ export function useRealTimePrices(
       setLoading(false);
     }
   };
-  
+
   useEffect(() => {
-    // Clear any existing interval
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
     
-    // Initial fetch
     if (baseToken && quoteToken && priceServiceRef.current) {
       fetchPrices();
       
-      // Set up interval for periodic updates
       if (refreshInterval > 0) {
         intervalRef.current = setInterval(fetchPrices, refreshInterval);
       }
     }
     
-    // Cleanup
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
     };
   }, [baseToken, quoteToken, refreshInterval]);
-  
+
   const refreshPrices = () => {
     if (priceServiceRef.current) {
       priceServiceRef.current.clearCache();
       fetchPrices();
     }
   };
-  
+
   return {
     prices,
     loading,
