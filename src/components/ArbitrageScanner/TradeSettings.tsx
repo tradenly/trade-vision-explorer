@@ -52,9 +52,7 @@ const TradeSettings: React.FC<TradeSettingsProps> = ({
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side="top">
-                  <p className="text-xs max-w-xs">
-                    Maximum recommended trade size based on available liquidity and price impact.
-                  </p>
+                  Maximum recommended trade size based on available liquidity and price impact.
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
