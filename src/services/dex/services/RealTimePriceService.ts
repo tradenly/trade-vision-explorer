@@ -167,7 +167,7 @@ export class RealTimePriceService {
   private generateMockPrices(
     baseToken: TokenInfo,
     quoteToken: TokenInfo
-  ): Record<string, PriceQuote>> {
+  ): Record<string, PriceQuote> {
     console.log('Generating mock prices');
     
     const mockPrice = baseToken.symbol === 'ETH' ? 3200 : 
