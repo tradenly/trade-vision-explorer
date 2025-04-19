@@ -10,9 +10,10 @@ const Accordion = AccordionPrimitive.Root
 const AccordionItem = React.forwardRef<
   React.ElementRef<typeof AccordionPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Item>
->((props, ref) => (
+>(({ className, ...props }, ref) => (
   <AccordionPrimitive.Item
     ref={ref}
+    className={className}
     {...props}
   />
 ))

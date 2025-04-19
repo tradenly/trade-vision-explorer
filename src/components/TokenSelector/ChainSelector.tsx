@@ -1,13 +1,14 @@
 
 import React from 'react';
 import { ChainId } from '@/services/tokenListService';
-import { 
-  Select, 
-  SelectContent, 
-  SelectGroup, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from '@/components/ui/select';
 
 // Supported chains
@@ -48,7 +49,7 @@ const ChainSelector: React.FC<ChainSelectorProps> = ({ selectedChain, onChainCha
                 }}
               />
             )}
-            <SelectValue>{SUPPORTED_CHAINS[selectedChain]}</SelectValue>
+            <SelectValue placeholder={SUPPORTED_CHAINS[selectedChain]} />
           </div>
         </SelectTrigger>
         <SelectContent>
