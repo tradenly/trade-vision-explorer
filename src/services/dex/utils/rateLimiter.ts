@@ -54,9 +54,12 @@ export class RateLimiter {
   }
 }
 
-// Create instances for different DEXs
-export const uniswapRateLimiter = new RateLimiter(5);  // 5 requests per second
-export const jupiterRateLimiter = new RateLimiter(10); // 10 requests per second
-export const orcaRateLimiter = new RateLimiter(5);     // 5 requests per second
-export const raydiumRateLimiter = new RateLimiter(5);  // 5 requests per second
-export const sushiswapRateLimiter = new RateLimiter(5); // 5 requests per second for SushiSwap
+// Create instances for different DEXs with appropriate rate limits
+export const uniswapRateLimiter = new RateLimiter(5);    // 5 requests per second
+export const jupiterRateLimiter = new RateLimiter(10);   // 10 requests per second
+export const orcaRateLimiter = new RateLimiter(5);       // 5 requests per second
+export const raydiumRateLimiter = new RateLimiter(5);    // 5 requests per second
+export const sushiswapRateLimiter = new RateLimiter(5);  // 5 requests per second
+export const balancerRateLimiter = new RateLimiter(5);   // 5 requests per second
+export const curveRateLimiter = new RateLimiter(5);      // 5 requests per second
+export const pancakeswapRateLimiter = new RateLimiter(5); // 5 requests per second
