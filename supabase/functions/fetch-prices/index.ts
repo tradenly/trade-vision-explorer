@@ -1,99 +1,91 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
-import { PriceAggregator } from "./price-aggregator.ts"
-import { TokenPair } from "./types.ts"
+import { OneInchAdapter } from "./adapters/one-inch-adapter.ts"
+import { JupiterAdapter } from "./adapters/jupiter-adapter.ts"
+import { corsHeaders } from "../_shared/cors.ts"
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+const CACHE_DURATION = 30000; // 30 seconds
+const priceCache = new Map();
 
 serve(async (req) => {
-  // Handle CORS preflight requests
+  // Handle CORS
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { baseToken, quoteToken } = await req.json()
+    const { baseToken, quoteToken } = await req.json();
     
-    if (!baseToken || !quoteToken) {
-      throw new Error('Missing token information')
+    if (!baseToken?.address || !quoteToken?.address || !baseToken.chainId) {
+      throw new Error('Missing token information');
     }
+
+    const cacheKey = `${baseToken.address}-${quoteToken.address}-${baseToken.chainId}`;
+    const cachedData = priceCache.get(cacheKey);
     
-    // Create token pair for price aggregation
-    const pair: TokenPair = {
-      baseToken: {
-        address: baseToken.address,
-        symbol: baseToken.symbol,
-        decimals: baseToken.decimals || 18
-      },
-      quoteToken: {
-        address: quoteToken.address,
-        symbol: quoteToken.symbol,
-        decimals: quoteToken.decimals || 18
-      },
-      chainId: baseToken.chainId
+    if (cachedData && (Date.now() - cachedData.timestamp) < CACHE_DURATION) {
+      return new Response(JSON.stringify(cachedData), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
-    
-    console.log(`Fetching prices for ${pair.baseToken.symbol}/${pair.quoteToken.symbol} on chain ${pair.chainId}`);
-    
-    const priceAggregator = new PriceAggregator()
-    const prices = await priceAggregator.getPrices(pair)
-    
-    // Store results in database for historical data
-    if (Object.keys(prices).length > 0) {
-      try {
-        const supabase = createClient(
-          Deno.env.get('SUPABASE_URL')!,
-          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-        )
 
-        const now = new Date().toISOString()
-        
-        // Prepare records for database insertion
-        const records = Object.entries(prices).map(([dexName, data]) => ({
-          token_pair: `${pair.baseToken.symbol}/${pair.quoteToken.symbol}`,
-          dex_name: dexName,
-          price: data.price,
-          liquidity: data.liquidity,
-          chain_id: pair.chainId,
-          timestamp: now
-        }))
+    // Initialize price adapters based on chain
+    const adapters = [];
+    if (baseToken.chainId === 101) { // Solana
+      adapters.push(new JupiterAdapter());
+    } else { // EVM chains
+      adapters.push(new OneInchAdapter());
+    }
 
-        // Insert into price history table
-        const { error } = await supabase
-          .from('dex_price_history')
-          .insert(records)
+    // Fetch prices from all adapters
+    const pricePromises = adapters.map(adapter => 
+      adapter.getPrice(baseToken.address, quoteToken.address, baseToken.chainId)
+    );
 
-        if (error) {
-          console.error('Error storing price data:', error)
-        }
-      } catch (dbError) {
-        console.error('Database error:', dbError)
-        // Continue execution even if database storage fails
+    const results = await Promise.allSettled(pricePromises);
+    const prices = {};
+
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled' && result.value) {
+        prices[adapters[index].getName()] = result.value;
       }
+    });
+
+    // Store results in Supabase for historical data
+    if (Object.keys(prices).length > 0) {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      );
+
+      const records = Object.entries(prices).map(([dexName, data]) => ({
+        token_pair: `${baseToken.symbol}/${quoteToken.symbol}`,
+        dex_name: dexName,
+        price: data.price,
+        chain_id: baseToken.chainId,
+        liquidity: data.liquidity,
+        timestamp: new Date().toISOString()
+      }));
+
+      await supabase.from('dex_price_history').insert(records);
     }
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        prices 
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    // Update cache
+    const responseData = { prices, timestamp: Date.now() };
+    priceCache.set(cacheKey, responseData);
+
+    return new Response(JSON.stringify(responseData), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   } catch (error) {
-    console.error('Error:', error)
+    console.error('Error in fetch-prices:', error);
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error.message || 'An unexpected error occurred' 
-      }),
+      JSON.stringify({ error: error.message }),
       { 
         status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
-    )
+    );
   }
-})
+});
