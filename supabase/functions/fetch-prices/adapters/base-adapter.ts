@@ -1,5 +1,5 @@
 
-import { PriceResult } from '../types';
+import { PriceResult } from '../types.ts';
 
 export abstract class BaseAdapter {
   protected MAX_RETRIES = 3;
