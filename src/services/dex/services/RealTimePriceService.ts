@@ -3,7 +3,7 @@ import { PriceQuote } from '@/services/dex/types';
 import { supabase } from '@/lib/supabaseClient';
 
 export class RealTimePriceService {
-  private static instance: RealTimePriceService;
+  private static instance: RealTimePriceService | null = null;
   private cache: Map<string, { data: Record<string, PriceQuote>, timestamp: number }>;
   private cacheDuration: number;
   private retryDelay: number;
@@ -217,17 +217,17 @@ export class RealTimePriceService {
    */
   private getDexFee(dexName: string): number {
     const fees: Record<string, number> = {
-      'uniswap': 0.003, // 0.3%
-      'sushiswap': 0.003, // 0.3%
-      'pancakeswap': 0.0025, // 0.25%
-      'jupiter': 0.0035, // 0.35%
-      'orca': 0.003, // 0.3%
-      'raydium': 0.003, // 0.3%
-      'curve': 0.0004, // 0.04%
-      '1inch': 0.003 // 0.3%
+      'uniswap': 0.003,
+      'sushiswap': 0.003,
+      'pancakeswap': 0.0025,
+      'jupiter': 0.0035,
+      'orca': 0.003,
+      'raydium': 0.003,
+      'curve': 0.0004,
+      '1inch': 0.003
     };
     
-    return fees[dexName.toLowerCase()] || 0.003; // Default to 0.3%
+    return fees[dexName.toLowerCase()] || 0.003;
   }
   
   /**
@@ -235,14 +235,10 @@ export class RealTimePriceService {
    */
   private getGasEstimate(chainId: number): number {
     switch (chainId) {
-      case 1: // Ethereum
-        return 5; // $5 per transaction
-      case 56: // BSC
-        return 0.5; // $0.50 per transaction
-      case 101: // Solana
-        return 0.01; // $0.01 per transaction
-      default:
-        return 1; // Default $1 per transaction
+      case 1: return 5;
+      case 56: return 0.5;
+      case 101: return 0.01;
+      default: return 1;
     }
   }
 }
