@@ -1,64 +1,61 @@
 
 import { PriceResult } from '../types.ts';
 
-/**
- * Utility class for validating price quotes from DEXes
- */
 export class PriceValidation {
   /**
-   * Validates a single price quote
+   * Validate that a price quote is reasonable
    */
-  static validateQuote(quote: Partial<PriceResult>): boolean {
-    if (!quote.price || quote.price <= 0) {
-      console.warn('Invalid price value:', quote.price);
+  static validateQuote(quote: { dexName: string; price: number; liquidityUSD?: number; timestamp: number }): boolean {
+    // Price should be positive
+    if (quote.price <= 0) {
+      console.warn(`Invalid price: ${quote.price} from ${quote.dexName}`);
       return false;
     }
     
-    if (quote.price > 1e10 || quote.price < 1e-10) {
-      console.warn('Price out of reasonable range:', quote.price);
+    // Price should not be absurdly high
+    if (quote.price > 1e10) {
+      console.warn(`Suspiciously high price: ${quote.price} from ${quote.dexName}`);
       return false;
     }
     
-    if (quote.timestamp && Date.now() - quote.timestamp > 5 * 60 * 1000) {
-      console.warn('Price data too old:', new Date(quote.timestamp).toISOString());
+    // Check for reasonable liquidity
+    if (quote.liquidityUSD && quote.liquidityUSD < 100) {
+      console.warn(`Very low liquidity: $${quote.liquidityUSD} from ${quote.dexName}`);
       return false;
     }
-
-    if (quote.liquidityUSD !== undefined && quote.liquidityUSD < 1000) {
-      console.warn('Insufficient liquidity:', quote.liquidityUSD);
+    
+    // Check for stale data
+    const now = Date.now();
+    const maxAge = 5 * 60 * 1000; // 5 minutes
+    if (now - quote.timestamp > maxAge) {
+      console.warn(`Stale price data from ${quote.dexName}, age: ${(now - quote.timestamp) / 1000} seconds`);
       return false;
     }
     
     return true;
   }
-
+  
   /**
-   * Validates price consistency across multiple sources
+   * Validate that prices across sources are consistent
    */
   static validatePriceConsistency(quotes: PriceResult[]): boolean {
-    if (quotes.length < 2) return true;
-
+    if (quotes.length <= 1) {
+      return true; // Not enough quotes to compare
+    }
+    
     const prices = quotes.map(q => q.price);
-    const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+    const avgPrice = prices.reduce((sum, price) => sum + price, 0) / prices.length;
     
-    // Calculate standard deviation
-    const variance = prices.reduce((acc, price) => {
-      const diff = price - avgPrice;
-      return acc + (diff * diff);
-    }, 0) / prices.length;
-    const stdDev = Math.sqrt(variance);
+    // Check if any price deviates by more than 15% from the average
+    const maxDeviation = 0.15;
     
-    // If standard deviation is more than 5% of average price, consider prices inconsistent
-    const maxDeviation = avgPrice * 0.05;
-    
-    if (stdDev > maxDeviation) {
-      console.warn('Price inconsistency detected:', {
-        avgPrice,
-        stdDev,
-        maxDeviation,
-        prices
-      });
-      return false;
+    for (let i = 0; i < prices.length; i++) {
+      const deviation = Math.abs(prices[i] - avgPrice) / avgPrice;
+      
+      if (deviation > maxDeviation) {
+        console.warn(`Price inconsistency detected: ${quotes[i].source} price ${prices[i]} deviates from avg ${avgPrice} by ${deviation * 100}%`);
+        return false;
+      }
     }
     
     return true;

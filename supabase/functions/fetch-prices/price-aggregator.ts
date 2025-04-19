@@ -1,12 +1,7 @@
+
 import { DexAdapter, PriceResult, TokenPair } from './types.ts';
-import { UniswapAdapter } from './dex-adapters/uniswap.ts';
-import { SushiswapAdapter } from './dex-adapters/sushiswap.ts';
-import { PancakeSwapAdapter } from './dex-adapters/pancakeswap.ts';
-import { JupiterAdapter } from './dex-adapters/jupiter.ts';
-import { BalancerAdapter } from './dex-adapters/balancer.ts';
-import { CurveAdapter } from './dex-adapters/curve.ts';
-import { OrcaAdapter } from './dex-adapters/orca.ts';
-import { RaydiumAdapter } from './dex-adapters/raydium.ts';
+import { JupiterAdapter } from './adapters/jupiter-adapter.ts';
+import { OneInchAdapter } from './adapters/one-inch-adapter.ts';
 import { rateLimiter } from './utils/rate-limiter.ts';
 import { PriceValidation } from './utils/price-validation.ts';
 
@@ -20,22 +15,13 @@ export class PriceAggregator {
 
   constructor() {
     // Initialize DEX adapters
-    this.adapters.push(new UniswapAdapter());
-    this.adapters.push(new SushiswapAdapter());
-    this.adapters.push(new PancakeSwapAdapter());
-    
-    // EVM specialized adapters
-    this.adapters.push(new BalancerAdapter());
-    this.adapters.push(new CurveAdapter());
-    
-    // Solana adapters
     this.adapters.push(new JupiterAdapter());
-    this.adapters.push(new OrcaAdapter());
-    this.adapters.push(new RaydiumAdapter());
+    this.adapters.push(new OneInchAdapter());
   }
 
   async getPrices(pair: TokenPair): Promise<Record<string, PriceResult>> {
-    const cacheKey = `${pair.baseToken.address}-${pair.quoteToken.address}-${pair.chainId}`;
+    const chainId = pair.baseToken.chainId;
+    const cacheKey = `${pair.baseToken.address}-${pair.quoteToken.address}-${chainId}`;
     const cachedResult = this.cache.get(cacheKey);
     
     if (cachedResult && (Date.now() - cachedResult.timestamp) < this.cacheDuration) {
@@ -47,16 +33,12 @@ export class PriceAggregator {
     
     // Filter adapters based on chain ID
     const applicableAdapters = this.adapters.filter(adapter => {
-      if (pair.chainId === 101) {
+      if (chainId === 101) {
         // For Solana (chainId 101), use only Solana-compatible adapters
-        return adapter instanceof JupiterAdapter || 
-               adapter instanceof OrcaAdapter || 
-               adapter instanceof RaydiumAdapter;
+        return adapter instanceof JupiterAdapter;
       } else {
         // For EVM chains, use EVM-compatible adapters
-        return !(adapter instanceof JupiterAdapter || 
-                adapter instanceof OrcaAdapter || 
-                adapter instanceof RaydiumAdapter);
+        return adapter instanceof OneInchAdapter;
       }
     });
 
@@ -69,7 +51,7 @@ export class PriceAggregator {
         const result = await adapter.getPrice(
           pair.baseToken.address,
           pair.quoteToken.address,
-          pair.chainId
+          pair.baseToken.chainId
         );
         
         if (result) {
@@ -100,10 +82,11 @@ export class PriceAggregator {
 
     // Validate price consistency across sources
     const quotes = Object.values(results);
-    const isConsistent = PriceValidation.validatePriceConsistency(quotes);
-
-    if (!isConsistent) {
-      console.warn('Price inconsistency detected across sources');
+    if (quotes.length > 1) {
+      const isConsistent = PriceValidation.validatePriceConsistency(quotes);
+      if (!isConsistent) {
+        console.warn('Price inconsistency detected across sources');
+      }
     }
 
     return results;

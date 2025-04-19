@@ -3,13 +3,20 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { OneInchAdapter } from "./adapters/one-inch-adapter.ts"
 import { JupiterAdapter } from "./adapters/jupiter-adapter.ts"
-import { corsHeaders } from "../_shared/cors.ts"
+import { TokenPair } from "./types.ts"
+import { PriceValidation } from "./utils/price-validation.ts"
+
+// CORS headers for cross-origin requests
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
 const CACHE_DURATION = 30000; // 30 seconds
 const priceCache = new Map();
 
 serve(async (req) => {
-  // Handle CORS
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -48,7 +55,19 @@ serve(async (req) => {
 
     results.forEach((result, index) => {
       if (result.status === 'fulfilled' && result.value) {
-        prices[adapters[index].getName()] = result.value;
+        const quote = result.value;
+        
+        // Validate the price quote
+        const isValid = PriceValidation.validateQuote({
+          dexName: adapters[index].getName(),
+          price: quote.price,
+          liquidityUSD: quote.liquidity,
+          timestamp: quote.timestamp
+        });
+        
+        if (isValid) {
+          prices[adapters[index].getName()] = quote;
+        }
       }
     });
 

@@ -21,3 +21,8 @@ export interface TokenPair {
     chainId: number;
   };
 }
+
+export interface DexAdapter {
+  getName(): string;
+  getPrice(baseTokenAddress: string, quoteTokenAddress: string, chainId: number): Promise<PriceResult | null>;
+}

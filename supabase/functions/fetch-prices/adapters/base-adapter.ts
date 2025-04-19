@@ -94,4 +94,9 @@ export abstract class BaseAdapter {
     
     return fees[dexName.toLowerCase()] || 0.003;
   }
+  
+  protected handleError(error: unknown, dexName: string): null {
+    console.error(`Error in ${dexName} adapter:`, error);
+    return null;
+  }
 }

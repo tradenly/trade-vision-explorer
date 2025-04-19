@@ -4,28 +4,42 @@ project_id = "fkagpyfzgczcaxsqwsoi"
 [api]
 enabled = true
 port = 54321
-schemas = ["public", "storage"]
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
 
 [db]
 port = 54322
+shadow_port = 54320
+major_version = 15
 
 [studio]
+enabled = true
 port = 54323
+api_url = "http://localhost"
 
 [inbucket]
-port = 54324
-
-[storage]
 enabled = true
+port = 54324
+smtp_port = 54325
+pop3_port = 54326
 
 [auth]
+enabled = true
+site_url = "http://localhost:3000"
+
+[storage]
 enabled = true
 
 [realtime]
 enabled = true
 
-[functions.real-time-prices]
-verify_jwt = false
+[analytics]
+enabled = true
 
-[functions.execute-trade]
+[vector]
+enabled = true
+
+[functions]
+[functions.fetch-prices]
 verify_jwt = false
