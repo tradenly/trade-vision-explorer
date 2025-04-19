@@ -1,135 +1,91 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { TokenInfo } from '@/services/tokenListService';
 import { PriceQuote } from '@/services/dex/types';
-import { RealTimePriceMonitor } from '@/services/dex/services/RealTimePriceMonitor';
-import { PriceService } from '@/services/dex/services/PriceService';
-import DexRegistry from '@/services/dex/DexRegistry';
-import { supabase } from '@/lib/supabaseClient';
+import { OnChainPriceService } from '@/services/dex/services/OnChainPriceService';
+import { useToast } from './use-toast';
 
-export interface PriceImpactInfo {
-  priceImpact: number;
-  isHigh: boolean;
-  slippageAdjustedPrice: number;
-}
-
-export function useRealTimePrices(baseToken: TokenInfo | null, quoteToken: TokenInfo | null) {
+/**
+ * Hook to fetch real-time price data for a token pair
+ */
+export function useRealTimePrices(
+  baseToken: TokenInfo | null,
+  quoteToken: TokenInfo | null,
+  refreshInterval = 10000  // Refresh every 10 seconds by default
+) {
   const [prices, setPrices] = useState<Record<string, PriceQuote>>({});
-  const [priceImpacts, setPriceImpacts] = useState<Record<string, PriceImpactInfo>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-
-  // Calculate price impact based on investment amount and liquidity
-  const calculatePriceImpact = useCallback((dexName: string, investmentAmount: number = 1000) => {
-    if (!prices[dexName]) return null;
-    
-    const quote = prices[dexName];
-    const liquidity = quote.liquidityUSD || investmentAmount * 100; // Default to 100x investment if no liquidity info
-    
-    // Simple price impact model: (investment / liquidity) * 100
-    const impact = Math.min((investmentAmount / liquidity) * 100, 10); // Cap at 10%
-    
-    // Apply impact to price - default to true if isBuy is undefined
-    const slippageAdjustedPrice = quote.isBuy !== false
-      ? quote.price * (1 + impact / 100)  // Buy price increases with impact
-      : quote.price * (1 - impact / 100); // Sell price decreases with impact
-    
-    return {
-      priceImpact: impact,
-      isHigh: impact > 3, // Consider anything over 3% as high impact
-      slippageAdjustedPrice
-    };
-  }, [prices]);
-
-  // Update price impacts when prices change
+  const { toast } = useToast();
+  
   useEffect(() => {
-    if (Object.keys(prices).length > 0) {
-      const impacts: Record<string, PriceImpactInfo> = {};
-      
-      Object.keys(prices).forEach(dexName => {
-        const impact = calculatePriceImpact(dexName);
-        if (impact) {
-          impacts[dexName] = impact;
-        }
-      });
-      
-      setPriceImpacts(impacts);
+    if (!baseToken || !quoteToken) {
+      return;
     }
-  }, [prices, calculatePriceImpact]);
 
-  useEffect(() => {
-    if (!baseToken || !quoteToken) return;
-
+    // Initialize on-chain price service
+    const priceService = OnChainPriceService.getInstance();
+    let isMounted = true;
     setLoading(true);
-    setError(null);
 
-    const dexRegistry = DexRegistry.getInstance();
-    const priceService = new PriceService(dexRegistry);
-    const monitor = RealTimePriceMonitor.getInstance(priceService);
-
-    // Generate pair key
-    const pairKey = `${baseToken.symbol}-${quoteToken.symbol}-${baseToken.chainId}`;
-
-    // Start monitoring this pair
-    monitor.startMonitoring(baseToken, quoteToken);
-
-    // Subscribe to real-time updates
-    const channel = supabase.channel('price-updates')
-      .on('broadcast', { event: 'price-update' }, (payload) => {
-        if (payload.payload.pairKey === pairKey) {
-          // Add timestamp to each price quote
-          const quotesWithTimestamp = { ...payload.payload.quotes };
-          Object.entries(quotesWithTimestamp).forEach(([key, quote]: [string, any]) => {
-            quotesWithTimestamp[key] = {
-              ...quote,
-              timestamp: Date.now(),
-              dexName: key
-            };
-          });
-          
-          setPrices(quotesWithTimestamp);
-          setLastUpdated(new Date());
+    // Function to fetch prices
+    const fetchPrices = async () => {
+      try {
+        console.log(`Fetching prices for ${baseToken.symbol}/${quoteToken.symbol}`);
+        const onChainPrices = await priceService.getOnChainPrices(baseToken, quoteToken);
+        
+        if (isMounted) {
+          if (Object.keys(onChainPrices).length > 0) {
+            setPrices(onChainPrices);
+            setError(null);
+          } else {
+            // Don't update state if no prices returned, but don't set error
+            console.log('No prices returned from price service');
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching real-time prices:', err);
+        if (isMounted) {
+          setError('Failed to fetch real-time prices');
+        }
+      } finally {
+        if (isMounted) {
           setLoading(false);
         }
-      })
-      .subscribe();
-
-    // Initial price fetch
-    priceService.fetchLatestPricesForPair(baseToken, quoteToken)
-      .then(quotes => {
-        // Add timestamp to each price quote
-        const quotesWithTimestamp = { ...quotes };
-        Object.entries(quotesWithTimestamp).forEach(([key, quote]: [string, any]) => {
-          quotesWithTimestamp[key] = {
-            ...quote,
-            timestamp: Date.now(),
-            dexName: key
-          };
-        });
-        
-        setPrices(quotesWithTimestamp);
-        setLastUpdated(new Date());
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('Error fetching initial prices:', err);
-        setError('Failed to fetch initial prices');
-        setLoading(false);
-      });
-
-    return () => {
-      monitor.stopMonitoring(baseToken, quoteToken);
-      supabase.removeChannel(channel);
+      }
     };
-  }, [baseToken, quoteToken]);
 
-  return { 
-    prices, 
-    priceImpacts,
-    loading, 
-    error, 
-    lastUpdated,
-    calculatePriceImpact
+    // Fetch prices immediately
+    fetchPrices();
+
+    // Set up interval for refreshing prices
+    const intervalId = setInterval(fetchPrices, refreshInterval);
+
+    // Clean up
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
+  }, [baseToken, quoteToken, refreshInterval]);
+
+  // Return states
+  return {
+    prices,
+    loading,
+    error,
+    refresh: async () => {
+      setLoading(true);
+      try {
+        const priceService = OnChainPriceService.getInstance();
+        if (baseToken && quoteToken) {
+          const refreshedPrices = await priceService.getOnChainPrices(baseToken, quoteToken);
+          setPrices(refreshedPrices);
+        }
+      } catch (err) {
+        console.error('Error refreshing prices:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 }

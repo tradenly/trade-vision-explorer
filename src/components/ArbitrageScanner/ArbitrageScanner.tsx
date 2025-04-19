@@ -41,6 +41,7 @@ const ArbitrageScanner: React.FC = () => {
     lastScanTime 
   } = useArbitrageScanner(baseToken, quoteToken, investmentAmount, scanOptions, autoScan);
 
+  // Use our new real-time prices hook
   const { prices: realTimePrices, loading: pricesLoading } = useRealTimePrices(baseToken, quoteToken);
   
   // Get the appropriate wallet based on the network of selectedOpportunity

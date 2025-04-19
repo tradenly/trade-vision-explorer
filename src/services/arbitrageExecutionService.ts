@@ -1,106 +1,92 @@
 
 import { supabase } from '@/lib/supabaseClient';
-import { ArbitrageOpportunity } from '@/services/dexService';
-import { TokenInfo } from '@/services/tokenListService';
+import { ArbitrageOpportunity } from '@/services/arbitrage/types';
 import { TransactionStatus } from '@/services/dex/types';
 import { useEthereumWallet } from '@/context/EthereumWalletContext';
 import { useSolanaWallet } from '@/context/SolanaWalletContext';
-import { TradeExecutionService } from './dex/services/TradeExecutionService';
-import { FeeService } from './dex/services/FeeService';
-import { PriceImpactService } from './dex/services/PriceImpactService';
+import { useState, useEffect } from 'react';
 
 /**
- * Execute an arbitrage trade using the connected wallet
+ * Executes an arbitrage trade
  */
 export async function executeArbitrageTrade(
   opportunity: ArbitrageOpportunity,
   walletAddress: string,
   investmentAmount: number = 1000,
   slippageTolerance: number = 0.5
-): Promise<{
-  status: TransactionStatus;
-  error?: string;
-  txHash?: string;
-  details?: any;
-}> {
+) {
   try {
-    // Use the TradeExecutionService to handle the trade
-    const tradeService = TradeExecutionService.getInstance();
+    console.log(`Executing trade: ${opportunity.id} with wallet ${walletAddress}`);
+    console.log(`Investment: $${investmentAmount}, slippage: ${slippageTolerance}%`);
     
-    return await tradeService.executeArbitrageTrade(
-      opportunity,
-      walletAddress,
-      investmentAmount,
-      slippageTolerance
-    );
+    // Call Supabase Edge Function
+    const { data, error } = await supabase.functions.invoke('execute-trade', {
+      body: {
+        opportunity,
+        walletAddress,
+        investmentAmount,
+        slippageTolerance
+      }
+    });
+
+    if (error) {
+      console.error('Error executing trade:', error);
+      return {
+        status: TransactionStatus.ERROR,
+        error: error.message
+      };
+    }
+
+    if (!data.success) {
+      return {
+        status: TransactionStatus.ERROR,
+        error: data.error || 'Unknown error'
+      };
+    }
+
+    return {
+      status: TransactionStatus.SUCCESS,
+      txHash: data.txHash,
+      details: data.details
+    };
   } catch (error) {
-    console.error('Unexpected error executing trade:', error);
+    console.error('Error in executeArbitrageTrade:', error);
     return {
       status: TransactionStatus.ERROR,
-      error: error instanceof Error ? error.message : 'An unexpected error occurred'
+      error: error instanceof Error ? error.message : 'Unknown error'
     };
   }
 }
 
 /**
- * Execute token approval transaction if needed
- */
-export async function executeTokenApproval(
-  token: TokenInfo,
-  walletAddress: string,
-  network: string
-): Promise<{
-  status: TransactionStatus;
-  error?: string;
-  txHash?: string;
-  details?: any;
-}> {
-  try {
-    // Use the TradeExecutionService to handle token approval
-    const tradeService = TradeExecutionService.getInstance();
-    
-    return await tradeService.approveToken(
-      token,
-      walletAddress,
-      network
-    );
-  } catch (error) {
-    console.error('Error approving token:', error);
-    return {
-      status: TransactionStatus.ERROR,
-      error: error instanceof Error ? error.message : 'An unexpected error occurred'
-    };
-  }
-}
-
-/**
- * Custom hook for using wallet connections based on chain type
+ * Hook to get the appropriate wallet for an arbitrage opportunity
  */
 export function useWalletForArbitrage(network: string) {
-  const { address: evmAddress, isConnected: isEvmConnected } = useEthereumWallet();
-  const { address: solanaAddress, isConnected: isSolanaConnected } = useSolanaWallet();
+  // For EVM chains
+  const { 
+    address: ethAddress, 
+    isConnected: isEthConnected 
+  } = useEthereumWallet();
   
-  const isSolanaNetwork = network.toLowerCase() === 'solana';
+  // For Solana
+  const {
+    publicKey: solAddress,
+    connected: isSolConnected
+  } = useSolanaWallet();
   
-  return {
-    address: isSolanaNetwork ? solanaAddress : evmAddress,
-    isConnected: isSolanaNetwork ? isSolanaConnected : isEvmConnected,
-    walletType: isSolanaNetwork ? 'solana' : 'evm'
-  };
-}
-
-/**
- * Calculate max trade size based on available liquidity
- */
-export function calculateMaxTradeSize(liquidity: number): number {
-  const priceImpactService = PriceImpactService.getInstance();
-  return priceImpactService.calculateMaxTradeSize(liquidity);
-}
-
-/**
- * Calculate platform fee for a trade amount
- */
-export function calculatePlatformFee(tradeAmount: number): number {
-  const feeService = FeeService.getInstance();
-  return feeService.calculatePlatformFee(tradeAmount);
+  const [address, setAddress] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState<boolean>(false);
+  
+  useEffect(() => {
+    if (network === 'solana') {
+      setAddress(solAddress?.toString() || null);
+      setIsConnected(isSolConnected);
+    } else {
+      // Default to EVM wallet for all other networks
+      setAddress(ethAddress || null);
+      setIsConnected(isEthConnected);
+    }
+  }, [network, ethAddress, isEthConnected, solAddress, isSolConnected]);
+  
+  return { address, isConnected };
 }
