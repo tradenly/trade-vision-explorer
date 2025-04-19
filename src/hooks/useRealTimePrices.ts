@@ -1,9 +1,7 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { TokenInfo } from '@/services/tokenListService';
 import { PriceQuote } from '@/services/dex/types';
 import { RealTimePriceService } from '@/services/dex/services/RealTimePriceService';
-import DexRegistry from '@/services/dex/DexRegistry';
 
 export function useRealTimePrices(
   baseToken: TokenInfo | null, 
@@ -15,9 +13,8 @@ export function useRealTimePrices(
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   
-  // The RealTimePriceService is a singleton and doesn't require parameters for getInstance()
-  // But it might be initialized from its internal implementation
-  const priceService = useRef<RealTimePriceService>(RealTimePriceService.getInstance());
+  // Use the singleton method without additional parameters
+  const priceService = useRef(RealTimePriceService.getInstance());
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
   
   const fetchPrices = async () => {
