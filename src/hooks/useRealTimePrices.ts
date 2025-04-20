@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { TokenInfo } from '@/services/tokenListService';
 import { PriceQuote } from '@/services/dex/types';
@@ -18,8 +17,7 @@ export function useRealTimePrices(
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
   
   useEffect(() => {
-    // Initialize the RealTimePriceService without parameters
-    // https://stackoverflow.com/questions/70951092/how-to-fix-ts2554-expected-1-arguments-but-got-0
+    // Initialize the RealTimePriceService
     priceServiceRef.current = RealTimePriceService.getInstance();
     return () => {
       if (intervalRef.current) {
