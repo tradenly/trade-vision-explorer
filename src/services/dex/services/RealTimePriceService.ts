@@ -3,7 +3,7 @@ import { PriceQuote } from '@/services/dex/types';
 import { supabase } from '@/lib/supabaseClient';
 
 export class RealTimePriceService {
-  private static instance: RealTimePriceService;
+  private static instance: RealTimePriceService | null = null;
   private cache: Map<string, { data: Record<string, PriceQuote>, timestamp: number }>;
   private cacheDuration: number;
   private retryDelay: number;
@@ -16,9 +16,18 @@ export class RealTimePriceService {
     this.maxRetries = 2;
   }
   
-  public static getInstance(): RealTimePriceService {
+  public static getInstance(config?: { 
+    cacheDuration?: number;
+    retryDelay?: number;
+    maxRetries?: number;
+  }): RealTimePriceService {
     if (!RealTimePriceService.instance) {
       RealTimePriceService.instance = new RealTimePriceService();
+      if (config) {
+        RealTimePriceService.instance.cacheDuration = config.cacheDuration || 20000;
+        RealTimePriceService.instance.retryDelay = config.retryDelay || 2000;
+        RealTimePriceService.instance.maxRetries = config.maxRetries || 2;
+      }
     }
     return RealTimePriceService.instance;
   }
