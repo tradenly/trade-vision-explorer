@@ -1,3 +1,4 @@
+
 import { TokenInfo } from '@/services/tokenListService';
 import { PriceQuote } from '@/services/dex/types';
 import { supabase } from '@/lib/supabaseClient';
@@ -22,7 +23,7 @@ export class RealTimePriceService {
     this.maxRetries = config.maxRetries ?? 2;
   }
   
-  public static getInstance(config?: RealTimePriceServiceConfig): RealTimePriceService {
+  public static getInstance(config: RealTimePriceServiceConfig = {}): RealTimePriceService {
     if (!RealTimePriceService.instance) {
       RealTimePriceService.instance = new RealTimePriceService(config);
     }

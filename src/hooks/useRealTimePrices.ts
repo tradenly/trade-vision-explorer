@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { TokenInfo } from '@/services/tokenListService';
 import { PriceQuote } from '@/services/dex/types';
@@ -13,7 +14,12 @@ export function useRealTimePrices(
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   
-  const priceService = useRef(new RealTimePriceService.getInstance());
+  // Fix: properly call getInstance() with configuration
+  const priceService = useRef(RealTimePriceService.getInstance({
+    cacheDuration: refreshInterval,
+    retryDelay: 2000,
+    maxRetries: 2
+  }));
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
 
   const fetchPrices = async () => {
