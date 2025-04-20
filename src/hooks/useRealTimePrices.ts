@@ -14,13 +14,14 @@ export function useRealTimePrices(
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   
-  // Pass a configuration object to getInstance()
+  // Define the configuration object
   const priceServiceConfig = {
     cacheDuration: refreshInterval,
     retryDelay: 2000,
     maxRetries: 2
   };
   
+  // Pass the configuration object to getInstance()
   const priceService = useRef(RealTimePriceService.getInstance(priceServiceConfig));
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
 
@@ -51,7 +52,7 @@ export function useRealTimePrices(
     }
     
     if (baseToken && quoteToken && priceService.current) {
-      fetchPrices(false); // Pass the forceRefresh parameter
+      fetchPrices(false);
       
       if (refreshInterval > 0) {
         intervalRef.current = setInterval(() => fetchPrices(false), refreshInterval);
@@ -68,7 +69,7 @@ export function useRealTimePrices(
   const refreshPrices = () => {
     if (priceService.current) {
       priceService.current.clearCache();
-      fetchPrices(true); // Pass forceRefresh=true when manually refreshing
+      fetchPrices(true);
     }
   };
 
