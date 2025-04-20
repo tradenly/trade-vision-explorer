@@ -15,11 +15,13 @@ export function useRealTimePrices(
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   
   // Pass a configuration object to getInstance()
-  const priceService = useRef(RealTimePriceService.getInstance({
+  const priceServiceConfig = {
     cacheDuration: refreshInterval,
     retryDelay: 2000,
     maxRetries: 2
-  }));
+  };
+  
+  const priceService = useRef(RealTimePriceService.getInstance(priceServiceConfig));
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
 
   const fetchPrices = async (forceRefresh = false) => {
