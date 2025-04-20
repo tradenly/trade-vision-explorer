@@ -1,3 +1,4 @@
+
 import { TokenInfo } from '@/services/tokenListService';
 import { PriceQuote } from '@/services/dex/types';
 import { supabase } from '@/lib/supabaseClient';
@@ -18,7 +19,7 @@ export class RealTimePriceService {
   
   /**
    * Get singleton instance of RealTimePriceService
-   * No parameters needed
+   * @returns {RealTimePriceService} Singleton instance of the service
    */
   public static getInstance(): RealTimePriceService {
     if (!RealTimePriceService.instance) {
