@@ -1,10 +1,9 @@
-
 import { TokenInfo } from '@/services/tokenListService';
 import { PriceQuote } from '@/services/dex/types';
 import { supabase } from '@/lib/supabaseClient';
 
 export class RealTimePriceService {
-  private static instance: RealTimePriceService | null = null;
+  private static instance: RealTimePriceService;
   private cache: Map<string, { data: Record<string, PriceQuote>, timestamp: number }>;
   private cacheDuration: number;
   private retryDelay: number;
@@ -17,10 +16,6 @@ export class RealTimePriceService {
     this.maxRetries = 2;
   }
   
-  /**
-   * Get singleton instance of RealTimePriceService
-   * @returns {RealTimePriceService} Singleton instance of the service
-   */
   public static getInstance(): RealTimePriceService {
     if (!RealTimePriceService.instance) {
       RealTimePriceService.instance = new RealTimePriceService();
@@ -28,9 +23,6 @@ export class RealTimePriceService {
     return RealTimePriceService.instance;
   }
   
-  /**
-   * Get real-time prices for a token pair across multiple DEXes
-   */
   public async getPrices(
     baseToken: TokenInfo,
     quoteToken: TokenInfo,
@@ -39,7 +31,6 @@ export class RealTimePriceService {
     const cacheKey = `${baseToken.address}-${quoteToken.address}-${baseToken.chainId}`;
     const cachedData = this.cache.get(cacheKey);
     
-    // Return cached data if it's fresh and forceRefresh is not set
     if (cachedData && (Date.now() - cachedData.timestamp) < this.cacheDuration && !options.forceRefresh) {
       console.log('Using cached price data');
       return cachedData.data;
@@ -48,7 +39,6 @@ export class RealTimePriceService {
     try {
       console.log(`Fetching real-time prices for ${baseToken.symbol}/${quoteToken.symbol}`);
       
-      // Call Supabase Edge Function
       const { data, error } = await supabase.functions.invoke('fetch-prices', {
         body: { baseToken, quoteToken }
       });
@@ -62,7 +52,6 @@ export class RealTimePriceService {
         return this.getFallbackPrices(baseToken, quoteToken);
       }
       
-      // Convert to PriceQuote format
       const quotes: Record<string, PriceQuote> = {};
       
       for (const dex in data.prices) {
@@ -78,7 +67,6 @@ export class RealTimePriceService {
         };
       }
       
-      // Update cache
       this.cache.set(cacheKey, {
         data: quotes,
         timestamp: Date.now()
@@ -88,29 +76,22 @@ export class RealTimePriceService {
     } catch (error) {
       console.error('Error fetching real-time prices:', error);
       
-      // Implement retry with exponential backoff
       if (options.retries < this.maxRetries) {
         console.log(`Retrying price fetch (attempt ${options.retries + 1}/${this.maxRetries})`);
         
-        // Wait before retrying
         await new Promise(resolve => setTimeout(resolve, this.retryDelay * Math.pow(2, options.retries)));
         
-        // Retry with incremented retry count
         return this.getPrices(baseToken, quoteToken, { 
           forceRefresh: options.forceRefresh, 
           retries: options.retries + 1 
         });
       }
       
-      // If all retries fail, fallback to database
       console.log('All retries failed, falling back to database');
       return this.getFallbackPrices(baseToken, quoteToken);
     }
   }
   
-  /**
-   * Fallback method to retrieve prices from database
-   */
   private async getFallbackPrices(
     baseToken: TokenInfo,
     quoteToken: TokenInfo
@@ -132,7 +113,6 @@ export class RealTimePriceService {
       const processedDexes = new Set<string>();
       
       if (data && data.length > 0) {
-        // Group by DEX and get most recent price for each
         data.forEach(item => {
           if (!processedDexes.has(item.dex_name)) {
             processedDexes.add(item.dex_name);
@@ -152,7 +132,6 @@ export class RealTimePriceService {
         console.log(`Found ${Object.keys(quotes).length} DEXes with prices in database`);
       }
       
-      // If no database prices, generate mock data as last resort
       if (Object.keys(quotes).length === 0) {
         console.log('No database prices found, generating mock data');
         return this.generateMockPrices(baseToken, quoteToken);
@@ -165,9 +144,6 @@ export class RealTimePriceService {
     }
   }
   
-  /**
-   * Generate mock prices as last resort
-   */
   private generateMockPrices(
     baseToken: TokenInfo,
     quoteToken: TokenInfo
@@ -179,7 +155,6 @@ export class RealTimePriceService {
                      baseToken.symbol === 'SOL' ? 150 :
                      baseToken.symbol === 'BNB' ? 550 : 10;
     
-    // Generate slightly different prices for each DEX
     const dexes = baseToken.chainId === 101 ? 
       ['jupiter', 'orca', 'raydium'] :
       baseToken.chainId === 56 ?
@@ -189,8 +164,7 @@ export class RealTimePriceService {
     const quotes: Record<string, PriceQuote> = {};
     
     dexes.forEach((dex, index) => {
-      // Add a small percentage difference to each DEX
-      const priceModifier = 1 + (index - 1) * 0.02; // -2%, 0%, +2%
+      const priceModifier = 1 + (index - 1) * 0.02;
       
       quotes[dex] = {
         dexName: dex,
@@ -207,16 +181,10 @@ export class RealTimePriceService {
     return quotes;
   }
   
-  /**
-   * Clear the price cache
-   */
   public clearCache(): void {
     this.cache.clear();
   }
   
-  /**
-   * Get typical trading fee for a DEX
-   */
   private getDexFee(dexName: string): number {
     const fees: Record<string, number> = {
       'uniswap': 0.003,
@@ -232,9 +200,6 @@ export class RealTimePriceService {
     return fees[dexName.toLowerCase()] || 0.003;
   }
   
-  /**
-   * Get gas estimate for a chain
-   */
   private getGasEstimate(chainId: number): number {
     switch (chainId) {
       case 1: return 5;
