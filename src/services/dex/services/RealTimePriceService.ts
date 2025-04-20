@@ -1,7 +1,12 @@
-
 import { TokenInfo } from '@/services/tokenListService';
 import { PriceQuote } from '@/services/dex/types';
 import { supabase } from '@/lib/supabaseClient';
+
+export interface RealTimePriceServiceConfig {
+  cacheDuration?: number;
+  retryDelay?: number;
+  maxRetries?: number;
+}
 
 export class RealTimePriceService {
   private static instance: RealTimePriceService | null = null;
@@ -10,25 +15,16 @@ export class RealTimePriceService {
   private retryDelay: number;
   private maxRetries: number;
   
-  private constructor() {
+  private constructor(config?: RealTimePriceServiceConfig) {
     this.cache = new Map();
-    this.cacheDuration = 20000; // 20 seconds
-    this.retryDelay = 2000; // 2 seconds
-    this.maxRetries = 2;
+    this.cacheDuration = config?.cacheDuration || 20000;
+    this.retryDelay = config?.retryDelay || 2000;
+    this.maxRetries = config?.maxRetries || 2;
   }
   
-  public static getInstance(config?: { 
-    cacheDuration?: number;
-    retryDelay?: number;
-    maxRetries?: number;
-  }): RealTimePriceService {
+  public static getInstance(config?: RealTimePriceServiceConfig): RealTimePriceService {
     if (!RealTimePriceService.instance) {
-      RealTimePriceService.instance = new RealTimePriceService();
-      if (config) {
-        RealTimePriceService.instance.cacheDuration = config.cacheDuration || 20000;
-        RealTimePriceService.instance.retryDelay = config.retryDelay || 2000;
-        RealTimePriceService.instance.maxRetries = config.maxRetries || 2;
-      }
+      RealTimePriceService.instance = new RealTimePriceService(config);
     }
     return RealTimePriceService.instance;
   }
