@@ -400,7 +400,7 @@ For **Lovable** to implement this arbitrage strategy successfully, you will need
 #### 3.1 **EVM-Based DEX APIs**
 To get prices from **Ethereum-based** DEXs (like Uniswap, SushiSwap), you can use libraries like **ethers.js** or **web3.js** to interact with smart contracts. You can also use **1inch API** to fetch token prices across multiple DEXs.
 
-- **1inch API**: [https://docs.1inch.io/](https://docs.1inch.io/)
+
 - **Uniswap API**: [https://uniswap.org/docs/v2/](https://uniswap.org/docs/v2/)
 - **SushiSwap API**: [https://sushi.com/docs/](https://sushi.com/docs/)
 
@@ -763,7 +763,7 @@ Use Lovable’s text capabilities to:
 ✅ OPEN-SOURCE TOOLS YOU’LL NEED
 Feature	Tool
 Token List	tokenlists.org, Solana Tokenlist
-Prices	1inch, Jupiter, Coingecko, Llama
+Prices Jupiter, Coingecko, Llama
 Arbitrage	Built by comparing price_data
 Copy Trading	Covalent / Solscan API
 Charts	Use react-apexcharts instead of TradingView
@@ -863,59 +863,16 @@ supabase functions new fetch-token-list
 
 fetch-token-list/index.ts
 
-Here’s a basic example to fetch token data using 1inch’s public API:
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
-serve(async (req) => {
-  const { chainId } = await req.json()
-
-  if (!chainId) {
-	return new Response(JSON.stringify({ error: 'Missing chainId' }), { status: 400 })
-  }
-
-  const res = await fetch(`https://tokens.1inch.io/v1.1/${chainId}`)
-  const data = await res.json()
-
-  return new Response(JSON.stringify(data), {
-	headers: { 'Content-Type': 'application/json' }
-  })
-})
-
-This will fetch tokens from 1inch for chains like:
-
-	Ethereum: 1
-
-	BSC: 56
-
-	Polygon: 137
-
-	Base: 8453
-
-Deploy the function:
-
-supabase functions deploy fetch-token-list
-
-You can now call this function from your front end like this:
-
-const response = await fetch('/functions/fetch-token-list', {
-  method: 'POST',
-  body: JSON.stringify({ chainId: 56 }) // for BNB
-})
-const tokenList = await response.json()
-
-Next Steps
-
-Add another function for fetching token prices from aggregators like 1inch, Dexscreener, or GeckoTerminal.
+Add another function for fetching token prices from aggregators like Dexscreener, or GeckoTerminal.
 
 Write cron jobs or triggers (Supabase scheduled jobs) to refresh token and price data.
 
 	Connect this to your React/Vite front end and store token data in the tokens table.
 
 Would you like me to go ahead and build the fetch-token-price function next, or help with the front-end React integration?
-You said:
-Yes
-ChatGPT said:
+
 
 Awesome — let’s move on to creating the fetch-token-price edge function and then I’ll walk you through how to connect it to your React (Vite) frontend to populate the token list and token prices.
 Step 4: Create fetch-token-price Edge Function
@@ -1047,62 +1004,7 @@ Here’s what I suggest we tackle next:
 
 	Solana integration (non-EVM; different approach — we’ll get there).
 
-Want me to move forward with Supabase DB write and cron jobs next?
-You said:
-Yes
-ChatGPT said:
 
-Perfect — let’s move on to the next phase:
-Step 6: Save Tokens and Prices into Supabase Database
-
-We’ll update your Edge Functions (fetch-token-list and fetch-token-price) so they not only fetch from external APIs but also save the results into Supabase tables (tokens, prices).
-### 6.1: Update fetch-token-list to Insert Tokens into Supabase DB
-
-Update your existing fetch-token-list/index.ts:
-
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const supabase = createClient(
-  Deno.env.get('SUPABASE_URL')!,
-  Deno.env.get('SUPABASE_ANON_KEY')!
-)
-
-serve(async (req) => {
-  const { chainId } = await req.json()
-
-  if (!chainId) {
-	return new Response(JSON.stringify({ error: 'Missing chainId' }), { status: 400 })
-  }
-
-  try {
-	const res = await fetch(`https://tokens.1inch.io/v1.1/${chainId}`)
-	const data = await res.json()
-
-	const tokenEntries = Object.values(data).map((token: any) => ({
-  	name: token.name,
-  	symbol: token.symbol,
-  	address: token.address,
-  	chain_id: chainId,
-  	logo_uri: token.logoURI,
-  	decimals: token.decimals
-	}))
-
-	for (const token of tokenEntries) {
-  	await supabase.from('tokens')
-    	.upsert(token, { onConflict: ['address', 'chain_id'] })
-	}
-
-	return new Response(JSON.stringify({ inserted: tokenEntries.length }), {
-  	headers: { 'Content-Type': 'application/json' }
-	})
-
-  } catch (e) {
-	return new Response(JSON.stringify({ error: 'Failed to fetch tokens' }), { status: 500 })
-  }
-})
-
-	Don’t forget to add your SUPABASE_URL and SUPABASE_ANON_KEY in a .env file inside your function’s folder or in the Supabase dashboard.
 
 ### 6.2: Update fetch-token-price to Store Price
 
