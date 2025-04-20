@@ -1,73 +1,273 @@
-# Welcome to your Lovable project
 
-## Project info
+# Tradenly AI Trading Bot
 
-**URL**: https://lovable.dev/projects/f5b04d07-3689-4e8b-8462-ebaa4e41fa88
+## Overview
+Tradenly is an advanced crypto trading bot that leverages AI and real-time market data to identify and execute arbitrage opportunities across multiple chains (EVM & Solana) and DEXes.
 
-## How can I edit this code?
+## Key Features
 
-There are several ways of editing your application.
+### 1. Multi-Chain Arbitrage Scanner
+- Real-time price monitoring across EVM chains (Ethereum, BNB, Base, etc.) and Solana
+- Automated arbitrage opportunity detection
+- Liquidity validation and slippage calculations
+- Gas fee optimization
+- Profit estimation including all fees
 
-**Use Lovable**
+### 2. Copy Trading System
+- Follow successful traders automatically
+- Real-time trade execution
+- Customizable risk parameters
+- Performance tracking
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/f5b04d07-3689-4e8b-8462-ebaa4e41fa88) and start prompting.
+### 3. AI Analysis System
+- Token evaluation (Buy/Sell/Hold signals)
+- Risk-based portfolio suggestions
+- Real-time market sentiment analysis
+- Profit optimization strategies
 
-Changes made via Lovable will be committed automatically to this repo.
+## Technical Architecture
 
-**Use your preferred IDE**
+### Frontend Stack
+- React + Vite
+- TypeScript
+- Tailwind CSS
+- shadcn/ui components
+- WebSocket integration for real-time updates
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Backend Infrastructure
+- Supabase for data persistence and real-time updates
+- Edge Functions for serverless computation
+- Real-time price feeds from multiple DEX APIs
+- WebSocket connections for live price updates
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### Supported Networks & DEXes
 
-Follow these steps:
+#### EVM Chains
+- Ethereum: Uniswap, Sushiswap, Curve
+- BNB Chain: PancakeSwap, BiSwap
+- Base: BaseSwap, Uniswap
+- Arbitrum: Camelot, Uniswap
+- Optimism: Velodrome, Uniswap
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+#### Solana
+- Jupiter Aggregator
+- Orca
+- Raydium
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## Core Components
 
-# Step 3: Install the necessary dependencies.
-npm i
+### Price Monitoring System
+- Real-time price feeds from DEX APIs
+- WebSocket connections for live updates
+- Price impact calculation
+- Liquidity monitoring
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+### Arbitrage Detection
+- Cross-DEX price comparison
+- Slippage estimation
+- Gas fee optimization
+- Profit calculation including all fees
+
+### Trade Execution
+- Smart contract interaction
+- Transaction signing
+- Gas price optimization
+- Failure recovery mechanisms
+
+## Database Schema
+
+### Key Tables
+- `arbitrage_opportunities`: Stores detected arbitrage opportunities
+- `trading_activity`: Records all trading actions
+- `price_data`: Historical price information
+- `dex_settings`: DEX configuration and parameters
+- `gas_fees`: Network gas price tracking
+
+## Getting Started
+
+### Prerequisites
+- Node.js 18+
+- npm or yarn
+- Supabase account
+- Wallet connections (MetaMask for EVM, Phantom for Solana)
+
+### Installation
+```bash
+# Clone the repository
+git clone <repository-url>
+
+# Install dependencies
+npm install
+
+# Set up environment variables
+cp .env.example .env
+
+# Start development server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+### Configuration
+1. Set up required API keys in `.env`:
+   - `MORALIS_API_KEY`
+   - `ALCHEMY_API_KEY`
+   - `INFURA_API_KEY`
+   - `OPENAI_API_KEY`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+2. Configure Supabase:
+   - Set up database tables
+   - Enable authentication
+   - Configure edge functions
 
-**Use GitHub Codespaces**
+## Development Guide
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Adding New Features
+1. Create feature branch
+2. Implement changes
+3. Add tests
+4. Submit PR for review
 
-## What technologies are used for this project?
+### Code Style
+- Follow TypeScript best practices
+- Use ESLint for code quality
+- Format with Prettier
+- Follow component-driven development
 
-This project is built with:
+### Testing
+```bash
+# Run unit tests
+npm run test
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+# Run e2e tests
+npm run test:e2e
+```
 
-## How can I deploy this project?
+## Deployment
 
-Simply open [Lovable](https://lovable.dev/projects/f5b04d07-3689-4e8b-8462-ebaa4e41fa88) and click on Share -> Publish.
+### Production Build
+```bash
+npm run build
+```
 
-## Can I connect a custom domain to my Lovable project?
+### Environment Setup
+1. Configure production environment variables
+2. Set up Supabase production project
+3. Deploy edge functions
+4. Configure domain and SSL
 
-Yes, you can!
+## Knowledge Base
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+### Arbitrage Trading Fundamentals
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+#### How Arbitrage Works
+Arbitrage involves exploiting price differences for the same asset across different markets (DEXs). For example, if Token A trades at $100 on DEX1 and $105 on DEX2, you can buy on DEX1 and sell on DEX2 for profit.
+
+#### Simple vs Multi-Route Arbitrage
+- **Simple Arbitrage**: Buy on one DEX, sell on another
+- **Multi-Route**: Complex paths involving multiple tokens and DEXs
+
+### Real-Time Price Monitoring
+
+#### Price Data Sources
+- DEX APIs
+- WebSocket connections
+- On-chain data
+- Price aggregators
+
+#### Slippage & Price Impact
+- Calculate based on liquidity depth
+- Adjust prices for trade size
+- Monitor price impact limits
+
+### Risk Management
+
+#### Trade Validation
+- Minimum profit thresholds
+- Maximum slippage tolerance
+- Liquidity requirements
+- Gas price limits
+
+#### Error Handling
+- Transaction failure recovery
+- Network congestion handling
+- Price deviation protection
+
+### Technical Integration Details
+
+#### EVM Chain Integration
+- Web3 provider setup
+- Contract interaction
+- Transaction signing
+- Gas estimation
+
+#### Solana Integration
+- Solana Web3.js implementation
+- Program interaction
+- Transaction building
+- Account management
+
+### AI Analysis System
+
+#### Asset Evaluation
+Input data includes:
+- Token Symbol (e.g., ETH, SOL)
+- Historical Price Charts
+- Volume trends
+- Social sentiment
+- On-chain metrics
+- Technical indicators
+
+#### Risk-Based Portfolio Suggestions
+Considers:
+- Risk tolerance
+- Investment amount
+- Market conditions
+- Historical performance
+
+### System Architecture
+
+#### Frontend Architecture
+- React components
+- State management
+- Real-time updates
+- Error handling
+
+#### Backend Services
+- Supabase integration
+- Edge functions
+- WebSocket handling
+- Database management
+
+### Development Guidelines
+
+#### Code Organization
+- Component-based architecture
+- Service layer abstraction
+- Hook-based state management
+- TypeScript type definitions
+
+#### Performance Optimization
+- Memoization
+- Efficient re-renders
+- Data caching
+- Network optimization
+
+## Contributing
+
+### Workflow
+1. Fork repository
+2. Create feature branch
+3. Implement changes
+4. Submit pull request
+
+### Guidelines
+- Follow TypeScript best practices
+- Maintain test coverage
+- Document changes
+- Keep components small and focused
+
+## License
+MIT License - see LICENSE file for details
+
+## Support
+For support, please open an issue in the repository or contact the development team.
+
