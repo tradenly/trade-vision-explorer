@@ -430,9 +430,6 @@ Here’s a list of the dependencies you will need to get the process working:
 - **Solana Web3.js** (for interacting with Solana-based DEXs)
   - `npm install @solana/web3.js`
  
-#### **For Multi-DEX Arbitrage**
-- **1inch API** (for price aggregation)
-  - API docs: [1inch API Documentation](https://docs.1inch.io/)
  
 #### **For Arbitrage Logic and Execution**
 - Use **React** and **Supabase** (or your backend framework) for real-time updates, user subscriptions, and executing trades.
