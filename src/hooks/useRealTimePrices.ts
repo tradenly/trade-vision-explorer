@@ -22,7 +22,7 @@ export function useRealTimePrices(
   }));
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
 
-  const fetchPrices = async () => {
+  const fetchPrices = async (forceRefresh = false) => {
     if (!baseToken || !quoteToken || !priceService.current) {
       return;
     }
@@ -31,7 +31,7 @@ export function useRealTimePrices(
       setLoading(true);
       setError(null);
       
-      const newPrices = await priceService.current.getPrices(baseToken, quoteToken);
+      const newPrices = await priceService.current.getPrices(baseToken, quoteToken, { forceRefresh, retries: 0 });
       
       setPrices(newPrices);
       setLastUpdated(new Date());
@@ -49,10 +49,10 @@ export function useRealTimePrices(
     }
     
     if (baseToken && quoteToken && priceService.current) {
-      fetchPrices();
+      fetchPrices(false); // Pass the forceRefresh parameter
       
       if (refreshInterval > 0) {
-        intervalRef.current = setInterval(fetchPrices, refreshInterval);
+        intervalRef.current = setInterval(() => fetchPrices(false), refreshInterval);
       }
     }
     
@@ -66,7 +66,7 @@ export function useRealTimePrices(
   const refreshPrices = () => {
     if (priceService.current) {
       priceService.current.clearCache();
-      fetchPrices();
+      fetchPrices(true); // Pass forceRefresh=true when manually refreshing
     }
   };
 
