@@ -53,8 +53,10 @@ const TradeDetails: React.FC<TradeDetailsProps> = ({
             <span>Buy on {opportunity.buyDex}</span>
             <TooltipProvider>
               <Tooltip>
-                <TooltipTrigger className="ml-1">
-                  <Info className="h-3 w-3 text-muted-foreground" />
+                <TooltipTrigger asChild>
+                  <button className="ml-1">
+                    <Info className="h-3 w-3 text-muted-foreground" />
+                  </button>
                 </TooltipTrigger>
                 <TooltipContent side="right">
                   <p>You will buy {opportunity.token} on {opportunity.buyDex} at this price</p>
@@ -89,8 +91,10 @@ const TradeDetails: React.FC<TradeDetailsProps> = ({
             <span>Sell on {opportunity.sellDex}</span>
             <TooltipProvider>
               <Tooltip>
-                <TooltipTrigger className="ml-1">
-                  <Info className="h-3 w-3 text-muted-foreground" />
+                <TooltipTrigger asChild>
+                  <button className="ml-1">
+                    <Info className="h-3 w-3 text-muted-foreground" />
+                  </button>
                 </TooltipTrigger>
                 <TooltipContent side="right">
                   <p>You will sell {opportunity.token} on {opportunity.sellDex} at this price</p>
