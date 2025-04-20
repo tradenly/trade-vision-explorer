@@ -14,7 +14,7 @@ export function useRealTimePrices(
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   
-  // Fix: Pass a configuration object to getInstance()
+  // Pass a configuration object to getInstance()
   const priceService = useRef(RealTimePriceService.getInstance({
     cacheDuration: refreshInterval,
     retryDelay: 2000,
