@@ -9,17 +9,17 @@ export interface RealTimePriceServiceConfig {
 }
 
 export class RealTimePriceService {
-  private static instance: RealTimePriceService | null = null;
+  private static instance: RealTimePriceService;
   private cache: Map<string, { data: Record<string, PriceQuote>, timestamp: number }>;
   private cacheDuration: number;
   private retryDelay: number;
   private maxRetries: number;
   
-  private constructor(config?: RealTimePriceServiceConfig) {
+  private constructor(config: RealTimePriceServiceConfig = {}) {
     this.cache = new Map();
-    this.cacheDuration = config?.cacheDuration || 20000;
-    this.retryDelay = config?.retryDelay || 2000;
-    this.maxRetries = config?.maxRetries || 2;
+    this.cacheDuration = config.cacheDuration ?? 20000;
+    this.retryDelay = config.retryDelay ?? 2000;
+    this.maxRetries = config.maxRetries ?? 2;
   }
   
   public static getInstance(config?: RealTimePriceServiceConfig): RealTimePriceService {
