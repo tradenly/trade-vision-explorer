@@ -14,7 +14,7 @@ export function useRealTimePrices(
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   
-  // Define the configuration object
+  // Define the configuration object with default values
   const priceServiceConfig = {
     cacheDuration: refreshInterval,
     retryDelay: 2000,
