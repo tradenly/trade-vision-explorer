@@ -18,8 +18,8 @@ export function useRealTimePrices(
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
   
   useEffect(() => {
-    // Initialize the RealTimePriceService
-    // The getInstance method doesn't take any parameters according to its definition
+    // Initialize the RealTimePriceService without parameters
+    // https://stackoverflow.com/questions/70951092/how-to-fix-ts2554-expected-1-arguments-but-got-0
     priceServiceRef.current = RealTimePriceService.getInstance();
     return () => {
       if (intervalRef.current) {
