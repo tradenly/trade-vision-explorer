@@ -18,6 +18,7 @@ export class RealTimePriceService {
   
   /**
    * Get singleton instance of RealTimePriceService
+   * No parameters needed
    */
   public static getInstance(): RealTimePriceService {
     if (!RealTimePriceService.instance) {
