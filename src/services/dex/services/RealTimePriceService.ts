@@ -33,7 +33,7 @@ export class RealTimePriceService {
   public async getPrices(
     baseToken: TokenInfo,
     quoteToken: TokenInfo,
-    options = { forceRefresh: false, retries: 0 }
+    options: { forceRefresh: boolean, retries: number } = { forceRefresh: false, retries: 0 }
   ): Promise<Record<string, PriceQuote>> {
     const cacheKey = `${baseToken.address}-${quoteToken.address}-${baseToken.chainId}`;
     const cachedData = this.cache.get(cacheKey);
@@ -154,7 +154,7 @@ export class RealTimePriceService {
   private generateMockPrices(
     baseToken: TokenInfo,
     quoteToken: TokenInfo
-  ): Promise<Record<string, PriceQuote>> | Record<string, PriceQuote> {
+  ): Record<string, PriceQuote> {
     console.log('Generating mock prices');
     
     const mockPrice = baseToken.symbol === 'ETH' ? 3200 : 
