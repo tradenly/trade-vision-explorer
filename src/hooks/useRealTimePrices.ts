@@ -68,7 +68,7 @@ export function useRealTimePrices(
 
   const refreshPrices = () => {
     if (priceService.current) {
-      priceService.current.clearCache();
+      priceService.current.clearCache(undefined);
       fetchPrices(true);
     }
   };
