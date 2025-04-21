@@ -1,7 +1,7 @@
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Dashboard from "./views/Dashboard";
@@ -29,14 +29,12 @@ const App = () => (
         <SolanaWalletProvider>
           <AppWrapper>
             <BrowserRouter>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/arbitrage" element={<ArbitrageAnalysis />} />
-                <Route path="/settings" element={<Settings />} />
-                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
+              <Route exact path="/" component={Index} />
+              <Route path="/dashboard" component={Dashboard} />
+              <Route path="/arbitrage" component={ArbitrageAnalysis} />
+              <Route path="/settings" component={Settings} />
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" component={NotFound} />
             </BrowserRouter>
           </AppWrapper>
         </SolanaWalletProvider>
