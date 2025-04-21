@@ -5,15 +5,28 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 
-const AlertDialog = AlertDialogPrimitive.Root
+const AlertDialog = React.forwardRef<
+  React.ElementRef<typeof AlertDialogPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Root>
+>(({ ...props }, ref) => (
+  <AlertDialogPrimitive.Root ref={ref} {...props} />
+))
+AlertDialog.displayName = AlertDialogPrimitive.Root.displayName
 
-const AlertDialogTrigger = AlertDialogPrimitive.Trigger
+const AlertDialogTrigger = React.forwardRef<
+  React.ElementRef<typeof AlertDialogPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Trigger>
+>(({ ...props }, ref) => (
+  <AlertDialogPrimitive.Trigger ref={ref} {...props} />
+))
+AlertDialogTrigger.displayName = AlertDialogPrimitive.Trigger.displayName
 
-const AlertDialogPortal = ({
-  ...props
-}: AlertDialogPrimitive.AlertDialogPortalProps) => (
+const AlertDialogPortal = React.forwardRef<
+  React.ElementRef<typeof AlertDialogPrimitive.Portal>,
+  React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Portal>
+>(({ ...props }, ref) => (
   <AlertDialogPrimitive.Portal {...props} />
-)
+))
 AlertDialogPortal.displayName = AlertDialogPrimitive.Portal.displayName
 
 const AlertDialogOverlay = React.forwardRef<
@@ -49,32 +62,34 @@ const AlertDialogContent = React.forwardRef<
 ))
 AlertDialogContent.displayName = AlertDialogPrimitive.Content.displayName
 
-const AlertDialogHeader = ({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+const AlertDialogHeader = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
   <div
+    ref={ref}
     className={cn(
       "flex flex-col space-y-2 text-center sm:text-left",
       className
     )}
     {...props}
   />
-)
+))
 AlertDialogHeader.displayName = "AlertDialogHeader"
 
-const AlertDialogFooter = ({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+const AlertDialogFooter = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
   <div
+    ref={ref}
     className={cn(
       "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
       className
     )}
     {...props}
   />
-)
+))
 AlertDialogFooter.displayName = "AlertDialogFooter"
 
 const AlertDialogTitle = React.forwardRef<
