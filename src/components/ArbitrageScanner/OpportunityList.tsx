@@ -48,7 +48,7 @@ export const OpportunityList: React.FC<OpportunityListProps> = ({ opportunities,
               </div>
               
               <div className="flex justify-end items-center">
-                <Button size="sm" onClick={() => onSelect(opportunity)}>
+                <Button onClick={() => onSelect(opportunity)}>
                   View Details
                 </Button>
               </div>

@@ -5,17 +5,7 @@ import { ChevronDown } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-const Accordion = React.forwardRef<
-  React.ElementRef<typeof AccordionPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Root>
->(({ className, ...props }, ref) => (
-  <AccordionPrimitive.Root
-    ref={ref}
-    className={cn("", className)}
-    {...props}
-  />
-))
-Accordion.displayName = AccordionPrimitive.Root.displayName
+const Accordion = AccordionPrimitive.Root
 
 const AccordionItem = React.forwardRef<
   React.ElementRef<typeof AccordionPrimitive.Item>,
