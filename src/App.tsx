@@ -30,12 +30,12 @@ const App = () => (
           <AppWrapper>
             <BrowserRouter>
               <Routes>
-                <Route path="/" Component={Index} />
-                <Route path="/dashboard" Component={Dashboard} />
-                <Route path="/arbitrage" Component={ArbitrageAnalysis} />
-                <Route path="/settings" Component={Settings} />
+                <Route path="/" element={<Index />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/arbitrage" element={<ArbitrageAnalysis />} />
+                <Route path="/settings" element={<Settings />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                <Route path="*" Component={NotFound} />
+                <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
           </AppWrapper>
