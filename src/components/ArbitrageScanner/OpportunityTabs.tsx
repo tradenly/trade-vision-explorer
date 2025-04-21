@@ -12,7 +12,7 @@ interface OpportunityTabsProps {
 export const OpportunityTabs: React.FC<OpportunityTabsProps> = ({ opportunities, onSelect }) => {
   return (
     <Tabs defaultValue="all">
-      <TabsList>
+      <TabsList className="grid grid-cols-4 mb-4">
         <TabsTrigger value="all">All</TabsTrigger>
         <TabsTrigger value="low-risk">Low Risk</TabsTrigger>
         <TabsTrigger value="medium-risk">Medium Risk</TabsTrigger>
