@@ -5,25 +5,9 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 
-const AlertDialog = React.forwardRef<
-  React.ElementRef<typeof AlertDialogPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Root>
->(({ children, ...props }, ref) => (
-  <AlertDialogPrimitive.Root ref={ref} {...props}>
-    {children}
-  </AlertDialogPrimitive.Root>
-))
-AlertDialog.displayName = AlertDialogPrimitive.Root.displayName
+const AlertDialog = AlertDialogPrimitive.Root
 
-const AlertDialogTrigger = React.forwardRef<
-  React.ElementRef<typeof AlertDialogPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Trigger>
->(({ children, ...props }, ref) => (
-  <AlertDialogPrimitive.Trigger ref={ref} {...props}>
-    {children}
-  </AlertDialogPrimitive.Trigger>
-))
-AlertDialogTrigger.displayName = AlertDialogPrimitive.Trigger.displayName
+const AlertDialogTrigger = AlertDialogPrimitive.Trigger
 
 const AlertDialogPortal = AlertDialogPrimitive.Portal
 
