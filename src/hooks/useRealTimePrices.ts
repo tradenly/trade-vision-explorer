@@ -34,6 +34,7 @@ export function useRealTimePrices(
       setLoading(true);
       setError(null);
       
+      // Pass an empty options object to ensure the function receives an argument
       const newPrices = await priceService.current.getPrices(baseToken, quoteToken, { forceRefresh, retries: 0 });
       
       setPrices(newPrices);

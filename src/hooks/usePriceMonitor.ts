@@ -36,7 +36,7 @@ export function usePriceMonitor(
             [payload.new.dex_name]: {
               price: payload.new.price,
               timestamp: payload.new.timestamp,
-              liquidity: payload.new.liquidity,
+              liquidityUSD: payload.new.liquidity,
               fees: payload.new.trading_fee
             }
           }));
@@ -62,7 +62,7 @@ export function usePriceMonitor(
             latestPrices[entry.dex_name] = {
               price: entry.price,
               timestamp: entry.timestamp,
-              liquidity: entry.liquidity,
+              liquidityUSD: entry.liquidity,
               fees: entry.trading_fee
             };
           }

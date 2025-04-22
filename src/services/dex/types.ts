@@ -1,3 +1,4 @@
+
 export interface PriceQuote {
   price: number;
   timestamp: number;
@@ -5,6 +6,9 @@ export interface PriceQuote {
   liquidityUSD?: number;
   isMock?: boolean;
   isFallback?: boolean;
+  dexName?: string;    // Added property
+  source?: string;     // Added property
+  gasEstimate?: number; // Added property
 }
 
 export enum TransactionStatus {
@@ -12,5 +16,24 @@ export enum TransactionStatus {
     PENDING = "PENDING",
     SUCCESS = "SUCCESS",
     ERROR = "ERROR",
-		NEEDS_APPROVAL = "NEEDS_APPROVAL"
+    NEEDS_APPROVAL = "NEEDS_APPROVAL"
+}
+
+// Add DexAdapter and DexConfig interfaces
+export interface DexConfig {
+  name: string;
+  slug: string;
+  chainIds: number[];
+  tradingFeePercentage: number;
+  enabled: boolean;
+}
+
+export interface DexAdapter {
+  getName(): string;
+  getSlug(): string;
+  getSupportedChains(): number[];
+  isEnabled(): boolean;
+  setEnabled(enabled: boolean): void;
+  getTradingFeePercentage(): number;
+  fetchQuote(baseToken: any, quoteToken: any, amount?: number): Promise<PriceQuote>;
 }

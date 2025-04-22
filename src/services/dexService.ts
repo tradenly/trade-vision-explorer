@@ -121,7 +121,7 @@ export async function scanForArbitrageOpportunities(
               tokenPair: tokenPair,
               token: baseToken.symbol,
               gasFee: gasFee,
-              liquidity: buyQuote.liquidity || sellQuote.liquidity || investmentAmount * 100, // Default to 100x investment amount if not specified
+              liquidity: buyQuote.liquidityUSD || sellQuote.liquidityUSD || investmentAmount * 100, // Use liquidityUSD instead of liquidity
               network: network,
               // Add new required properties
               buyPriceImpact: 0,
