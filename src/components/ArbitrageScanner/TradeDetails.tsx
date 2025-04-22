@@ -53,7 +53,7 @@ const TradeDetails: React.FC<TradeDetailsProps> = ({
             <span>Buy on {opportunity.buyDex}</span>
             <TooltipProvider>
               <Tooltip>
-                <TooltipTrigger asChild>
+                <TooltipTrigger>
                   <Info className="h-3 w-3 text-muted-foreground ml-1" />
                 </TooltipTrigger>
                 <TooltipContent side="right">
@@ -89,7 +89,7 @@ const TradeDetails: React.FC<TradeDetailsProps> = ({
             <span>Sell on {opportunity.sellDex}</span>
             <TooltipProvider>
               <Tooltip>
-                <TooltipTrigger asChild>
+                <TooltipTrigger>
                   <Info className="h-3 w-3 text-muted-foreground ml-1" />
                 </TooltipTrigger>
                 <TooltipContent side="right">

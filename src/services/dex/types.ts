@@ -6,9 +6,9 @@ export interface PriceQuote {
   liquidityUSD?: number;
   isMock?: boolean;
   isFallback?: boolean;
-  dexName?: string;    // Added property
-  source?: string;     // Added property
-  gasEstimate?: number; // Added property
+  dexName?: string;    
+  source?: string;     
+  gasEstimate?: number;
 }
 
 export enum TransactionStatus {
