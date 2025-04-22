@@ -54,7 +54,8 @@ export class CurveAdapter extends BaseAdapter {
         liquidityUSD: data.protocols?.[0]?.[0]?.liquidityInUsd || 1500000, // Curve typically has high liquidity
         liquidityInfo: {
           protocols: data.protocols || []
-        }
+        },
+        timestamp: Date.now() // Add timestamp
       };
     } catch (error) {
       console.error(`Error in ${this.getName()} quote:`, error);
@@ -75,7 +76,8 @@ export class CurveAdapter extends BaseAdapter {
             price: data[0].price * variation,
             fees: this.getTradingFeePercentage(),
             gasEstimate: 0.003, // Curve typically has lower gas
-            liquidityUSD: 1500000
+            liquidityUSD: 1500000,
+            timestamp: Date.now() // Add timestamp
           };
         }
       } catch (fallbackError) {
@@ -88,7 +90,8 @@ export class CurveAdapter extends BaseAdapter {
         price: this.getEstimatedPrice(baseToken, quoteToken),
         fees: this.getTradingFeePercentage(),
         gasEstimate: 0.003, // Curve typically has efficient gas usage
-        liquidityUSD: 1500000
+        liquidityUSD: 1500000,
+        timestamp: Date.now() // Add timestamp
       };
     }
   }

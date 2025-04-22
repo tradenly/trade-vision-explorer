@@ -58,7 +58,8 @@ export class BalancerAdapter extends BaseAdapter {
         liquidityUSD: data.protocols?.[0]?.[0]?.liquidityInUsd || 1200000, // Balancer typically has good liquidity
         liquidityInfo: {
           protocols: data.protocols || []
-        }
+        },
+        timestamp: Date.now() // Add timestamp
       };
     } catch (error) {
       console.error(`Error in ${this.getName()} quote:`, error);
@@ -79,7 +80,8 @@ export class BalancerAdapter extends BaseAdapter {
             price: data[0].price * variation,
             fees: this.getTradingFeePercentage(),
             gasEstimate: 0.005,
-            liquidityUSD: 1200000
+            liquidityUSD: 1200000,
+            timestamp: Date.now() // Add timestamp
           };
         }
       } catch (fallbackError) {
@@ -92,7 +94,8 @@ export class BalancerAdapter extends BaseAdapter {
         price: this.getEstimatedPrice(baseToken, quoteToken),
         fees: this.getTradingFeePercentage(),
         gasEstimate: 0.005,
-        liquidityUSD: 1200000
+        liquidityUSD: 1200000,
+        timestamp: Date.now() // Add timestamp
       };
     }
   }

@@ -61,7 +61,8 @@ export class OrcaAdapter extends BaseAdapter {
         liquidityInfo: {
           routes: data.routePlan || [],
           marketInfos: data.marketInfos || []
-        }
+        },
+        timestamp: Date.now() // Add timestamp
       };
 
     } catch (error) {
@@ -88,7 +89,8 @@ export class OrcaAdapter extends BaseAdapter {
           fees: this.getTradingFeePercentage(),
           gasEstimate: 0.00001, // Solana gas is very low
           liquidityUSD: 600000,
-          isFallback: true
+          isFallback: true,
+          timestamp: Date.now() // Add timestamp
         };
       }
       
@@ -101,7 +103,8 @@ export class OrcaAdapter extends BaseAdapter {
         fees: this.getTradingFeePercentage(),
         gasEstimate: 0.00001,
         liquidityUSD: 600000,
-        isFallback: true
+        isFallback: true,
+        timestamp: Date.now() // Add timestamp
       };
     }
   }

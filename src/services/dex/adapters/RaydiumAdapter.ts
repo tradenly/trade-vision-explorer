@@ -65,7 +65,8 @@ export class RaydiumAdapter extends BaseAdapter {
         liquidityUSD: liquidityUSD,
         liquidityInfo: {
           routes: data.routePlan || []
-        }
+        },
+        timestamp: Date.now() // Add timestamp
       };
     } catch (error) {
       console.error(`[RaydiumAdapter] Error:`, error);
@@ -93,7 +94,8 @@ export class RaydiumAdapter extends BaseAdapter {
           fees: this.getTradingFeePercentage(),
           gasEstimate: 0.00001, // Solana gas is very low
           liquidityUSD: 500000,
-          isFallback: true
+          isFallback: true,
+          timestamp: Date.now() // Add timestamp
         };
       }
       
@@ -107,7 +109,8 @@ export class RaydiumAdapter extends BaseAdapter {
         fees: this.getTradingFeePercentage(),
         gasEstimate: 0.00001,
         liquidityUSD: 500000,
-        isFallback: true
+        isFallback: true,
+        timestamp: Date.now() // Add timestamp
       };
     }
   }

@@ -75,7 +75,8 @@ export class SushiswapAdapter extends BaseAdapter {
         liquidityInfo: {
           reserveUSD: pair.reserveUSD,
           volumeUSD: pair.volumeUSD
-        }
+        },
+        timestamp: Date.now() // Add timestamp
       };
 
     } catch (error) {
@@ -120,14 +121,15 @@ export class SushiswapAdapter extends BaseAdapter {
       console.log(`[SushiswapAdapter] Fetched price for ${baseToken.symbol}/${quoteToken.symbol}: ${price}, gas: $${gasEstimateUSD}`);
       
       return {
-        source: this.getName(),
+        dexName: this.getName(),
         price: price,
         fees: this.getTradingFeePercentage(),
         gasEstimate: gasEstimateUSD,
         liquidityUSD: data.protocols?.[0]?.[0]?.liquidityInUsd || 800000, // Extract liquidity if available
         liquidityInfo: {
           protocols: data.protocols || []
-        }
+        },
+        timestamp: Date.now() // Add timestamp
       };
     } catch (error) {
       console.error(`Error in ${this.getName()} quote:`, error);
@@ -144,11 +146,12 @@ export class SushiswapAdapter extends BaseAdapter {
           // Add small variation to simulate slight price changes
           const variation = 0.97 + Math.random() * 0.06; // 0.97 - 1.03
           return {
-            source: this.getName(),
+            dexName: this.getName(),
             price: data[0].price * variation,
             fees: this.getTradingFeePercentage(),
             gasEstimate: 0.006, // Default estimated gas in USD for EVM chains
-            liquidityUSD: 800000 // Default liquidity estimate
+            liquidityUSD: 800000, // Default liquidity estimate
+            timestamp: Date.now() // Add timestamp
           };
         }
       } catch (fallbackError) {
@@ -157,11 +160,12 @@ export class SushiswapAdapter extends BaseAdapter {
       
       // If all fails, provide a fallback estimation
       return {
-        source: this.getName(),
+        dexName: this.getName(),
         price: this.getEstimatedPrice(baseToken, quoteToken),
         fees: this.getTradingFeePercentage(),
         gasEstimate: 0.006,
-        liquidityUSD: 800000
+        liquidityUSD: 800000,
+        timestamp: Date.now() // Add timestamp
       };
     }
   }

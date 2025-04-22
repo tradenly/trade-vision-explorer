@@ -63,7 +63,8 @@ export class PriceAggregationService {
                 timestamp: Date.now(),
                 // Set default values for liquidity if not provided
                 liquidityUSD: quote.liquidityUSD || this.estimateLiquidity(baseToken, adapter.getSlug()),
-                isBuy: true // Default to buy direction
+                isBuy: true, // Default to buy direction
+                liquidityInfo: quote.liquidityInfo || {} // Ensure liquidityInfo exists
               };
               
               return { [adapter.getSlug()]: enhancedQuote };
