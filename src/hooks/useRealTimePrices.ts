@@ -21,7 +21,7 @@ export function useRealTimePrices(
     maxRetries: 2
   };
   
-  // Pass the configuration object to getInstance()
+  // Fix: Pass the configuration object to getInstance()
   const priceService = useRef(RealTimePriceService.getInstance(priceServiceConfig));
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
 
