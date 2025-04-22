@@ -9,8 +9,8 @@ export interface PriceQuote {
   dexName?: string;    
   source?: string;     
   gasEstimate?: number;
-  liquidityInfo?: any;  // Add this to fix the errors
-  isBuy?: boolean;     // Add this to fix the errors
+  liquidityInfo?: any;  
+  isBuy?: boolean;     
 }
 
 export enum TransactionStatus {
